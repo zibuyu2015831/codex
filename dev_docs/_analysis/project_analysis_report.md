@@ -1,7 +1,7 @@
 ---
 title: Codex CLI 项目分析与问题报告
-summary: 记录 openai/codex 仓库 Phase 1 分析阶段发现的风险、警告、疑问与建议，全部条目标注证据等级、当前状态、是否阻断 Phase 1 及回写目标，并前置说明维护者治理规则对建议边界的约束；已含第 2 轮复查结果，即更正 Cargo crate 计数、解决版本管理疑问、新增公开发布脱敏红线警告。
-keywords: codex | analysis-report | risks | evidence-level | governance | phase1
+summary: 记录 openai/codex 仓库 Phase 1 分析阶段发现的风险、警告、疑问与建议，全部条目标注证据等级、当前状态、是否阻断 Phase 1 及回写目标，并前置说明维护者治理规则对建议边界的约束；已含第 2 轮复查结果（更正 Cargo crate 计数、解决版本管理疑问、新增公开发布脱敏红线警告），以及第二轮独立审查新增的警告 7——自验收流程本身不足以发现事实错误，首版验收在 15 项 HIGH 级事实错误存在的情况下判定通过，现已改判为 FAIL。
+keywords: codex | analysis-report | risks | evidence-level | governance | phase1 | self-acceptance-gap
 scope: openai/codex 仓库首次文档生成前的问题与风险报告
 related_files: AGENTS.md | docs/contributing.md | codex-rs/tui/src/bottom_pane/chat_composer.rs | codex-rs/otel/src/config.rs | codex-rs/analytics/src/client.rs | sdk/python/pyproject.toml
 dependencies: dev_docs/_analysis/generation_plan.md | dev_docs/_analysis/generation_progress.md
@@ -24,11 +24,15 @@ verified_at: 2026-08-03
 | 严重程度 | 数量 | 状态 |
 | -------- | ---- | -------- |
 | 🔴 严重 | 0 | 无 |
-| 🟡 警告 | 6 | 建议关注（均不阻断 Phase 1；警告 6 为第 2 轮复查新增） |
+| 🟡 警告 | 7 | 建议关注（警告 1-5 不阻断 Phase 1；警告 6 为第 2 轮复查新增；警告 7 为第二轮独立审查新增） |
 | 🔵 疑问 | 0 | **全部结案**（3 项：疑问 2 由用户行动解决，疑问 1、3 已获用户答复） |
 | 💡 建议 | 4 | 可选优化 |
 
+> 计数口径：🟡 一栏的数字等于下方 `### 警告 N` 小节的实际个数（当前 7 个），🔵 一栏为**仍待用户回答**的疑问数（当前 0；`### 疑问 N` 小节仍保留 3 个已结案条目，供追溯）。
+
 > 第 2 轮复查的净变化：新增警告 1 项（公开发布脱敏红线）、解决疑问 1 项（版本管理）、更正事实 1 项（Cargo crate 数 130 → 134）。
+>
+> 第二轮独立审查的净变化：新增警告 1 项（警告 7，自验收流程不足以发现事实错误）；首版验收结论由 `PASS_WITH_ACCEPTED_ISSUES` 改判为 **FAIL**，15 项 HIGH 级事实错误清单见 [`health_check_report.md`](./health_check_report.md)。
 >
 > **用户确认（2026-08-03）**：方案审核通过。疑问 1 答复「兼顾」，与保守结论一致，方案不变；疑问 3 答复「全部展开」，第 4 批新增 `experimental_surfaces.md`，正式文档由 16 篇增至 **17 篇**。已授权进入正式文档生成。
 
@@ -41,10 +45,10 @@ verified_at: 2026-08-03
 | 约束 | 证据 | 对本报告的影响 |
 | ---- | ---- | -------------- |
 | 外部代码贡献仅限受邀，未受邀 PR 直接关闭 | `docs/contributing.md:3-17`（"External contributions are by invitation only"、"Pull requests that have not been explicitly invited by a member of the Codex team will be closed without review"） | 本报告**不提出任何面向上游的修复待办**。所有代码层面的观察一律标注为"维护者规则约束下的长期观察"，不得作为 Phase 1 阻断项 |
-| 测试策略由 `AGENTS.md` 规定 | `AGENTS.md:29-31`（"Do not add tests for values that are statically defined"、"Do not add negative tests for logic that was removed"）、`:112-124`（集成测试优先） | 本报告不建议新增测试；测试相关内容只做**现状记录**，落入 `testing_guide.md` |
-| 格式化与 lint 流程固定 | `AGENTS.md:62-70`（`just fmt` / `just test -p` / `just fix -p`，禁止直接 `cargo test`） | 本报告不提出替代的格式化或测试命令 |
-| 变更规模上限 800 行 | `AGENTS.md:125-131` | 任何"重构建议"若超出该规模，只能写为需分阶段的长期建议 |
-| 禁止向 `docs/` 添加通用产品或用户文档 | `AGENTS.md:32` | 文档产物路径固定为仓库根 `dev_docs/` |
+| 测试策略由 `AGENTS.md` 规定 | AGENTS.md 顶部规则列表（测试条目）（"Do not add tests for values that are statically defined"、"Do not add negative tests for logic that was removed"）、「### Test authoring guidance」（集成测试优先） | 本报告不建议新增测试；测试相关内容只做**现状记录**，落入 `testing_guide.md` |
+| 格式化与 lint 流程固定 | AGENTS.md 顶部规则列表（just fmt / just test / just fix 段）（`just fmt` / `just test -p` / `just fix -p`，禁止直接 `cargo test`） | 本报告不提出替代的格式化或测试命令 |
+| 变更规模上限 800 行 | AGENTS.md「### Change size guidance (800 lines)」 | 任何"重构建议"若超出该规模，只能写为需分阶段的长期建议 |
+| 禁止向 `docs/` 添加通用产品或用户文档 | AGENTS.md 顶部规则列表（docs/ 条目） | 文档产物路径固定为仓库根 `dev_docs/` |
 
 > [!IMPORTANT]
 > 本报告的定位是**文档生成前的风险识别**，不是代码审计报告。未对上游代码执行安全或正确性审计，因此不产出 🔴 严重问题。
@@ -70,7 +74,7 @@ verified_at: 2026-08-03
 ### 警告 1: 文档产物落盘位置存在治理红线
 
 - **问题类型**: 治理约束 / 文档体系设计
-- **发现位置**: `AGENTS.md:32`
+- **发现位置**: AGENTS.md 顶部规则列表（docs/ 条目）
 - **证据等级**: E2（仓库规范文件明文）
 - **当前状态**: 已确认，已在方案中规避
 - **blocks_phase1**: false
@@ -78,7 +82,7 @@ verified_at: 2026-08-03
 
 **问题描述**:
 
-`AGENTS.md:32` 明文规定："Do not add general product or user-facing documentation to the `docs/` folder. The official Codex documentation lives elsewhere. The exception is app-server API documentation."
+AGENTS.md 顶部规则列表（docs/ 条目） 明文规定："Do not add general product or user-facing documentation to the `docs/` folder. The official Codex documentation lives elsewhere. The exception is app-server API documentation."
 
 若本文档体系被放入 `docs/`，将直接违反仓库对 AI 代理的强制规范。
 
@@ -98,13 +102,13 @@ verified_at: 2026-08-03
 ### 警告 2: 仓库自身规范与实测代码规模存在显著张力
 
 - **问题类型**: 规范与现状不一致（历史遗留）
-- **发现位置**: `AGENTS.md:49-61` vs 实测文件行数
+- **发现位置**: AGENTS.md 顶部规则列表（Avoid large modules 条目） vs 实测文件行数
 - **证据等级**: E4（`git ls-files "*.rs" | xargs wc -l | sort -rn` 实测）+ E2（规范文本）
 - **当前状态**: 已确认
 - **blocks_phase1**: false
 - **回写目标**: `development_workflow.md`、`tui_guide.md`、`AI_Coding_Context.md`「AI 编码禁忌」
 
-**规范要求**（`AGENTS.md:49-61`）:
+**规范要求**（AGENTS.md 顶部规则列表（Avoid large modules 条目））:
 
 - "Target Rust modules under 500 LoC, excluding tests."
 - "If a file exceeds roughly 800 LoC, add new functionality in a new module instead of extending the existing file"
@@ -127,7 +131,7 @@ verified_at: 2026-08-03
 
 **评价**:
 
-- 规范中的 500/800 LoC 目标是**对新增代码的约束**，而非对存量文件的整改要求。`AGENTS.md:52-53` 的措辞是"add new functionality in a new module instead of extending the existing file"，与存量并不矛盾。
+- 规范中的 500/800 LoC 目标是**对新增代码的约束**，而非对存量文件的整改要求。AGENTS.md 顶部规则列表（Avoid large modules 条目） 的措辞是"add new functionality in a new module instead of extending the existing file"，与存量并不矛盾。
 - 但若文档只复述规范而不给出实测现状，AI 与新人会在这些文件上产生误判。
 
 **处理方式（非修复建议）**:
@@ -261,6 +265,41 @@ Rust 主体 1,270,789 行、134 个 crate。即便分 4 批生成 17 篇文档�
 
 ---
 
+### 警告 7: 自验收流程本身不足以发现事实错误
+
+- **问题类型**: 流程缺陷（本文档体系自身）
+- **发现位置**: 首版 `health_check_report.md` 与本体系的自检门设计
+- **证据等级**: E4（5 项 checker 实跑结果）+ E3（7 个独立代理逐条回源码复核）
+- **当前状态**: 已确认，修复计划见 `health_check_report.md`
+- **blocks_phase1**: false（Phase 1 已结束；本条约束的是验收阶段）
+- **回写目标**: `rules/combined/AI_RULES.md` §5.3 与 §6、`generation_plan.md` 的验证清单
+- **新增轮次**: 第二轮独立审查
+
+**问题描述**:
+
+首版自验收判定 `PASS_WITH_ACCEPTED_ISSUES`，7 项质量维度全部标 ✅。第二轮由 7 个独立代理从源码重新推导全部可核验断言后，查出 **15 项 HIGH 级事实错误**，分布在 12 篇文档中；其中 6 项恰是首版验收里被宣称「已用代码级核查闭合」的结论。首版结论因此不成立，已改判为 **FAIL**。
+
+**根因不是某个人写错了，而是验收方法本身有洞**:
+
+| 洞 | 表现 |
+| ---- | ---- |
+| 把「门禁全绿」当成「内容正确」 | 5 项 checker 在 15 项 HIGH 存在期间始终 exit_code=0 |
+| checker 不做跨文档数值对账 | 同一事实在不同文档写不同数值可以全绿通过（本轮 4 例） |
+| checker 不校验「标题声明的计数」与「表格实际行数」是否相符 | 标题写 20，同页表格列 23 行，仍全绿 |
+| 自验收由生成者本人执行 | 生成时的错误前提在验收时被原样继承，尤其是「读了类型定义没读使用方」这类错误 |
+
+**改进方向**:
+
+1. 事实类断言的验收改由**独立代理**执行，且不得读生成者的结论，只读源码；
+2. 新增跨文档数值对账 checker，纳入提交前门禁；
+3. 依赖类与机制类断言的取证方式写成硬规则（已落入 `rules/combined/AI_RULES.md` §5.3）；
+4. 元文件（`_analysis` 四件套）与正式文档同等纳入事实核查范围——本轮的 H15 就出在元文件上。
+
+> [!WARNING]
+> 这条警告的价值在于**它推翻的是本体系自己的结论**。在读取本体系任何一篇文档时，请把 `health_check_report.md` 的 HIGH 清单一并当作阅读前提。
+
+---
+
 ## 🔵 疑问事项（需用户确认）
 
 > 第 1 轮提出 3 项，**当前全部结案**：疑问 2 由用户的实际操作解决，疑问 1、3 已于 2026-08-03 获用户明确答复。全部条目保留在下方并标注结论，不删除，以保持复查可追溯。完整字段见 `generation_plan.md` 的"需要人工确认的项目特性"章节。
@@ -300,7 +339,7 @@ Rust 主体 1,270,789 行、134 个 crate。即便分 4 批生成 17 篇文档�
 - **blocks_phase1**: false
 - **回写目标**: `generation_plan.md` 执行计划、`development_workflow.md`「本地开发环境」
 
-**第 1 轮时的保守结论（已被推翻）**: 当时依据 `git remote -v` 只有 `origin  org-14957082@github.com:openai/codex.git`（直连上游、非 fork）、仓库根 gitignore 文件无 dev_docs 规则，给出的保守结论是**不提交**，并写入本地 exclude 文件。
+**第 1 轮时的保守结论（已被推翻）**: 当时依据 `git remote -v` 只有 `origin  <上游 SSH remote，已脱敏>`（直连上游、非 fork）、仓库根 gitignore 文件无 dev_docs 规则，给出的保守结论是**不提交**，并写入本地 exclude 文件。
 
 **用户实际采取的行动（E4 证据）**:
 
@@ -444,19 +483,19 @@ Rust 主体 1,270,789 行、134 个 crate。即便分 4 批生成 17 篇文档�
 ### 观察 2: 协议先行的类型单一事实源
 
 - **证据等级**: E2 + E3
-- **发现**: `codex-rs/app-server-protocol/schema/typescript/v2/` 下有 550 个自动生成的 TS 类型文件；`AGENTS.md:277` 要求 v2 类型必须标注 `#[ts(export_to = "v2/")]`；`AGENTS.md:300-304` 规定 API 形状变更后需跑 `just write-app-server-schema` 并用 `just test -p codex-app-server-protocol` 验证
+- **发现**: `codex-rs/app-server-protocol/schema/typescript/v2/` 下有 550 个自动生成的 TS 类型文件；AGENTS.md「### Core Rules」 要求 v2 类型必须标注 `#[ts(export_to = "v2/")]`；AGENTS.md「### Development Workflow」 规定 API 形状变更后需跑 `just write-app-server-schema` 并用 `just test -p codex-app-server-protocol` 验证
 - **评价**: Rust 类型是唯一事实源，TS 类型为构建产物。文档中不得把生成的 TS 文件描述为"手写代码"。
 
 ### 观察 3: 三平台原生沙箱 + 独立执行服务
 
 - **证据等级**: E3（沙箱实现）+ E2（跨 OS 分离）
-- **发现**: `codex-rs/sandboxing/src/` 同时含 `seatbelt.rs` / `landlock.rs` / `bwrap.rs` / `windows.rs` 与 3 个 `.sbpl` 策略文件；另有独立 crate `linux-sandbox`、`windows-sandbox-rs`、`bwrap`、`execpolicy`、`shell-escalation`；`AGENTS.md:321-322` 声明 app-server 与 exec-server 可运行在不同操作系统
-- **评价**: 沙箱是本项目的核心差异化能力，且与 `AGENTS.md:8-10` 的 `CODEX_SANDBOX_*` 红线直接相关，必须单独成文。
+- **发现**: `codex-rs/sandboxing/src/` 同时含 `seatbelt.rs` / `landlock.rs` / `bwrap.rs` / `windows.rs` 与 3 个 `.sbpl` 策略文件；另有独立 crate `linux-sandbox`、`windows-sandbox-rs`、`bwrap`、`execpolicy`、`shell-escalation`；AGENTS.md「## Platform Support」 声明 app-server 与 exec-server 可运行在不同操作系统
+- **评价**: 沙箱是本项目的核心差异化能力，且与 AGENTS.md 顶部规则列表（CODEX_SANDBOX 红线条目） 的 `CODEX_SANDBOX_*` 红线直接相关，必须单独成文。
 
 ### 观察 4: 双构建系统带来的双锁同步义务
 
 - **证据等级**: E2
-- **发现**: `MODULE.bazel`（16,677 字节）+ `MODULE.bazel.lock`（1,547,127 字节）与 `codex-rs/Cargo.lock` 并存；`AGENTS.md:37-39` 要求依赖变更后跑 `just bazel-lock-update` 并同 PR 提交，CI 校验漂移；`AGENTS.md:40-43` 提醒 `include_str!` / `sqlx::migrate!` 等编译期文件读取需在 `BUILD.bazel` 补 `compile_data`
+- **发现**: `MODULE.bazel`（16,677 字节）+ `MODULE.bazel.lock`（1,547,127 字节）与 `codex-rs/Cargo.lock` 并存；AGENTS.md 顶部规则列表（Bazel 锁条目） 要求依赖变更后跑 `just bazel-lock-update` 并同 PR 提交，CI 校验漂移；AGENTS.md 顶部规则列表（compile_data 条目） 提醒 `include_str!` / `sqlx::migrate!` 等编译期文件读取需在 `BUILD.bazel` 补 `compile_data`
 - **评价**: 高频踩坑点，`build_and_release.md` 必须给出明确流程。
 
 ### 观察 5: 四条并行的扩展路径
@@ -469,7 +508,7 @@ Rust 主体 1,270,789 行、134 个 crate。即便分 4 批生成 17 篇文档�
 
 - **证据等级**: E4
 - **发现**: `docs/config.md` 仅 15 行、`codex-rs/config.md` 仅 6 行、`docs/sandbox.md` 仅 3 行且正文为指向 developers.openai.com 的外链；`codex-rs/README.md` 仅 3 行
-- **评价**: 这正是本文档体系的价值空间 —— 仓库缺少**面向开发者的架构与规范落地层**。同时也解释了 `AGENTS.md:32` 的用意：产品文档在别处维护，`docs/` 不该被塞入通用文档。
+- **评价**: 这正是本文档体系的价值空间 —— 仓库缺少**面向开发者的架构与规范落地层**。同时也解释了 AGENTS.md 顶部规则列表（docs/ 条目） 的用意：产品文档在别处维护，`docs/` 不该被塞入通用文档。
 
 ---
 
@@ -477,12 +516,12 @@ Rust 主体 1,270,789 行、134 个 crate。即便分 4 批生成 17 篇文档�
 
 | 风险假设 | 证据等级 | 当前证据 | 验证状态 | 下一步验证动作 | 是否可定优先级 |
 | -------- | -------- | -------- | -------- | -------------- | -------------- |
-| 文档产物若落入 `docs/` 将违反仓库规范 | E2 | `AGENTS.md:32` | 已确认 | 无需进一步验证（方案已规避） | P1（已落实） |
-| 高触碰大文件会持续吸引无关改动 | E2 + E4 | `AGENTS.md:54-57` 点名清单 + `wc -l` 实测 12,616 行 | 已确认 | 无需进一步验证 | 否（受维护者规则约束，仅记录） |
+| 文档产物若落入 `docs/` 将违反仓库规范 | E2 | AGENTS.md 顶部规则列表（docs/ 条目） | 已确认 | 无需进一步验证（方案已规避） | P1（已落实） |
+| 高触碰大文件会持续吸引无关改动 | E2 + E4 | AGENTS.md 顶部规则列表（high-touch files 条目） 点名清单 + `wc -l` 实测 12,616 行 | 已确认 | 无需进一步验证 | 否（受维护者规则约束，仅记录） |
 | Python SDK 章节无法取得 E4 证据 | E2 + E4 | `pyproject.toml:10` `>=3.10` + 本机 `Python 3.9.6` | 已确认 | 用户升级 Python 后可补跑 pytest | 否 |
 | 四层扩展机制的关系可能被误述 | E1 | 仅目录存在性 | 待验证 | 第 3 批读取 `ext/extension-api/src/lib.rs`、`core-plugins/src/manager.rs`、`skills/src/lib.rs` 公开 API | P1 |
 | release 构建下遥测默认开启 | E3（部分） | `otel/src/config.rs:16,90,113` grep 命中 | 待验证 | 第 4 批完整读取 `otel/src/{config,provider,otlp}.rs` 与 `analytics/src/client.rs` 投递链路 | P1 |
-| app-server ↔ exec-server 跨 OS 分离的传输实现 | E2 | `AGENTS.md:321-322` + crate 存在性 | 待验证 | 第 2 批读取 `exec-server-protocol/src/`、`app-server-transport/src/`、`uds/src/` | P1 |
+| app-server ↔ exec-server 跨 OS 分离的传输实现 | E2 | AGENTS.md「## Platform Support」 + crate 存在性 | 待验证 | 第 2 批读取 `exec-server-protocol/src/`、`app-server-transport/src/`、`uds/src/` | P1 |
 | `find_codex_home` 存在两处同名实现可能造成描述冲突 | E3 | `codex-rs/core/src/config/mod.rs:4578` 与 `codex-rs/utils/home-dir/src/lib.rs:13` 均定义 `pub fn find_codex_home` | 待验证 | 第 2 批读取两处实现，确认调用关系（委托 or 重复） | P1 |
 | 上游高速迭代导致文档快速过期 | E4 | `git log -1` 基线 commit 与分析同日；近 5 次提交均为当日/近日 PR | 已确认 | 建立路径 C 增量更新节奏 | P1 |
 | 文档覆盖度不足导致 AI 误判 | E4 | 1,270,789 行 Rust vs 17 篇文档 | 已确认 | 主文档「未覆盖范围」显式清单 | P1（已落实缓解） |
@@ -514,6 +553,7 @@ Rust 主体 1,270,789 行、134 个 crate。即便分 4 批生成 17 篇文档�
 - [ ] 警告 4: 覆盖度限制 — 主文档设「未覆盖范围」显式清单
 - [ ] 警告 5: 遥测默认行为待核实 — 第 4 批代码级核查，不需用户回答
 - [ ] 警告 6: 产物已进入公开 fork，脱敏为硬性红线 — 首次脱敏已执行，后续每批复扫
+- [ ] 警告 7: 自验收流程不足以发现事实错误 — 首版验收结论已改判为 FAIL，事实类验收改由独立代理执行
 
 **疑问确认（需用户回答）**:
 
@@ -591,7 +631,8 @@ Rust 主体 1,270,789 行、134 个 crate。即便分 4 批生成 17 篇文档�
 
 - **生成者**: AI Assistant（AICC 框架路径 A / Step 6）
 - **生成日期**: 2026-08-03
-- **最近复查**: 2026-08-03，第 2 轮（回到 Step 7.4 自检门，未生成任何正式文档）
+- **最近复查**: 2026-08-03，第二轮独立审查（7 个独立代理回源码复核全部可核验断言，首版验收结论改判为 FAIL）
+- **上一次复查**: 2026-08-03，第 2 轮方案复查（回到 Step 7.4 自检门，未生成任何正式文档）
 - **分析时长**: 约 2 小时（首轮）+ 第 2 轮复查
 - **分析基线**: commit `bb5054fe47abe73ecbbd454751066a28c89f4bb9`
 - **产物提交**: commit `8224f7c034`，推送至 `fork/zibuyu`（`zibuyu2015831/codex`）

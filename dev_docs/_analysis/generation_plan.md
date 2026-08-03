@@ -1,9 +1,9 @@
 ---
 title: Codex CLI 开发文档体系生成方案
-summary: 记录 openai/codex 仓库首次生成 dev_docs 开发文档体系的完整方案，包含项目检测结果、规模与复杂度评估、项目定位不可破坏约束、AI 与外部服务边界、17 份子文档清单、四批执行计划和证据验证记录；已含第 2 轮复查更正与用户确认结果，即 Cargo workspace crate 数由 130 更正为 134、版本管理结案为提交至个人 fork、脱敏规范升级为每批提交前的强制门禁、文档定位确认为兼顾阅读与二次开发、实验性表面确认全部展开。
-keywords: codex | dev-docs | generation-plan | rust-monorepo | cli-agent | phase1
+summary: 记录 openai/codex 仓库首次生成 dev_docs 开发文档体系的完整方案，包含项目检测结果、规模与复杂度评估、项目定位不可破坏约束、AI 与外部服务边界、17 份子文档清单、四批执行计划和证据验证记录；已含第 2 轮复查更正与用户确认结果，并追加第二轮独立审查推翻首版验收的记录，同步更正 CLI 子命令口径为 27 个变体、analytics 网络投递并非默认关闭、core/tests/suite 改用文件数口径、insta 快照流程在上游已有完整记载，且全文不再按行号引用 AGENTS.md。
+keywords: codex | dev-docs | generation-plan | rust-monorepo | cli-agent | phase1 | acceptance-fail
 scope: openai/codex 仓库 dev_docs 文档体系首次生成方案 (仓库根目录)
-related_files: codex-rs/Cargo.toml | codex-rs/cli/src/main.rs | codex-rs/model-provider-info/src/lib.rs | AGENTS.md | justfile | package.json
+related_files: codex-rs/Cargo.toml | codex-rs/cli/src/main.rs | codex-rs/model-provider-info/src/lib.rs | codex-rs/analytics/src/client.rs | AGENTS.md | justfile | package.json
 dependencies: dev_docs/_analysis/project_analysis_report.md | dev_docs/_analysis/generation_progress.md
 verified_at: 2026-08-03
 ---
@@ -45,7 +45,7 @@ verified_at: 2026-08-03
 
    - Cargo workspace 成员: **134 个 crate**（`cargo metadata --no-deps` 权威计数，E4）。其中 `codex-rs/Cargo.toml` 的 `[workspace] members` 显式列出 128 项；差额 6 个为 `chatgpt`、`message-history`、`windows-sandbox-rs`（仅以 `[workspace.dependencies]` path 依赖参与）与 `app-server/tests/common`、`core/tests/common`、`mcp-server/tests/common`（测试辅助 crate）。另有 workspace 之外的独立 crate `tools/argument-comment-lint`
    - 多前端单核心：`codex` 单一二进制通过 clap 子命令分发到 TUI / exec / app-server / mcp-server / responses-api-proxy / cloud 等入口。`codex-rs/cli/src/main.rs:124` 的 `Subcommand` 枚举共 **27 个变体**（3 个 `#[clap(hide = true)]`，1 个仅 macOS/Windows 条件编译）
-   - 多进程协作：app-server、exec-server 可跨操作系统分离部署（`AGENTS.md:321-322`）
+   - 多进程协作：app-server、exec-server 可跨操作系统分离部署（AGENTS.md「## Platform Support」）
    - 四层扩展点：`ext/*` 内建扩展、`core-plugins`、`skills`、MCP 客户端/服务端
    - 三平台沙箱实现：Seatbelt(macOS) / Landlock+bwrap(Linux) / windows-sandbox-rs
    - 影响: **高**
@@ -257,7 +257,7 @@ Rust 代码量按 crate 排名（Top 10）:
 
 ```
 codex/（仓库根）
-├── codex-rs/               - Rust workspace，134 个 crate，项目主体（2858 个 .rs）
+├── codex-rs/               - Rust workspace，134 个 crate，项目主体（2842 个 .rs；全仓 2858）
 │   ├── core/               - 智能体核心：会话、turn、工具调用、上下文管理（296,963 行）
 │   ├── tui/                - ratatui 交互式终端界面（238,439 行）
 │   ├── app-server/         - JSON-RPC 应用服务端，供 IDE/桌面端接入（128,364 行）
@@ -313,17 +313,17 @@ codex/（仓库根）
 | --- | --- | --- | --- | --- |
 | 本地运行的编码智能体（"runs locally on your computer"） | `README.md:1` | `architecture_overview.md` 必须区分本地进程与远端 API 调用边界 | 不得把本地执行路径改造为默认云端执行 | confirmed |
 | 沙箱 + 审批是核心安全边界 | `codex-rs/sandboxing/src/`（seatbelt.rs / landlock.rs / bwrap.rs / windows.rs + 3 个 .sbpl 策略文件）、`codex-rs/linux-sandbox/`、`codex-rs/windows-sandbox-rs/` | `tools_and_sandbox.md` 必须单独成文并说明三平台差异 | 不得绕过或削弱沙箱/审批链路 | confirmed |
-| 禁止改动 `CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR` / `CODEX_SANDBOX_ENV_VAR` 相关代码 | `AGENTS.md:8-10` | `tools_and_sandbox.md` + AI Rules 必须显式复述该红线 | 硬禁止：任何情况下不得新增或修改相关代码 | confirmed |
-| 禁止向 docs 目录添加通用产品或用户文档（例外：app-server API 文档） | `AGENTS.md:32` | 本体系产物落在仓库根 `dev_docs/`，禁止放入 `docs/` | 禁止把 dev_docs 内容迁移进 `docs/` | confirmed |
+| 禁止改动 `CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR` / `CODEX_SANDBOX_ENV_VAR` 相关代码 | AGENTS.md 顶部规则列表（CODEX_SANDBOX 红线条目） | `tools_and_sandbox.md` + AI Rules 必须显式复述该红线 | 硬禁止：任何情况下不得新增或修改相关代码 | confirmed |
+| 禁止向 docs 目录添加通用产品或用户文档（例外：app-server API 文档） | AGENTS.md 顶部规则列表（docs/ 条目） | 本体系产物落在仓库根 `dev_docs/`，禁止放入 `docs/` | 禁止把 dev_docs 内容迁移进 `docs/` | confirmed |
 | 外部代码贡献仅限受邀（未受邀 PR 直接关闭） | `docs/contributing.md:3-17` | `development_workflow.md` 必须写明该治理前提；质量建议一律标注为"长期建议"而非待办修复 | AI 不得自行发起面向上游的 PR 流程建议 | confirmed |
-| 禁止继续向 `codex-core` 堆叠新功能，应新建 crate | `AGENTS.md:74-83` | `crate_map.md` + `core_agent_loop.md` 必须给出"新代码该放哪个 crate"的决策指引 | 新增功能前必须先评估是否可放入 core 之外的 crate | confirmed |
-| Rust 模块目标 <500 LoC，>800 LoC 应新建模块；高触碰大文件点名清单 | `AGENTS.md:49-61` | `development_workflow.md` 必须列出点名文件并给出实测行数对照 | AI 不得继续在 `tui/src/chatwidget.rs`、`chat_composer.rs` 等文件堆叠新方法 | confirmed |
-| 单次变更 ≤800 行（复杂逻辑 ≤500 行） | `AGENTS.md:125-131` | `development_workflow.md` 记录变更规模门槛与拆分策略 | AI 产出的改动需自检规模并主动提出分阶段方案 | confirmed |
-| 必须同时支持 Linux / macOS / Windows（除非显式 OS 专属） | `AGENTS.md:317-322` | 所有涉及路径、进程、沙箱的文档必须给出三平台差异说明 | 不得引入单平台方案而不标注 | confirmed |
-| 依赖变更需同步刷新 `MODULE.bazel.lock`（CI 校验漂移） | `AGENTS.md:37-39` | `build_and_release.md` 必须写明 Cargo/Bazel 双锁同步流程 | 改 `Cargo.toml`/`Cargo.lock` 必须同 PR 更新 Bazel 锁 | confirmed |
+| 禁止继续向 `codex-core` 堆叠新功能，应新建 crate | AGENTS.md「## The codex-core crate」 | `crate_map.md` + `core_agent_loop.md` 必须给出"新代码该放哪个 crate"的决策指引 | 新增功能前必须先评估是否可放入 core 之外的 crate | confirmed |
+| Rust 模块目标 <500 LoC，>800 LoC 应新建模块；高触碰大文件点名清单 | AGENTS.md 顶部规则列表（Avoid large modules 条目） | `development_workflow.md` 必须列出点名文件并给出实测行数对照 | AI 不得继续在 `tui/src/chatwidget.rs`、`chat_composer.rs` 等文件堆叠新方法 | confirmed |
+| 单次变更 ≤800 行（复杂逻辑 ≤500 行） | AGENTS.md「### Change size guidance (800 lines)」 | `development_workflow.md` 记录变更规模门槛与拆分策略 | AI 产出的改动需自检规模并主动提出分阶段方案 | confirmed |
+| 必须同时支持 Linux / macOS / Windows（除非显式 OS 专属） | AGENTS.md「## Platform Support」 | 所有涉及路径、进程、沙箱的文档必须给出三平台差异说明 | 不得引入单平台方案而不标注 | confirmed |
+| 依赖变更需同步刷新 `MODULE.bazel.lock`（CI 校验漂移） | AGENTS.md 顶部规则列表（Bazel 锁条目） | `build_and_release.md` 必须写明 Cargo/Bazel 双锁同步流程 | 改 `Cargo.toml`/`Cargo.lock` 必须同 PR 更新 Bazel 锁 | confirmed |
 | Apache-2.0 开源许可 | `LICENSE`、`README.md` 末段、`sdk/typescript/package.json` `"license": "Apache-2.0"` | 文档中的代码引用需保持许可归属清晰 | 不得引入不兼容许可的依赖 | confirmed |
 
-**说明**：上表所有约束均来自仓库内文件，证据等级 E2/E3，无需用户确认。其中 `AGENTS.md:32` 直接决定了本文档体系的落盘位置，是本方案的硬性前置。
+**说明**：上表所有约束均来自仓库内文件，证据等级 E2/E3，无需用户确认。其中 AGENTS.md 顶部规则列表（docs/ 条目） 直接决定了本文档体系的落盘位置，是本方案的硬性前置。
 
 ---
 
@@ -339,7 +339,7 @@ codex/（仓库根）
 | 本地第三方模型运行时（Ollama / LM Studio） | `codex-rs/ollama/`、`codex-rs/lmstudio/` | prompt 与上下文发送至本机服务 | 用户配置 provider | `auth_and_providers.md` 区分默认在线路径与用户配置的本地路径 | confirmed |
 | MCP 外部服务器 | `codex-rs/codex-mcp/`、`codex-rs/mcp-server/`、`codex-rs/rmcp-client/`、`codex-rs/ext/mcp/` | 由用户配置的 MCP server 决定，可能包含文件内容与工具参数 | `codex mcp` 子命令 + config.toml 显式配置 | `mcp_and_extensions.md` 必须说明"用户自带服务器"的数据外流边界 | confirmed |
 | 遥测：OTLP 导出 + Statsig 指标 | `codex-rs/otel/src/otlp.rs`、`codex-rs/otel/src/config.rs:16`（注释："Keep the built-in Statsig default off in debug builds"）、`:90`（`Statsig metrics ingestion exporter using Codex-internal defaults`）、`:113`（测试 `statsig_default_metrics_exporter_is_disabled_in_debug_builds`） | 指标与追踪事件 | 由 `OtelSettings` / `StatsigMetricsSettings` 配置 | `observability.md` 必须完整核实 release 构建下的默认开关链路与可关闭方式 | needs_code_verification |
-| 本地埋点采集（analytics） | `codex-rs/analytics/src/client.rs:221`（`queue: (analytics_enabled != Some(false))`，即 opt-out 语义）、`:108`（日志文案 `analytics event capture enabled; network delivery is disabled`）、`:226`（`pub fn disabled()`） | 事件本地入队；代码显示网络投递当前为关闭态 | `analytics_enabled` 配置项 | `observability.md` 必须区分"本地采集"与"网络投递"两个开关 | needs_code_verification |
+| 本地埋点采集（analytics） | `codex-rs/analytics/src/client.rs` 的 `queue: (analytics_enabled != Some(false))`（opt-out 语义）、`AnalyticsEventsDestination::from_base_url_and_capture_file`、`pub fn disabled()` | 事件入队后按目的地分派：仅当 debug 构建且捕获文件环境变量已设置且非空时写本地文件，否则走 HTTP 上报 | `analytics_enabled` 配置项 | `observability.md` 必须区分"采集开关"与"投递目的地"，**不得**把日志文案 `network delivery is disabled` 当成全局结论 | confirmed |
 | Codex Cloud 任务 | `codex-rs/cloud-tasks/`、`codex-rs/cloud-tasks-client/`、`codex-rs/backend-client/`、CLI 子命令 `Cloud`（`codex-rs/cli/src/main.rs:195-197`，标注 `[EXPERIMENTAL]`） | 云端任务元数据与变更 diff | 用户显式执行 `codex cloud` | `auth_and_providers.md` 或 `observability.md` 说明该实验性通道 | confirmed |
 | 安装器下载源 | `README.md`（`https://releases.openai.com/codex`，回退 GitHub Releases，可用 `CODEX_INSTALLER_USE_RELEASES_OPENAI_COM=false` 强制） | 无用户数据上行 | 环境变量可控 | `build_and_release.md` 记录分发链路 | confirmed |
 
@@ -405,13 +405,13 @@ codex/（仓库根）
 
 2. **协议先行的分层：protocol → core → 前端**
 
-   - **识别依据**: `codex-rs/protocol/src/protocol.rs`（6,349 行）为共享协议；`codex-rs/app-server-protocol/` 通过 ts-rs 生成 `schema/typescript/v2/` 下 550 个 TS 类型；`AGENTS.md:260-306` 规定了 app-server API 的命名、序列化与 schema 再生成流程（`just write-app-server-schema`）
+   - **识别依据**: `codex-rs/protocol/src/protocol.rs`（6,349 行）为共享协议；`codex-rs/app-server-protocol/` 通过 ts-rs 生成 `schema/typescript/v2/` 下 550 个 TS 类型；AGENTS.md「## App-server API Development Best Practices」 规定了 app-server API 的命名、序列化与 schema 再生成流程（`just write-app-server-schema`）
    - **影响范围**: app-server、SDK、IDE/桌面端集成
-   - **实现方式**: Rust 类型为单一事实源，TypeScript 类型由构建产出，wire 格式统一 camelCase（config RPC 例外，见 `AGENTS.md:276`）
+   - **实现方式**: Rust 类型为单一事实源，TypeScript 类型由构建产出，wire 格式统一 camelCase（config RPC 例外，见 AGENTS.md「### Core Rules」）
 
 3. **跨操作系统的进程分离（app-server ↔ exec-server）**
 
-   - **识别依据**: `AGENTS.md:321-322`（"Codex supports running connected app-server and exec-server on different operating systems"）；`codex-rs/exec-server-protocol/`、`codex-rs/app-server-transport/`、`codex-rs/uds/`、`codex-rs/stdio-to-uds/` 的存在
+   - **识别依据**: AGENTS.md「## Platform Support」（"Codex supports running connected app-server and exec-server on different operating systems"）；`codex-rs/exec-server-protocol/`、`codex-rs/app-server-transport/`、`codex-rs/uds/`、`codex-rs/stdio-to-uds/` 的存在
    - **影响范围**: 远程/容器化执行场景、集成测试（`build_with_auto_env()`）
    - **实现方式**: 独立协议 crate + UDS/stdio 传输层
 
@@ -423,7 +423,7 @@ codex/（仓库根）
 
 5. **双构建系统（Cargo + Bazel）**
 
-   - **识别依据**: `codex-rs/Cargo.toml` 与 `MODULE.bazel`（16,677 字节）/ `MODULE.bazel.lock`（1,547,127 字节）并存；`AGENTS.md:37-43` 要求依赖变更同步 `just bazel-lock-update`，并提醒 `include_str!`/`sqlx::migrate!` 需在 `BUILD.bazel` 补 `compile_data`；`.github/workflows/bazel.yml` 存在
+   - **识别依据**: `codex-rs/Cargo.toml` 与 `MODULE.bazel`（16,677 字节）/ `MODULE.bazel.lock`（1,547,127 字节）并存；AGENTS.md 顶部规则列表（Bazel 锁与 compile_data 条目） 要求依赖变更同步 `just bazel-lock-update`，并提醒 `include_str!`/`sqlx::migrate!` 需在 `BUILD.bazel` 补 `compile_data`；`.github/workflows/bazel.yml` 存在
    - **影响范围**: 全仓库构建与 CI
    - **实现方式**: Cargo 为本地主路径，Bazel 用于 CI 与部分 lint（`just argument-comment-lint`）
 
@@ -501,7 +501,7 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 - **来源文件**: `codex-rs/app-server-protocol/src/protocol/v2.rs`、`common.rs`、`codex-rs/app-server/README.md`
 - **待提取要点**: `*Params`/`*Response`/`*Notification` 命名、`#[serde(rename_all = "camelCase")]`、`#[ts(export_to = "v2/")]`、`#[ts(optional = nullable)]`、游标分页（`cursor`/`limit` + `data`/`next_cursor`）、`#[experimental(...)]`
 - **落地文档**: `app_server_protocol.md`
-- **规范来源**: `AGENTS.md:260-306`（必须原样落实，不得改写）
+- **规范来源**: AGENTS.md「## App-server API Development Best Practices」（必须原样落实，不得改写）
 
 ### 2.3 沙箱策略模式
 
@@ -511,20 +511,22 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 
 ### 2.4 集成测试模式
 
-- **来源文件**: `codex-rs/core/tests/suite/`（40+ 用例）、`codex-rs/core/tests/common/`、`AGENTS.md:224-258`
+- **来源文件**: `codex-rs/core/tests/suite/`（**116 个 `.rs` 文件**，口径 `git ls-files "codex-rs/core/tests/suite/*.rs" | wc -l`；连同 `snapshots/` 等非 `.rs` 条目递归共 154 个跟踪文件）、`codex-rs/core/tests/common/`、AGENTS.md「#### codex_core integration testing」与「#### app-server integration testing」
+- **口径说明**: 早期记录的「40+ 用例」是**用例数**的估读，与本体系其余位置使用的**文件数**口径不可比，已统一改为文件数并给出可复现命令。文件数 ≠ 用例数：单文件通常含多个 `#[tokio::test]`。
 - **待提取要点**: `TestCodexBuilder::build_with_auto_env()`、`responses::mount_sse_once`、`ResponseMock::single_request()`、`wait_for_event`、`TestAppServer::builder().build()`、`pretty_assertions::assert_eq`
 - **落地文档**: `testing_guide.md`
 
 ### 2.5 配置定义模式
 
 - **来源文件**: `codex-rs/config/src/config_toml.rs`、`types.rs`、`state.rs`、`codex-rs/core/src/config/mod.rs:4578`（`find_codex_home`）、`codex-rs/utils/home-dir/src/lib.rs:13`
-- **待提取要点**: `CODEX_HOME` 解析、config.toml 分层与 profile 覆盖、`just write-config-schema` 与 `codex-rs/core/config.schema.json` 的同步义务（`AGENTS.md:34`）
+- **待提取要点**: `CODEX_HOME` 解析、config.toml 分层与 profile 覆盖、`just write-config-schema` 与 `codex-rs/core/config.schema.json` 的同步义务（AGENTS.md 顶部规则列表（config schema 条目））
 - **落地文档**: `config_system.md`
 
 ### 2.6 TUI 样式与快照模式
 
-- **来源文件**: `codex-rs/tui/styles.md`、`codex-rs/tui/src/wrapping.rs`、`line_utils.rs`、`AGENTS.md:133-202`
+- **来源文件**: `codex-rs/tui/styles.md`、`codex-rs/tui/src/wrapping.rs`、`line_utils.rs`、AGENTS.md「## TUI style conventions」至「### Snapshot tests」各节
 - **待提取要点**: ratatui Stylize 助手优先、禁止使用 `.white()`、`textwrap::wrap`、`word_wrap_lines`、insta 快照工作流（`cargo insta pending-snapshots` / `show` / `accept`）
+- **口径更正**: 本条一直把 insta 快照工作流列为「需从上游提取到 `tui_guide.md`」的既有事实，但首版交付的 `testing_guide.md` 却把它写成「上游无任何记载、做法未知」并登记为 accepted issue AI-004。两者矛盾，**以本条为准**：AGENTS.md 的「### Snapshot tests」一节已完整记载该流程，且额外给出一条硬要求——任何影响用户可见 UI（含新增 UI）的改动都必须附带对应的 insta 快照覆盖。AI-004 已撤销（见 `health_check_report.md` H13）。
 - **落地文档**: `tui_guide.md`
 
 ---
@@ -551,7 +553,7 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 
   - **内容来源**: `cargo metadata --no-deps`（134 个包，权威计数）、`codex-rs/Cargo.toml` 的 `[workspace] members`（显式 128 项）与 `[workspace.dependencies]` 的 128 条 path 映射，各 crate `Cargo.toml`
   - **预计行数**: 500-700
-  - **关键章节**: 分层总览（mermaid 依赖图）/ 按职责分组的 134 crate 速查表（crate 名 ↔ 目录 ↔ 职责 ↔ 代码量）/ "新代码该放哪个 crate"决策树 / `codex-core` 减负指引（对应 `AGENTS.md:74-83`）
+  - **关键章节**: 分层总览（mermaid 依赖图）/ 按职责分组的 134 crate 速查表（crate 名 ↔ 目录 ↔ 职责 ↔ 代码量）/ "新代码该放哪个 crate"决策树 / `codex-core` 减负指引（对应 AGENTS.md「## The codex-core crate」）
 
 - [ ] `dev_docs/development_workflow.md` — 开发流程与仓库硬规范
 
@@ -569,7 +571,7 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 
 - [ ] `dev_docs/core_agent_loop.md` — 智能体核心循环
 
-  - **推荐理由**: codex-core（296,963 行）是理解项目的最大障碍，且 `AGENTS.md:91-101` 对模型可见上下文有 6 条硬约束，必须成文
+  - **推荐理由**: codex-core（296,963 行）是理解项目的最大障碍，且 AGENTS.md「### Model visible context」 对模型可见上下文有 6 条硬约束，必须成文
   - **内容来源**: `codex-rs/core/src/lib.rs`、`codex_thread.rs`、`client.rs`、`client_common.rs`、`compact*.rs`、`context/`、`context_manager/`、`session/`、`tasks/`
   - **预计行数**: 500-650
 
@@ -581,7 +583,7 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 
 - [ ] `dev_docs/app_server_protocol.md` — App Server 协议与 API 开发规范
 
-  - **推荐理由**: `AGENTS.md:260-306` 已给出完整硬规范；IDE/桌面端/SDK 均依赖此协议；TS 类型由此生成
+  - **推荐理由**: AGENTS.md「## App-server API Development Best Practices」 已给出完整硬规范；IDE/桌面端/SDK 均依赖此协议；TS 类型由此生成
   - **内容来源**: `codex-rs/app-server-protocol/src/protocol/{common,v2}.rs`、`codex-rs/app-server/README.md`、`schema/typescript/v2/`
   - **预计行数**: 400-550
 
@@ -593,7 +595,7 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 
 - [ ] `dev_docs/tui_guide.md` — TUI 开发指南
 
-  - **推荐理由**: 238,439 行第二大 crate，且 `AGENTS.md:133-202` 有大量样式与快照硬约定，`AGENTS.md:54-61` 点名多个高触碰文件
+  - **推荐理由**: 238,439 行第二大 crate，且 AGENTS.md「## TUI style conventions」至「### Snapshot tests」各节 有大量样式与快照硬约定，AGENTS.md 顶部规则列表（high-touch files 与 chatwidget 条目） 点名多个高触碰文件
   - **内容来源**: `codex-rs/tui/styles.md`、`codex-rs/tui/src/`（app / chatwidget / bottom_pane / wrapping / line_utils）
   - **预计行数**: 400-550
 
@@ -601,7 +603,7 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 
 - [ ] `dev_docs/testing_guide.md` — 测试指南
 
-  - **推荐理由**: 457 个 `*_tests.rs` + 681 个快照 + 三语言测试栈，`AGENTS.md:112-131` 与 `:165-258` 规定详尽
+  - **推荐理由**: 457 个 `*_tests.rs` + 681 个快照 + 三语言测试栈，AGENTS.md「### Test authoring guidance」「### Change size guidance (800 lines)」与「## Tests」各节 规定详尽
   - **内容来源**: `codex-rs/core/tests/`、`codex-rs/app-server/tests/`、`sdk/typescript/tests/`、`sdk/python/tests/`、`justfile`、`AGENTS.md`
   - **预计行数**: 450-600
 
@@ -619,7 +621,7 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 
 - [ ] `dev_docs/build_and_release.md` — 构建、双构建系统与发布
 
-  - **推荐理由**: `cli_tool.md` 推荐 `installation.md`；本项目 Cargo/Bazel 双锁同步是高频踩坑点（`AGENTS.md:37-43`）
+  - **推荐理由**: `cli_tool.md` 推荐 `installation.md`；本项目 Cargo/Bazel 双锁同步是高频踩坑点（AGENTS.md 顶部规则列表（Bazel 锁与 compile_data 条目））
   - **内容来源**: `MODULE.bazel`、`justfile`、`.github/workflows/`（27 个 yml）、`codex-cli/scripts/build_npm_package.py`、`scripts/`、`docs/install.md`
   - **预计行数**: 400-550
 
@@ -678,7 +680,7 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 | 插件/扩展生态 | `docs/skills.md`、`codex-rs/ext/`、`core-plugins/`、`skills/` | 扩展开发说明 | 单独文档 `mcp_and_extensions.md` |
 
 > [!IMPORTANT]
-> `AGENTS.md:32` 明确禁止向 `docs/` 添加通用产品或用户文档。本方案的全部产物落在仓库根 `dev_docs/`，**不得**移入 `docs/`。
+> AGENTS.md 顶部规则列表（docs/ 条目） 明确禁止向 `docs/` 添加通用产品或用户文档。本方案的全部产物落在仓库根 `dev_docs/`，**不得**移入 `docs/`。
 
 ---
 
@@ -691,8 +693,8 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 - [ ] **场景快速导航** — 数据来源：本方案 1.4 节模块清单 + `codex-rs/cli/src/main.rs:123-200` 子命令枚举
 - [ ] **文档索引** — 数据来源：本方案 3.1-3.3 节子文档清单 + `docs/` 15 篇既有文档
 - [ ] **核心代码模式** — 数据来源：本方案第二阶段 6 类模式的实际提取结果
-- [ ] **开发流程规范** — 数据来源：`AGENTS.md:62-70`、`justfile`、`docs/contributing.md`
-- [ ] **命名规范** — 数据来源：`AGENTS.md:5`（crate 前缀 `codex-`）、`AGENTS.md:271-285`（API 命名）、实际 crate 名验证
+- [ ] **开发流程规范** — 数据来源：AGENTS.md 顶部规则列表（just fmt / just test / just fix 段）、`justfile`、`docs/contributing.md`
+- [ ] **命名规范** — 数据来源：AGENTS.md 顶部规则列表（crate 前缀条目）（crate 前缀 `codex-`）、AGENTS.md「### Core Rules」（API 命名）、实际 crate 名验证
 - [ ] **业务模块映射** — 数据来源：本方案 1.4 节 17 个模块清单
 - [ ] **AI 编码禁忌** — 数据来源：`AGENTS.md` 全部禁止项（沙箱环境变量红线、core 膨胀、大文件堆叠、`#[async_trait]`、单次引用的小helper、`cargo test` 直用、docs/ 越界等）
 - [ ] **常见任务速查** — 数据来源：`justfile` 任务列表 + `AGENTS.md` 中的 `just write-config-schema` / `just write-app-server-schema` / `just bazel-lock-update` / `just argument-comment-lint`
@@ -702,17 +704,17 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 | 场景描述 | 对应文档 | 数据来源 |
 | -------- | -------- | -------- |
 | 我要新增一个 CLI 子命令 | `architecture_overview.md` + `crate_map.md` | `codex-rs/cli/src/main.rs:123-200` |
-| 我要改动智能体的上下文构造 | `core_agent_loop.md` | `codex-rs/core/src/context/`、`AGENTS.md:91-101` |
+| 我要改动智能体的上下文构造 | `core_agent_loop.md` | `codex-rs/core/src/context/`、AGENTS.md「### Model visible context」 |
 | 我要新增/修改一个模型工具 | `tools_and_sandbox.md` + `core_agent_loop.md` | `codex-rs/core/src/tools/`、`codex-rs/tools/` |
-| 我要新增 app-server API | `app_server_protocol.md` | `AGENTS.md:260-306`、`app-server-protocol/src/protocol/v2.rs` |
-| 我要加一个配置项 | `config_system.md` | `codex-rs/config/src/config_toml.rs`、`AGENTS.md:34` |
-| 我要改 TUI 界面 | `tui_guide.md` | `codex-rs/tui/styles.md`、`AGENTS.md:133-202` |
-| 我要写/更新测试 | `testing_guide.md` | `codex-rs/core/tests/suite/`、`AGENTS.md:112-258` |
+| 我要新增 app-server API | `app_server_protocol.md` | AGENTS.md「## App-server API Development Best Practices」、`app-server-protocol/src/protocol/v2.rs` |
+| 我要加一个配置项 | `config_system.md` | `codex-rs/config/src/config_toml.rs`、AGENTS.md 顶部规则列表（config schema 条目） |
+| 我要改 TUI 界面 | `tui_guide.md` | `codex-rs/tui/styles.md`、AGENTS.md「## TUI style conventions」至「### Snapshot tests」各节 |
+| 我要写/更新测试 | `testing_guide.md` | `codex-rs/core/tests/suite/`、AGENTS.md「### Test authoring guidance」与「## Tests」各节 |
 | 我要接入一个 MCP server 或写扩展 | `mcp_and_extensions.md` | `codex-rs/codex-mcp/`、`codex-rs/ext/` |
-| 我改了依赖，CI 报 Bazel 锁漂移 | `build_and_release.md` | `AGENTS.md:37-43` |
+| 我改了依赖，CI 报 Bazel 锁漂移 | `build_and_release.md` | AGENTS.md 顶部规则列表（Bazel 锁与 compile_data 条目） |
 | 我要理解会话恢复/分叉行为 | `session_and_persistence.md` | `codex-rs/rollout/`、`thread-store/` |
 | 我要确认某功能会向外发送什么数据 | `auth_and_providers.md` + `observability.md` | 本方案 1.3C 表 |
-| 我不知道新代码该放哪个 crate | `crate_map.md` | `codex-rs/Cargo.toml`、`AGENTS.md:74-83` |
+| 我不知道新代码该放哪个 crate | `crate_map.md` | `codex-rs/Cargo.toml`、AGENTS.md「## The codex-core crate」 |
 
 **⚠️ 人工验证点**:
 
@@ -793,10 +795,10 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 | 待核查项 | 当前证据 | 核查动作 | 归属批次 | 落地文档 |
 | -------- | -------- | -------- | -------- | -------- |
 | OTLP / Statsig 遥测在 release 构建下的默认开关与关闭方式 | E3：`codex-rs/otel/src/config.rs:16,90,113` | 读取 `OtelSettings` / `StatsigMetricsSettings` 完整定义与 `provider.rs` 初始化链路，追溯 config.toml 键名 | 第 4 批 | `observability.md` |
-| analytics 本地采集与网络投递的分离边界 | E3：`codex-rs/analytics/src/client.rs:108,221,226` | 读取 `analytics_capture.rs`、`client.rs` 完整投递路径，确认"network delivery is disabled"是否为编译期常量 | 第 4 批 | `observability.md` |
+| analytics 采集开关与投递目的地的分离边界 | E3：`codex-rs/analytics/src/client.rs` | 已完成：`CaptureFile` 分支同时受 `cfg(debug_assertions)` 与捕获文件环境变量约束，二者缺一即落到 `Self::Http`；"network delivery is disabled" 只是该分支内的日志文案，**不是**编译期全局常量 | 第 4 批（已闭合） | `observability.md` |
 | 134 个 crate 的实际依赖分层（谁依赖 core，谁被 core 依赖） | E2：`codex-rs/Cargo.toml` `[workspace.dependencies]` | 逐 crate 读取 `Cargo.toml` 的 `[dependencies]` 并生成依赖图 | 第 1 批 | `crate_map.md` |
 | 四层扩展机制（ext / core-plugins / skills / MCP）之间的关系与优先级 | E1：目录存在性 | 读取 `ext/extension-api/src/lib.rs`、`core-plugins/src/manager.rs`、`skills/src/lib.rs` 的公开 API | 第 3 批 | `mcp_and_extensions.md` |
-| app-server ↔ exec-server 跨 OS 分离的实际传输实现 | E2：`AGENTS.md:321-322` + crate 存在性 | 读取 `exec-server-protocol/src/`、`app-server-transport/src/`、`uds/src/` | 第 2 批 | `architecture_overview.md` |
+| app-server ↔ exec-server 跨 OS 分离的实际传输实现 | E2：AGENTS.md「## Platform Support」 + crate 存在性 | 读取 `exec-server-protocol/src/`、`app-server-transport/src/`、`uds/src/` | 第 2 批 | `architecture_overview.md` |
 | `CODEX_HOME` 的实际解析顺序 | E3：`codex-rs/core/src/config/mod.rs:4578`、`codex-rs/utils/home-dir/src/lib.rs:13` 两处同名函数 | 读取两处实现，确认调用关系与是否重复定义 | 第 2 批 | `config_system.md` |
 | `docs/` 15 篇文档中哪些是实质内容、哪些仅为外链占位 | E4：`wc -l docs/config.md` = 15 行、`codex-rs/config.md` = 6 行、`docs/sandbox.md` 仅 3 行外链 | 逐篇 `wc -l` + 抽读 | 第 1 批 | `AI_Coding_Context.md` 文档索引 |
 
@@ -852,16 +854,16 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 | OAuth issuer `https://auth.openai.com` | E3 | `codex-rs/login/src/server.rs:59` | grep | 已确认 |
 | 凭证存储于 `CODEX_HOME/auth.json` 或 keyring | E3 | `codex-rs/config/src/types.rs:109,113,129` | grep | 已确认 |
 | 沙箱支持 Seatbelt/Landlock/bwrap/Windows | E3 | `codex-rs/sandboxing/src/{seatbelt,landlock,bwrap,windows}.rs` + 3 个 `.sbpl` | `ls` | 已确认 |
-| CLI 子命令 23 个（含隐藏与平台条件） | E3 | `codex-rs/cli/src/main.rs:123-215` | 读取 | 已确认（第 1 批复核精确计数） |
-| 禁止向 `docs/` 添加通用文档 | E2 | `AGENTS.md:32` | 读取 | 已确认 |
+| CLI `Subcommand` 枚举 **27 个变体**（3 个 `#[clap(hide = true)]`，1 个仅 macOS/Windows 条件编译；因此 Linux 上可见 23 个、macOS 与 Windows 上可见 24 个） | E3 | `codex-rs/cli/src/main.rs` 的 `Subcommand` 枚举 | 读取 | **已更正**：原记「23 个」把「Linux 可见数」当成了「枚举变体数」，与全部正式文档的「27 个变体」冲突。该残留是第二轮独立审查推翻首版验收的直接证据之一（`health_check_report.md` H15 / X4） |
+| 禁止向 `docs/` 添加通用文档 | E2 | AGENTS.md 顶部规则列表（docs/ 条目） | 读取 | 已确认 |
 | 外部贡献受邀制 | E2 | `docs/contributing.md:3-17` | 读取 | 已确认 |
-| 单次变更 ≤800 行 | E2 | `AGENTS.md:125-131` | 读取 | 已确认 |
-| 三平台支持强制要求 | E2 | `AGENTS.md:317-322` | 读取 | 已确认 |
-| Cargo/Bazel 双锁需同步 | E2 | `AGENTS.md:37-39` | 读取 | 已确认 |
+| 单次变更 ≤800 行 | E2 | AGENTS.md「### Change size guidance (800 lines)」 | 读取 | 已确认 |
+| 三平台支持强制要求 | E2 | AGENTS.md「## Platform Support」 | 读取 | 已确认 |
+| Cargo/Bazel 双锁需同步 | E2 | AGENTS.md 顶部规则列表（Bazel 锁条目） | 读取 | 已确认 |
 | `chat_composer.rs` 12,616 行 | E4 | `git ls-files "*.rs" \| xargs wc -l \| sort -rn` | 命令执行 | 已确认 |
 | insta 快照 681 个 | E4 | `git ls-files "*.snap" \| wc -l` | 命令执行 | 已确认 |
 | `*_tests.rs` 457 个 | E4 | `git ls-files "*_tests.rs" \| wc -l` | 命令执行 | 已确认 |
-| analytics 为 opt-out 语义，网络投递当前关闭 | E3 | `codex-rs/analytics/src/client.rs:108,221,226` | grep | 待第 4 批完整核查 |
+| analytics 为 opt-out 语义；**网络投递并非「当前关闭」** | E3 | `codex-rs/analytics/src/client.rs` 的 `AnalyticsEventsDestination::from_base_url_and_capture_file` | 读取完整分支 | **已更正**：写本地文件的 `CaptureFile` 分支需同时满足「debug 构建」且「捕获文件环境变量已设置且非空」；环境变量未设时，debug 构建同样落到 `Self::Http` 走网络。原记「网络投递当前关闭」是只读了日志文案得出的错误结论（`health_check_report.md` H7） |
 | Statsig 默认指标导出在 debug 构建下关闭 | E3 | `codex-rs/otel/src/config.rs:16,113` | grep | 待第 4 批完整核查 |
 | 框架目录为软链接 `AI-Coding-Context` | E4 | `ls -la` 显示 `lrwxr-xr-x ... -> <本地工作区>/AI-Coding-Context` | 命令执行 | 已确认并已排除 |
 
@@ -939,9 +941,9 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 
 #### 分析结论
 
-- **Rust 集成测试重心**: `codex-rs/core/tests/`（174 文件，含 `suite/` 40+ 用例、`common/` 支撑库、`remote_env_windows/` 远程环境用例、`all.rs` 聚合入口）与 `codex-rs/app-server/tests/`（121 文件），两者合计占测试文件近半。
-- **单元测试形态**: 457 个内联 `*_tests.rs`，遵循 `AGENTS.md:169-178` 的 `#[path = "..._tests.rs"]` 独立文件约定。
-- **快照测试**: 681 个 insta 快照，主要集中在 `codex-rs/tui`，对应 `AGENTS.md:180-202` 的 UI 变更必须附快照的硬要求。
+- **Rust 集成测试重心**: `codex-rs/core/tests/`（174 文件，其中 `suite/` 有 **116 个 `.rs`**、`common/` 支撑库、`remote_env_windows/` 远程环境用例、`all.rs` 聚合入口）与 `codex-rs/app-server/tests/`（121 文件），两者合计占测试文件近半。`suite/` 的数值口径为 `git ls-files "codex-rs/core/tests/suite/*.rs" | wc -l`（E1）。
+- **单元测试形态**: 457 个内联 `*_tests.rs`，遵循 AGENTS.md「### Test module organization」 的 `#[path = "..._tests.rs"]` 独立文件约定。
+- **快照测试**: 681 个 insta 快照，主要集中在 `codex-rs/tui`，对应 AGENTS.md「### Snapshot tests」 的 UI 变更必须附快照的硬要求。
 - **SDK 测试**: `sdk/typescript/tests/`（8 文件，jest）与 `sdk/python/tests/`（18 文件，pytest），后者覆盖 app-server 生命周期、审批、流式、登录、契约生成与公开 API 签名。
 - **第三方内容**: `codex-rs/vendor/bubblewrap/tests/`（15 文件）属 vendored 第三方测试，不纳入本项目测试规范描述。
 - **未发现**: 独立的 `examples/**/tests/` 型样例工程测试。
@@ -952,14 +954,14 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 
 | 主题 | 事实源文件 | 证据位置 | 说明 |
 | ---- | ---------- | -------- | ---- |
-| 格式化与 lint 三步法 | `AGENTS.md` | `AGENTS.md:64-70` | 明确 `just fmt` → `just test -p <crate>` → `just fix -p <crate>`，且禁止直接 `cargo test` |
-| 抑制 core 膨胀 | `AGENTS.md` | `AGENTS.md:74-83` | 维护者原话「resist adding code to codex-core」，可作为 crate 归属决策准则 |
-| 模型上下文硬约束 | `AGENTS.md` | `AGENTS.md:91-101` | 6 条：无历史重写、避免缓存失效、有界大小、单项 ≤10K token、>1k token 标 P0、片段须实现 `ContextualUserFragment` |
-| app-server API 规范 | `AGENTS.md` | `AGENTS.md:260-306` | v2 命名、camelCase、ts-rs 注解、游标分页、schema 再生成 |
-| 集成测试写法 | `AGENTS.md` | `AGENTS.md:224-258` | `TestCodexBuilder::build_with_auto_env()`、`mount_sse_once`、`ResponseMock` 断言 |
-| TUI 样式约定 | AGENTS.md + `codex-rs/tui/styles.md` | `AGENTS.md:133-163` | 约定 Stylize 助手、白色前景与 textwrap 换行的写法 |
+| 格式化与 lint 三步法 | `AGENTS.md` | AGENTS.md 顶部规则列表（just fmt / just test / just fix 段） | 明确 `just fmt` → `just test -p <crate>` → `just fix -p <crate>`，且禁止直接 `cargo test` |
+| 抑制 core 膨胀 | `AGENTS.md` | AGENTS.md「## The codex-core crate」 | 维护者原话「resist adding code to codex-core」，可作为 crate 归属决策准则 |
+| 模型上下文硬约束 | `AGENTS.md` | AGENTS.md「### Model visible context」 | 6 条：无历史重写、避免缓存失效、有界大小、单项 ≤10K token、>1k token 标 P0、片段须实现 `ContextualUserFragment` |
+| app-server API 规范 | `AGENTS.md` | AGENTS.md「## App-server API Development Best Practices」 | v2 命名、camelCase、ts-rs 注解、游标分页、schema 再生成 |
+| 集成测试写法 | `AGENTS.md` | AGENTS.md「#### codex_core integration testing」与「#### app-server integration testing」 | `TestCodexBuilder::build_with_auto_env()`、`mount_sse_once`、`ResponseMock` 断言 |
+| TUI 样式约定 | AGENTS.md + `codex-rs/tui/styles.md` | AGENTS.md「## TUI style conventions」至「### Text wrapping」各节 | 约定 Stylize 助手、白色前景与 textwrap 换行的写法 |
 | 贡献治理 | `docs/contributing.md` | `docs/contributing.md:3-17,31-42,72-88` | 受邀制、topic 分支、CLA 签署流程 |
-| 变更规模控制 | `AGENTS.md` | `AGENTS.md:125-131` | ≤800 行（复杂逻辑 ≤500 行），超出需分阶段 |
+| 变更规模控制 | `AGENTS.md` | AGENTS.md「### Change size guidance (800 lines)」 | ≤800 行（复杂逻辑 ≤500 行），超出需分阶段 |
 
 ### 最终验证命令
 
@@ -1103,7 +1105,7 @@ _（待用户填写）_
 | AI token 限制导致会话中断 | 高 | 低 | 每批结束更新 `generation_progress.md`，支持断点续传 |
 | Bazel 构建无法本地验证 | 中 | 中 | 相关结论降级为 E2，标注「未本机验证」，以 CI 工作流交叉参考 |
 | Python 3.9.6 无法运行 SDK 测试 | 中 | 低 | Python SDK 章节标注 E2 级证据与本地验证前提 |
-| 误将文档产物放入 `docs/` 违反 `AGENTS.md:32` | 低 | 高 | 产物路径在方案中硬固定为 `dev_docs/`，并写入 AI_RULES |
+| 误将文档产物放入 `docs/` 违反 AGENTS.md 顶部规则列表（docs/ 条目） | 低 | 高 | 产物路径在方案中硬固定为 `dev_docs/`，并写入 AI_RULES |
 | 文档质量不达标 | 低 | 高 | 每批结束执行质量检查清单；首版执行 5 项 checker 验收 |
 
 ### 应急处理流程
@@ -1150,8 +1152,28 @@ _（待用户填写）_
 
 ---
 
+## 🚨 首版验收被推翻的记录（第二轮独立审查）
+
+> 本节是对本方案「执行计划」与「验证清单」的**事后修正记录**，写在这里是为了让后续任何按本方案续做的人第一时间看到：**首版验收的结论不成立**。
+
+| 字段 | 值 |
+| ---- | ---- |
+| 首版验收结论 | `PASS_WITH_ACCEPTED_ISSUES`（7 项质量维度全部 ✅） |
+| 复核方式 | 7 个独立代理从源码重新推导全部可核验断言 |
+| 复核结果 | **15 项 HIGH 级事实错误**，分布在 12 篇文档中；另有约 45 项 MED、约 25 项 LOW |
+| 改判后结论 | **FAIL** |
+| 完整清单 | [`health_check_report.md`](./health_check_report.md) |
+
+三条与本方案直接相关的教训：
+
+1. **本方案的「关键事实记录」表本身留了错**。「CLI 子命令 23 个……已确认」在全部正式文档改用「27 个变体」之后仍未同步，导致首版验收报告中「四处全部已同步更正」的断言为假。**元文件也在验收范围内**，不能只查正式文档。
+2. **「5 项 checker 全绿」被当成了「内容正确」**。这 5 个 checker 不做跨文档数值对账，也不校验「标题声明的计数」与「表格实际行数」是否相符；本轮 15 个 HIGH 全部落在其覆盖范围之外，其中 4 项属于 checker 的结构性盲区。
+3. **证据等级越权是主要失误模式**：拿文件名列表下依赖结论（ext 依赖 8/12 被写成 12/12），拿类型定义与文件名下机制结论（Landlock 已废弃却被写成默认路径）。对应的硬规则已写入 `rules/combined/AI_RULES.md` §5.3。
+
+---
+
 ## 📌 备注
 
 - **框架边界**: 框架位于软链接 `AI-Coding-Context/ -> <本地工作区>/AI-Coding-Context`，已在所有扫描与统计中排除，扫描结果经验证不含框架文件。
-- **产物路径**: 全部落在仓库根 `dev_docs/`，符合 `AGENTS.md:32` 对 `docs/` 的限制。
+- **产物路径**: 全部落在仓库根 `dev_docs/`，符合 AGENTS.md 顶部规则列表（docs/ 条目） 对 `docs/` 的限制。
 - **既有文档关系**: 本体系不替代 `docs/` 与 developers.openai.com 的用户文档，定位为**面向开发者与 AI 代理的仓库内部导航与规范落地层**。

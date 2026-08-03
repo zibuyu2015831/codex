@@ -1,7 +1,7 @@
 ---
 title: Codex CLI 文档体系生成进度记录
-summary: 记录 openai/codex 仓库 dev_docs 文档体系的生成进度、流程阶段状态、两轮 Phase 1 方案复查记录、结构化机器检查结果、脱敏扫描记录与用户确认状态，支持会话中断后的断点续传。
-keywords: codex | progress | phase1-review | machine-checks | dev-docs | tracking
+summary: 记录 openai/codex 仓库 dev_docs 文档体系的生成进度、流程阶段状态、两轮 Phase 1 方案复查记录、结构化机器检查结果、脱敏扫描记录与用户确认状态，并记录第二轮七路独立审查把首版验收由 PASS_WITH_ACCEPTED_ISSUES 改判为 FAIL 的经过、15 项 HIGH 级事实错误的统计与 5,182 行产物总量的正确口径，支持会话中断后的断点续传。
+keywords: codex | progress | phase1-review | machine-checks | dev-docs | tracking | independent-review
 scope: openai/codex 仓库 dev_docs 文档体系生成过程追踪
 related_files: AGENTS.md | codex-rs/Cargo.toml | codex-rs/cli/src/main.rs
 dependencies: dev_docs/_analysis/generation_plan.md | dev_docs/_analysis/project_analysis_report.md
@@ -12,13 +12,13 @@ verified_at: 2026-08-03
 
 > **项目**: Codex CLI（仓库 `openai/codex`）
 > **开始时间**: 2026-08-03 12:28
-> **最后更新**: 2026-08-03 17:40
-> **当前状态**: 首版全部完成，已通过首版质量验收
-> **流程阶段进度**: Step 8/8 已完成
+> **最后更新**: 2026-08-03 19:30
+> **当前状态**: 首版产物全部落盘，但首版验收结论已被第二轮独立审查推翻，现判定为 FAIL，事实错误修复进行中
+> **流程阶段进度**: Step 8/8 已执行完毕，其中 Step 8 的结论已改判
 > **产物完成度**: 26/26 (100%)
-> **当前 gate**: 无 —— 等待用户整体审核与优化
-> **下一步动作**: 用户进行整体审核；后续走框架路径 C 增量更新
-> **阻塞原因**: 无
+> **当前 gate**: 事实修复门 —— 15 项 HIGH 级事实错误修复完毕并经独立复核前，本体系不作为可信参考
+> **下一步动作**: 按 `health_check_report.md` 的修复计划逐项修复 HIGH 级事实错误，修复后重新验收
+> **阻塞原因**: 无（修复可直接推进，不需用户输入）
 > **正式生成授权**: 已授权（用户 2026-08-03 明确回复"方案审核通过"）
 > **版本控制状态**: 已提交 commit `8224f7c034`，已推送至 `fork/zibuyu`（`zibuyu2015831/codex`，公开）；上游 `origin` 无任何写入
 
@@ -33,9 +33,9 @@ verified_at: 2026-08-03
 - [x] 步骤 5: 等待人工审核 ✅ 已完成（历经 2 轮方案复查）
 - [x] 步骤 6: 已获用户确认 ✅ 已完成（2026-08-03）
 - [x] 步骤 7: 执行文档生成 ✅ 已完成（4 批全部完成）
-- [x] 步骤 8: 首版质量验收 ✅ 已完成（verdict = PASS_WITH_ACCEPTED_ISSUES）
+- [x] 步骤 8: 首版质量验收 ⚠️ 已执行，**结论已改判为 FAIL**（首版曾记 `PASS_WITH_ACCEPTED_ISSUES`，被第二轮 7 路独立审查推翻，见 `health_check_report.md`）
 
-**流程阶段进度**: 8/8 (100%)。
+**流程阶段进度**: 8/8 (100%)。步骤 8 的产出（验收报告）已重写，结论由通过改为不通过。
 
 ---
 
@@ -141,7 +141,8 @@ verified_at: 2026-08-03
 - [x] 模板残留/占位符检查通过
 - [x] Python/JS 两套 `semantic_review_checker` 均已执行
 - [x] `health_check_report.md` 已落盘并通过自身检查（第 1 批阶段性验收）
-- [x] 首版最终 verdict 已产生：**PASS_WITH_ACCEPTED_ISSUES**（见 `health_check_report.md`）
+- [x] 首版最终 verdict 曾记为 `PASS_WITH_ACCEPTED_ISSUES`
+- [x] 第二轮独立审查已执行：**verdict 改判为 FAIL**（见 `health_check_report.md`）
 
 ### checker_status_matrix
 
@@ -152,9 +153,11 @@ verified_at: 2026-08-03
 | structure | doc_health_checker | js | PASS | 与 Python checker 交叉验证 | yes |
 | semantic | semantic_review_checker | python | PASS | 事实一致性、测试拓扑和审核门语义 | yes |
 | semantic | semantic_review_checker | js | PASS | 与 Python checker 交叉验证 | yes |
-| acceptance | health_check_report | markdown | PASS_WITH_ACCEPTED_ISSUES | **首版最终验收**：0 blocker，3 项 accepted issue 均为已显式声明的证据等级限制 | yes |
+| acceptance | health_check_report | markdown | FAIL | **改判后的验收结论**：15 项 HIGH 级事实错误（blocker），1 项 accepted issue | yes |
 
-> 说明：Phase 1 的 hard gate 为 metadata / structure / semantic 五行，均为 PASS。`acceptance` 行记录的是**首版最终验收**结论。`summary_validator PASS` 不得单独表述为"验证通过"。
+> 说明：Phase 1 的 hard gate 为 metadata / structure / semantic 五行，均为 PASS。`acceptance` 行记录的是最终验收结论，现为 FAIL。
+>
+> **五行 checker 全 PASS 与 acceptance FAIL 并存不是矛盾**：checker 覆盖结构与格式，不覆盖事实正确性与跨文档数值一致性。`summary_validator PASS` 不得单独表述为"验证通过"，五项全绿同样不得表述为"内容正确"。
 
 ---
 
@@ -170,7 +173,7 @@ verified_at: 2026-08-03
   - **事实**: 关键事实全部记录了证据等级与来源。第 2 轮对全部量化声明重跑复核：5913 文件（基线 commit 口径）、1,270,789 行 Rust、2858 个 `.rs`、681 快照、457 个 `*_tests.rs`、39 测试目录 / 631 测试文件、550 个 v2 TS schema 文件、`.gitignore` 931 字节、`AGENTS.md` 22,519 字节 —— **以上均复核一致**；**唯一不一致项为 Cargo workspace crate 数，原记 130 系错误，已更正为 134**（详见下方「第 2 轮更正」）。
   - **证据**: 项目定位约束 11 条全部 E2/E3；AI/外部服务边界 11 条中 9 条 confirmed（E3 源码行号）、2 条标记 `needs_code_verification` 并明确列为代码级核查而非用户确认项。
   - **待确认边界**: 第 1 轮 3 项进入用户确认清单（文档定位、版本管理偏好、实验性表面优先级），均已论证代码与仓库文档无法回答；7 项代码可答问题已移入"下一步代码级核查"表。**第 2 轮：版本管理项已由用户实际操作解决，当前待确认为 2 项。**
-  - **项目定位覆盖**: `AGENTS.md:32`（禁止向 `docs/` 添加通用文档）已作为硬性前置写入方案，产物路径固定为仓库根 `dev_docs/`；`docs/contributing.md:3-17`（外部贡献受邀制）已作为治理前提写入问题报告开头，全部建议降级为"长期观察"，无任何面向上游的修复待办。
+  - **项目定位覆盖**: AGENTS.md 顶部规则列表（docs/ 条目）（禁止向 `docs/` 添加通用文档）已作为硬性前置写入方案，产物路径固定为仓库根 `dev_docs/`；`docs/contributing.md:3-17`（外部贡献受邀制）已作为治理前提写入问题报告开头，全部建议降级为"长期观察"，无任何面向上游的修复待办。
   - **AI/外部服务边界**: 已区分默认在线路径（OpenAI Responses API / ChatGPT 通道）、用户配置的本地模型路径（Ollama / LM Studio）、用户自带 MCP server 三类；未把 README 的 "runs locally" 简化为"完全本地/离线优先"。
   - **状态表达**: 三件套状态一致，均为"等待人工审核 / 未授权正式生成"。第 2 轮回写后仍保持一致。
 - **第 2 轮更正**（用户要求自审后新发现，均已同步回写正文、表格、待确认清单与行动计划）:
@@ -211,6 +214,8 @@ verified_at: 2026-08-03
 | phase1_review | doc_health_checker | js | `node AI-Coding-Context/tools/js/doc_health_checker.js --full-check --doc-dir dev_docs` | 0 | 0 | PASS | yes | fixed |
 | phase1_review | semantic_review_checker | python | `python3 AI-Coding-Context/tools/py/semantic_review_checker.py --full-check --doc-dir dev_docs --repo-root .` | 0 | 0 | PASS | yes | fixed |
 | phase1_review | semantic_review_checker | js | `node AI-Coding-Context/tools/js/semantic_review_checker.js --full-check --doc-dir dev_docs --repo-root .` | 0 | 0 | PASS | yes | fixed |
+
+> 上表只记录 **Phase 1 方案复查阶段**的 5 项 required hard gate。正式文档生成后的历轮运行、以及第二轮独立审查阶段的运行，记录在 `health_check_report.md` 的 `machine_checks` 表中（该轮 5 项同样全绿，但 disposition 一律为 `insufficient`）。本节刻意不再插入第二张表格，避免 js 版 doc_health_checker 把它误解析为第二张 machine_checks 表。
 
 **上表记录的是修复后的终态。首轮检查曾失败，修复过程如下（全部已回写，无遗留豁免）**:
 
@@ -258,21 +263,36 @@ verified_at: 2026-08-03
 
 ---
 
-## 🔎 首版质量验收记录
+## 🔎 质量验收记录（含首版结论被推翻的经过）
 
-> 本节记录正式文档生成后的质量验收。当前已完成**第 1 批阶段性验收**，首版最终验收待 17 篇正式文档全部生成后进行。
+> 本节记录正式文档生成后的质量验收。**首版结论已作废**，当前有效结论来自第二轮独立审查。
+
+### 首版验收（已作废）
 
 - **review_trigger**: 全部 17 篇正式文档 + AI 规则索引生成完成（Step 8.5）
-- **当前阶段状态**: **首版最终验收已完成**
 - **health_report**: `dev_docs/_analysis/health_check_report.md`
-- **final_verdict**: **PASS_WITH_ACCEPTED_ISSUES**
-- **blocker_count**: 0
-- **accepted_issue_count**: 3
-- **corrected_fact_count**: 4（crate 数 130→134、CLI 子命令口径、Linux 沙箱机制、CI 工作流数 29→27）
-- **closed_e1_gap_count**: 3（四条扩展路径关系、遥测默认开关、find_codex_home 是否重复实现）
+- **首版 final_verdict**: `PASS_WITH_ACCEPTED_ISSUES` —— **该结论不成立，已作废**
+- **首版 blocker_count**: 0（记录错误：实际存在 15 项 HIGH 级事实错误）
+- **首版 accepted_issue_count**: 3
+- **corrected_fact_count**: 4（crate 数 130→134、CLI 子命令口径、Linux 沙箱机制、CI 工作流数 29→27）——其中「Linux 沙箱机制」这条更正本身也是错的，见第二轮 H2
+- **closed_e1_gap_count**: 3（四条扩展路径关系、遥测默认开关、`find_codex_home` 是否重复实现）
 - **final_machine_checks**: 5 项全部 exit_code=0 / issue_count=0，两套实现一致
 - **writeback_summary**: 第 1 批修复共 4 类问题 —— ①主文档 10 个框架必需章节缺失（真实契约违反，已按 `main_doc_contract.yaml` 重写结构并补齐核心代码模式/命名规范/业务模块映射/常见任务速查四节实质内容）；②正式文档已落盘但无验收报告（已生成并标注为阶段性）；③16 项 `fact_conflicts` 极性假阳性（对齐措辞，未改结论）；④`accepted_issues` 表缺必填列（已补齐 9 列）。
-- **user_confirmation_status**: pending（用户已授权完成全部文档，将在完成后进行整体审核与优化）
+
+### 第二轮独立审查（当前有效结论）
+
+- **review_trigger**: 用户要求对首版产物做独立复核
+- **review_method**: **7 个独立代理**分头从源码重新推导全部可核验断言，不复用首版的任何结论
+- **final_verdict**: **FAIL**
+- **blocker_count**: 15
+- **HIGH 级事实错误**: 15（分布在 12 篇文档中；其中 6 项恰是首版验收宣称「已用代码级核查闭合」的结论）
+- **MED 级问题**: 约 45
+- **LOW 级问题**: 约 25
+- **accepted_issue_count**: 1（AI-005；AI-003 与 AI-004 已撤销）
+- **checker 盲区占比**: 15 个 HIGH 中至少 4 项属于 5 项 checker 的结构性盲区（跨文档数值对账、标题声明计数与表格实际行数的一致性），其余 11 项 checker 设计上就不覆盖
+- **脱敏复扫**: 检出并修复组织 SSH remote 串 1 处，复扫无残留
+- **完整清单**: `health_check_report.md`
+- **user_confirmation_status**: pending（用户已授权完成全部文档，整体审核与优化在修复完成后进行）
 
 ### accepted_issues
 
@@ -280,8 +300,8 @@ verified_at: 2026-08-03
 | -------- | ---- | ---- |
 | ~~AI-001~~ | ~~文档索引中 13 个条目指向尚未生成的文档~~ | ✅ 已消解：17 篇全部生成 |
 | ~~AI-002~~ | ~~四条扩展路径的相互关系仅有 E1 证据~~ | ✅ 已消解：第 3 批完成 E3 核查 |
-| AI-003 | app-server ↔ exec-server 跨 OS 传输实现未做代码级验证 | 后续单独核查 |
-| AI-004 | insta 快照更新流程在 justfile 与 AGENTS.md 中均无记载 | 询问维护者或搜索既有实践 |
+| ~~AI-003~~ | ~~app-server ↔ exec-server 跨 OS 传输实现未做代码级验证~~ | ⛔ 已撤销：第二轮已定位到可读的实现入口，不构成证据等级限制，转为覆盖缺口 |
+| ~~AI-004~~ | ~~insta 快照更新流程在 justfile 与 AGENTS.md 中均无记载~~ | ⛔ 已撤销：**前提为假**。AGENTS.md 的「### Snapshot tests」一节完整记载了该流程与一条强制要求。此条属漏读，不应登记为 accepted issue |
 | AI-005 | 本机 Python 3.9.6 低于 SDK 要求，无法取得 E4 验证 | 升级 Python 后补跑 |
 
 > 完整字段见 `health_check_report.md` 的 `accepted_issues` 表。
@@ -307,6 +327,7 @@ verified_at: 2026-08-03
 | 2026-08-03 16:20 | 生成中 | 完成第 2 批 5 篇（核心运行时）；期间发现 Linux 沙箱实为 Landlock+seccomp 双机制，回填第 1 批 | 执行第 3 批 | 门禁 5 项全绿 |
 | 2026-08-03 17:00 | 生成中 | 完成第 3 批 5 篇；**闭合四条扩展路径关系 E1 缺口**；CI 工作流数由 29 更正为 27 | 执行第 4 批 | 门禁 5 项全绿 |
 | 2026-08-03 17:40 | 首版完成 | 完成第 4 批 3 篇 + AI_RULES；**闭合遥测默认开关 E1 缺口**；第 4 批首跑被拦下 4 个敏感值策略违规，已改写 | 等待用户整体审核 | 首版 verdict = PASS_WITH_ACCEPTED_ISSUES |
+| 2026-08-03 19:30 | 首版验收被推翻 | 第二轮 7 路独立审查从源码重新推导全部可核验断言，查出 15 项 HIGH / 约 45 项 MED / 约 25 项 LOW；`health_check_report.md` 重写，verdict 由 PASS_WITH_ACCEPTED_ISSUES 改判为 **FAIL**；脱敏复扫检出并修复组织 SSH remote 串 1 处 | 逐项修复 HIGH 级事实错误 | 5 项 checker 在错误存在期间始终全绿，说明门禁不覆盖事实正确性 |
 
 ---
 
@@ -315,13 +336,13 @@ verified_at: 2026-08-03
 ### 恢复步骤
 
 1. **打开此文件**，查看"逐文档完成状态"
-2. **找到第一个未完成的任务**（首版已全部完成，当前无未完成任务）
+2. **找到第一个未完成的任务**（产物已全部落盘；当前待办是 `health_check_report.md` 修复计划中的 HIGH 级事实错误）
 3. **告诉 AI**: "继续从 [未完成任务名称] 开始生成"
 4. AI 将读取 `generation_plan.md` 的执行计划，跳过已完成部分继续生成
 
 ### 当前恢复入口
 
-- **首版已全部完成并通过验收**，当前无待续任务。后续工作是用户的整体审核与优化，以及上游漂移时的增量更新（框架路径 C）
+- **产物已全部落盘，但首版验收结论已被推翻**（现判 FAIL）。当前待续任务是按 `health_check_report.md` 的修复计划修复 15 项 HIGH 级事实错误，修复后重新验收；再之后才是用户整体审核与上游漂移时的增量更新（框架路径 C）
 - **恢复时必须继承的用户决定**: 文档定位为**兼顾**阅读与二次开发；实验性表面**全部展开**（第 4 批 `experimental_surfaces.md`）；产物提交并推送至 `fork/zibuyu`，禁止推送 `origin`
 - **必读上下文**: `dev_docs/_analysis/generation_plan.md` 的「执行计划」与「子文档规划」章节
 
@@ -346,7 +367,7 @@ verified_at: 2026-08-03
 - **框架边界**: `AI-Coding-Context` 是指向 `<本地工作区>/AI-Coding-Context` 的软链接，已在所有扫描、统计与文档引用中排除；框架自身内容不进入任何分析结果。
 - **推送红线**: `origin` 指向上游 `openai/codex`，**禁止向其推送任何内容**。本体系的全部提交只推送至 `fork`（`zibuyu2015831/codex`）。
 - **公开可见性**: `fork` 为公开仓库，`dev_docs/` 全部内容公开可检索。每批提交前必须执行 `generation_plan.md`「代码脱敏规范」中的两条强制扫描命令。
-- **产物路径红线**: `AGENTS.md:32` 禁止向 `docs/` 添加通用产品或用户文档。本体系全部产物固定在仓库根 `dev_docs/`，任何后续操作不得将其迁入 `docs/`。
+- **产物路径红线**: AGENTS.md 顶部规则列表（docs/ 条目） 禁止向 `docs/` 添加通用产品或用户文档。本体系全部产物固定在仓库根 `dev_docs/`，任何后续操作不得将其迁入 `docs/`。
 - **治理前提**: 本仓库外部代码贡献受邀制（`docs/contributing.md:3-17`），文档中的代码层面观察均为长期记录，不作为面向上游的修复待办。
 
 ---
@@ -360,9 +381,12 @@ verified_at: 2026-08-03
 - **已阻塞**: 0
 - **产物完成度**: 26/26 (100%)
 - **流程阶段进度**: 8/8 (100%)
-- **产物总行数**: 7,466
+- **产物总行数**: **5,182**（20 个交付产物：17 篇正式文档 + `rules/combined/AI_RULES.md` + `plans/README.md` + `knowledge/README.md`）；连同 `_analysis` 四件套为 **7,518**
+- **行数口径**: `wc -l`。此前记录的 7,466 对不上任何口径（既非 20 个产物之和，也非含 `_analysis` 之和），已作废；逐产物行数见 `health_check_report.md` 的「验收对象」表
 - **方案复查轮次**: 2
+- **独立审查轮次**: 1（7 个独立代理）
 - **待用户回答的疑问**: 0（3 项全部结案）
+- **待修复的 HIGH 级事实错误**: 15
 
 ---
 
@@ -380,4 +404,4 @@ verified_at: 2026-08-03
 
 ---
 
-**最后更新**: 2026-08-03 17:40
+**最后更新**: 2026-08-03 19:30
