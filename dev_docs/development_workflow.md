@@ -304,7 +304,7 @@ CI 校验锁文件漂移（AGENTS.md:37-39）
 
 | 未覆盖项 | 何时补齐 |
 | ---- | ---- |
-| CI 工作流的具体内容（29 个 workflow） | 第 3 批 `build_and_release.md` |
+| ~~CI 工作流的具体内容~~ | **已完成**，见 `build_and_release.md` |
 | Bazel 构建规则细节与 `BUILD.bazel` 写法 | 第 3 批 `build_and_release.md` |
 | 发布流程与产物矩阵 | 第 3 批 `build_and_release.md` |
 | `test_codex` 的用法与 insta 快照更新 | 第 3 批 `testing_guide.md` |

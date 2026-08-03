@@ -164,7 +164,7 @@ IDE 扩展 / 桌面端 / TypeScript SDK
 这意味着 `codex-exec-server`（39,311 行）可以运行在与 app-server 不同的操作系统上。相关传输设施包括 `codex-uds`（Unix domain socket）、`codex-stdio-to-uds`（stdio↔UDS 中继，hidden 子命令）、`codex-websocket-client`。
 
 > [!NOTE]
-> **传输实现细节尚未做代码级验证**（当前仅 `AGENTS.md` 的 E2 声明 + crate 存在性）。具体协议与握手流程待第 2 批 `app_server_protocol.md` 核实。本节不推断实现方式。
+> **传输实现细节仍未做代码级验证**（当前仅 `AGENTS.md` 的 E2 声明 + crate 存在性）。第 2 批 [`app_server_protocol.md`](./app_server_protocol.md) §7 复核后确认：**该缺口未能闭合**，`codex-exec-server-protocol`（1,723 行）是最佳切入点，跨 OS 集成测试见 `$remote-tests` skill。本节不推断实现方式。
 
 ---
 
@@ -175,7 +175,7 @@ IDE 扩展 / 桌面端 / TypeScript SDK
 | 平台 | 机制 | 实现位置 |
 | ---- | ---- | ---- |
 | macOS | Seatbelt | `codex-rs/sandboxing/src/seatbelt.rs` + 3 个 `.sbpl` 策略文件 |
-| Linux | Landlock | `codex-rs/sandboxing/src/landlock.rs`、独立 crate `codex-linux-sandbox`（8,224 行） |
+| Linux | **Landlock + seccomp**（`no_new_privs`） | `codex-rs/sandboxing/src/landlock.rs`、独立 crate `codex-linux-sandbox`（8,224 行）。枚举名为 `SandboxType::LinuxSeccomp`，但两种机制同时使用 |
 | Linux（备选） | bubblewrap | `codex-rs/sandboxing/src/bwrap.rs`、`codex-bwrap` |
 | Windows | 原生沙箱 | `codex-rs/sandboxing/src/windows.rs`、`codex-windows-sandbox`（19,173 行） |
 
@@ -225,10 +225,17 @@ README 描述 Codex "runs locally on your computer"，指的是**智能体进程
 | **⑤ 云任务** | `codex cloud`（实验性） | Codex Cloud 后端 | E3，`main.rs:195-197` |
 | **⑥ 遥测** | **默认行为待核实** | Statsig / OTLP | E3 部分证据 |
 
-> [!WARNING]
-> **⑥ 遥测的默认开关尚未完整核实。** 已知：`codex-rs/otel/src/config.rs:90` 存在 Statsig 默认指标导出器；`:16` 与测试 `:113` 显示 debug 构建下该默认导出器关闭；`codex-rs/analytics/src/client.rs:221` 显示 analytics 为 opt-out 语义，`:108` 的日志文案为 `analytics event capture enabled; network delivery is disabled`。
+> [!IMPORTANT]
+> **⑥ 遥测默认行为已于第 4 批完成代码级核查（E3），结论如下**——三类导出器默认值**并不一致**：
 >
-> **但这些来自定向 grep，未读取完整初始化链路**，因此本文不给出"release 构建默认是否上报"的结论。完整核查见第 4 批 [`observability.md`](./observability.md)。
+> | 项 | 默认值 |
+> | ---- | ---- |
+> | `metrics_exporter` | **`Statsig`（开）** |
+> | `trace_exporter` | `None`（关） |
+> | `exporter`（通用） | `None`（关） |
+> | `log_user_prompt` | **`false`（用户提示词不记录）** |
+>
+> 且 `Statsig` 在 **debug 构建下会降级为 `None`**，不发任何数据。analytics 为 opt-out，debug 下只写本地文件不投递。完整证据见 [`observability.md`](./observability.md) §1-§3。
 
 上述公开服务端点属于技术事实，按框架脱敏规范予以保留。
 
@@ -262,10 +269,14 @@ README 描述 Codex "runs locally on your computer"，指的是**智能体进程
 | ③ Skills | `codex-core-skills`、`codex-skills` |
 | ④ MCP | 客户端 `codex-rmcp-client` / `codex-mcp`；服务端 `codex-mcp-server`；扩展 `ext/mcp` |
 
-> [!CAUTION]
-> **四条路径的相互关系尚未验证**（当前仅 E1 目录存在性证据）。这是本文档体系当前证据等级最薄弱的架构点。
+> [!IMPORTANT]
+> **关系已于第 3 批完成代码级核查（E3），结论修正如下**：这**不是四条平行路径**，而是**一个统一扩展点 + 一个并行机制**——
 >
-> **禁止凭目录名推断它们的层次或调用关系。** 关系核查已排入第 3 批 [`mcp_and_extensions.md`](./mcp_and_extensions.md)。
+> - `ext/extension-api` 定义 13 个 Contributor trait，是唯一的统一扩展点，12 个 `ext/*` crate 全部构建其上
+> - **Skills 与 MCP 被包装成扩展**接入该体系：`ext/skills` 依赖 `core-skills`+`skills`，`ext/mcp` 依赖 `codex-mcp`
+> - **插件是真正并行的独立机制**：`core-plugins` 不依赖 `extension-api`，由 `codex-core` 直接对接
+>
+> 完整证据与选择依据见 [`mcp_and_extensions.md`](./mcp_and_extensions.md)。
 
 ---
 
@@ -295,10 +306,10 @@ README 描述 Codex "runs locally on your computer"，指的是**智能体进程
 | app-server JSON-RPC 的方法清单与握手 | E2 | 第 2 批 `app_server_protocol.md` |
 | 沙箱策略文件的具体规则 | E2 | 第 2 批 `tools_and_sandbox.md` |
 | 配置项全集与优先级 | E2 | 第 2 批 `config_system.md` |
-| 四条扩展路径的关系 | E1 | 第 3 批 `mcp_and_extensions.md` |
+| ~~四条扩展路径的关系~~ | **E3，已完成** | 见 `mcp_and_extensions.md` §1 |
 | 认证流程的完整时序 | E3（端点已确认，流程未读） | 第 3 批 `auth_and_providers.md` |
 | 遥测默认行为 | E3（部分） | 第 4 批 `observability.md` |
-| 实验性表面的展开 | E3（标记已确认） | 第 4 批 `experimental_surfaces.md` |
+| ~~实验性表面的展开~~ | **已完成** | 见 `experimental_surfaces.md` |
 
 ---
 

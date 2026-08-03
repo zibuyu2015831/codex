@@ -286,7 +286,7 @@ codex/（仓库根）
 ├── codex-cli/              - npm 包 @openai/codex 的启动器（bin/codex.js + 打包脚本）
 ├── docs/                   - 仓库文档（15 篇，多数为指向官方站点的短文）
 ├── scripts/                - 仓库级构建/发布/格式化脚本（Python 为主）
-├── .github/workflows/      - 29 个 CI 工作流
+├── .github/workflows/      - 27 个 CI 工作流（yml；另有 README.md/Dockerfile.bazel/zstd 非 yml 条目）
 ├── bazel/ patches/ third_party/ - Bazel 规则、依赖补丁、第三方源
 ├── tools/                  - 仓库自有工具（argument-comment-lint 等）
 ├── AGENTS.md               - 仓库对 AI 代理的强制规范（22,519 字节）★ 核心事实源
@@ -620,7 +620,7 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 - [ ] `dev_docs/build_and_release.md` — 构建、双构建系统与发布
 
   - **推荐理由**: `cli_tool.md` 推荐 `installation.md`；本项目 Cargo/Bazel 双锁同步是高频踩坑点（`AGENTS.md:37-43`）
-  - **内容来源**: `MODULE.bazel`、`justfile`、`.github/workflows/`（29 个）、`codex-cli/scripts/build_npm_package.py`、`scripts/`、`docs/install.md`
+  - **内容来源**: `MODULE.bazel`、`justfile`、`.github/workflows/`（27 个 yml）、`codex-cli/scripts/build_npm_package.py`、`scripts/`、`docs/install.md`
   - **预计行数**: 400-550
 
 - [ ] `dev_docs/session_and_persistence.md` — 会话生命周期与持久化
@@ -881,7 +881,7 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 | `[workspace] members` 显式项数 | 128 | `codex-rs/Cargo.toml` `[workspace] members` 计数 | 本文 1.1、3.2 节 |
 | `[workspace.dependencies]` path 映射数 | 128 | `codex-rs/Cargo.toml` `[workspace.dependencies]` 中含 `path =` 的条目计数 | 本文 1.4 节 |
 | `codex-rs/` 下子 crate 清单数 | 134 | `git ls-files "codex-rs/**/Cargo.toml" \| wc -l`（不含 workspace 根清单） | 本文 1.1 节 |
-| CI 工作流数 | 29 | `ls .github/workflows/` 计数（含 `README.md`、`Dockerfile.bazel`、`zstd` 等非 yml 条目已剔除） | 本文 1.3 节 |
+| CI 工作流数 | 27 | `git ls-files ".github/workflows/*.yml" ".github/workflows/*.yaml" \| wc -l`（`README.md`、`Dockerfile.bazel`、`zstd` 为非 yml 条目，不计入；第 3 批复核时由 29 更正为 27） | 本文 1.3 节 |
 | 测试目录数 / 测试文件数 | 39 / 631 | `semantic_review_checker.scan_test_topology`（全深度递归，识别 `tests`/`test`/`__tests__`/`spec` 等目录名） | 本文"测试资产扫描结果"章节 |
 | insta 快照数 | 681 | `git ls-files "*.snap" \| wc -l` | 本文 1.2 节 |
 | `*_tests.rs` 数 | 457 | `git ls-files "*_tests.rs" \| wc -l` | 本文 1.2 节 |

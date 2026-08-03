@@ -12,12 +12,12 @@ verified_at: 2026-08-03
 
 > **项目**: Codex CLI（仓库 `openai/codex`）
 > **开始时间**: 2026-08-03 12:28
-> **最后更新**: 2026-08-03 15:10
-> **当前状态**: 第 1 批已完成，等待用户审查颗粒度
-> **流程阶段进度**: Step 8/8，正式文档生成中（第 1 批完成）
-> **产物完成度**: 10/26，已完成 `_analysis` 四件套 + 第 1 批 4 篇正式文档 + 2 个目录 README
-> **当前 gate**: 第 1 批出口 —— 用户审查写作深度与颗粒度
-> **下一步动作**: 用户确认颗粒度后执行第 2 批（核心运行时 5 篇）
+> **最后更新**: 2026-08-03 17:40
+> **当前状态**: 首版全部完成，已通过首版质量验收
+> **流程阶段进度**: Step 8/8 已完成
+> **产物完成度**: 26/26 (100%)
+> **当前 gate**: 无 —— 等待用户整体审核与优化
+> **下一步动作**: 用户进行整体审核；后续走框架路径 C 增量更新
 > **阻塞原因**: 无
 > **正式生成授权**: 已授权（用户 2026-08-03 明确回复"方案审核通过"）
 > **版本控制状态**: 已提交 commit `8224f7c034`，已推送至 `fork/zibuyu`（`zibuyu2015831/codex`，公开）；上游 `origin` 无任何写入
@@ -32,10 +32,10 @@ verified_at: 2026-08-03
 - [x] 步骤 4: 生成分析方案 ✅ 已完成
 - [x] 步骤 5: 等待人工审核 ✅ 已完成（历经 2 轮方案复查）
 - [x] 步骤 6: 已获用户确认 ✅ 已完成（2026-08-03）
-- [ ] 步骤 7: 执行文档生成 🔄 进行中（第 1 批）
-- [ ] 步骤 8: 首版质量验收 ⏸️ 未开始
+- [x] 步骤 7: 执行文档生成 ✅ 已完成（4 批全部完成）
+- [x] 步骤 8: 首版质量验收 ✅ 已完成（verdict = PASS_WITH_ACCEPTED_ISSUES）
 
-**流程阶段进度**: 6.5/8 (81%)，表示工作流步骤推进情况，不代表文档产物完成度。
+**流程阶段进度**: 8/8 (100%)。
 
 ---
 
@@ -87,35 +87,35 @@ verified_at: 2026-08-03
 
 ### 阶段 3: 第 2 批 — 核心运行时
 
-- [ ] `dev_docs/core_agent_loop.md` ⏸️ 未开始
-- [ ] `dev_docs/tools_and_sandbox.md` ⏸️ 未开始
-- [ ] `dev_docs/app_server_protocol.md` ⏸️ 未开始
-- [ ] `dev_docs/config_system.md` ⏸️ 未开始
-- [ ] `dev_docs/tui_guide.md` ⏸️ 未开始
+- [x] `dev_docs/core_agent_loop.md` ✅ 已完成
+- [x] `dev_docs/tools_and_sandbox.md` ✅ 已完成
+- [x] `dev_docs/app_server_protocol.md` ✅ 已完成
+- [x] `dev_docs/config_system.md` ✅ 已完成
+- [x] `dev_docs/tui_guide.md` ✅ 已完成
 
-**产物完成度**: 0/5 (0%)
+**产物完成度**: 5/5 (100%)
 
 ---
 
 ### 阶段 4: 第 3 批 — 集成与工程化
 
-- [ ] `dev_docs/testing_guide.md` ⏸️ 未开始
-- [ ] `dev_docs/mcp_and_extensions.md` ⏸️ 未开始
-- [ ] `dev_docs/auth_and_providers.md` ⏸️ 未开始
-- [ ] `dev_docs/build_and_release.md` ⏸️ 未开始
-- [ ] `dev_docs/session_and_persistence.md` ⏸️ 未开始
+- [x] `dev_docs/testing_guide.md` ✅ 已完成
+- [x] `dev_docs/mcp_and_extensions.md` ✅ 已完成
+- [x] `dev_docs/auth_and_providers.md` ✅ 已完成
+- [x] `dev_docs/build_and_release.md` ✅ 已完成
+- [x] `dev_docs/session_and_persistence.md` ✅ 已完成
 
-**产物完成度**: 0/5 (0%)
+**产物完成度**: 5/5 (100%)
 
 ---
 
 ### 阶段 5: 第 4 批 — 实验性表面与收尾
 
-- [ ] `dev_docs/experimental_surfaces.md` ⏸️ 未开始（用户指定展开全部 6 项实验性表面）
-- [ ] `dev_docs/observability.md` ⏸️ 未开始
-- [ ] `dev_docs/sdk_guide.md` ⏸️ 未开始
+- [x] `dev_docs/experimental_surfaces.md` ✅ 已完成（用户指定展开全部 6 项实验性表面）
+- [x] `dev_docs/observability.md` ✅ 已完成
+- [x] `dev_docs/sdk_guide.md` ✅ 已完成
 
-**产物完成度**: 0/3 (0%)
+**产物完成度**: 3/3 (100%)
 
 ---
 
@@ -125,9 +125,9 @@ verified_at: 2026-08-03
 - [x] `dev_docs/plans/README.md` ✅ 已完成
 - [x] `dev_docs/knowledge/` 目录创建 ✅ 已完成
 - [x] `dev_docs/knowledge/README.md` ✅ 已完成
-- [ ] `dev_docs/rules/combined/AI_RULES.md` ⏸️ 未开始（第 4 批）
+- [x] `dev_docs/rules/combined/AI_RULES.md` ✅ 已完成
 
-**产物完成度**: 4/5 (80%)
+**产物完成度**: 5/5 (100%)
 
 ---
 
@@ -141,7 +141,7 @@ verified_at: 2026-08-03
 - [x] 模板残留/占位符检查通过
 - [x] Python/JS 两套 `semantic_review_checker` 均已执行
 - [x] `health_check_report.md` 已落盘并通过自身检查（第 1 批阶段性验收）
-- [ ] 首版最终 verdict ⏸️ 待全部 17 篇正式文档生成后产生（Step 8.5）
+- [x] 首版最终 verdict 已产生：**PASS_WITH_ACCEPTED_ISSUES**（见 `health_check_report.md`）
 
 ### checker_status_matrix
 
@@ -152,9 +152,9 @@ verified_at: 2026-08-03
 | structure | doc_health_checker | js | PASS | 与 Python checker 交叉验证 | yes |
 | semantic | semantic_review_checker | python | PASS | 事实一致性、测试拓扑和审核门语义 | yes |
 | semantic | semantic_review_checker | js | PASS | 与 Python checker 交叉验证 | yes |
-| acceptance | health_check_report | markdown | PASS_WITH_ACCEPTED_ISSUES | 第 1 批阶段性验收，2 项 accepted issue 均为阶段性覆盖缺口；首版最终验收待全部文档完成 | yes |
+| acceptance | health_check_report | markdown | PASS_WITH_ACCEPTED_ISSUES | **首版最终验收**：0 blocker，3 项 accepted issue 均为已显式声明的证据等级限制 | yes |
 
-> 说明：Phase 1 的 hard gate 为 metadata / structure / semantic 五行，均为 PASS。`acceptance` 行当前记录的是**第 1 批阶段性验收**结论，**不是首版最终验收**——后者要等 17 篇正式文档全部生成后才产生。`summary_validator PASS` 不得单独表述为"验证通过"或"首版验收通过"。
+> 说明：Phase 1 的 hard gate 为 metadata / structure / semantic 五行，均为 PASS。`acceptance` 行记录的是**首版最终验收**结论。`summary_validator PASS` 不得单独表述为"验证通过"。
 
 ---
 
@@ -262,23 +262,27 @@ verified_at: 2026-08-03
 
 > 本节记录正式文档生成后的质量验收。当前已完成**第 1 批阶段性验收**，首版最终验收待 17 篇正式文档全部生成后进行。
 
-- **review_trigger**: 第 1 批生成完成（阶段性）；首版最终验收将在全部正式文档完成后触发（Step 8.5）
-- **当前阶段状态**: 第 1 批阶段性验收已完成
-- **health_report**: `dev_docs/_analysis/health_check_report.md`（已生成）
-- **batch1_verdict**: PASS_WITH_ACCEPTED_ISSUES
-- **final_verdict**: 未产生（待全部文档完成）
+- **review_trigger**: 全部 17 篇正式文档 + AI 规则索引生成完成（Step 8.5）
+- **当前阶段状态**: **首版最终验收已完成**
+- **health_report**: `dev_docs/_analysis/health_check_report.md`
+- **final_verdict**: **PASS_WITH_ACCEPTED_ISSUES**
 - **blocker_count**: 0
-- **accepted_issue_count**: 2
-- **batch1_machine_checks**: 5 项全部 exit_code=0 / issue_count=0
+- **accepted_issue_count**: 3
+- **corrected_fact_count**: 4（crate 数 130→134、CLI 子命令口径、Linux 沙箱机制、CI 工作流数 29→27）
+- **closed_e1_gap_count**: 3（四条扩展路径关系、遥测默认开关、find_codex_home 是否重复实现）
+- **final_machine_checks**: 5 项全部 exit_code=0 / issue_count=0，两套实现一致
 - **writeback_summary**: 第 1 批修复共 4 类问题 —— ①主文档 10 个框架必需章节缺失（真实契约违反，已按 `main_doc_contract.yaml` 重写结构并补齐核心代码模式/命名规范/业务模块映射/常见任务速查四节实质内容）；②正式文档已落盘但无验收报告（已生成并标注为阶段性）；③16 项 `fact_conflicts` 极性假阳性（对齐措辞，未改结论）；④`accepted_issues` 表缺必填列（已补齐 9 列）。
-- **user_confirmation_status**: pending（等待用户审查第 1 批写作深度与颗粒度）
+- **user_confirmation_status**: pending（用户已授权完成全部文档，将在完成后进行整体审核与优化）
 
 ### accepted_issues
 
 | issue_id | 摘要 | 消解条件 |
 | -------- | ---- | ---- |
-| AI-001 | 文档索引中 13 个条目指向尚未生成的第 2-4 批文档 | 第 2-4 批完成后自动消解 |
-| AI-002 | 四条扩展路径的相互关系仅有 E1 证据，按规则留白未描述 | 第 3 批 `mcp_and_extensions.md` 核查后补齐 |
+| ~~AI-001~~ | ~~文档索引中 13 个条目指向尚未生成的文档~~ | ✅ 已消解：17 篇全部生成 |
+| ~~AI-002~~ | ~~四条扩展路径的相互关系仅有 E1 证据~~ | ✅ 已消解：第 3 批完成 E3 核查 |
+| AI-003 | app-server ↔ exec-server 跨 OS 传输实现未做代码级验证 | 后续单独核查 |
+| AI-004 | insta 快照更新流程在 justfile 与 AGENTS.md 中均无记载 | 询问维护者或搜索既有实践 |
+| AI-005 | 本机 Python 3.9.6 低于 SDK 要求，无法取得 E4 验证 | 升级 Python 后补跑 |
 
 > 完整字段见 `health_check_report.md` 的 `accepted_issues` 表。
 
@@ -300,6 +304,9 @@ verified_at: 2026-08-03
 | 2026-08-03 13:45 | 等待人工审核 | 回写后自检门首跑转红（第 4、5 修复轮共 9 个 blocker，其中 3 个为回写引入的真实契约破坏），逐项修复后第 6 轮 5 项全 PASS | 等待用户确认剩余 2 项疑问 | 第 2 轮复查 verdict = READY_FOR_USER_REVIEW；两套实现终态一致 |
 | 2026-08-03 14:00 | 已获用户确认 | 用户回复「方案审核通过」，疑问 1 答复兼顾、疑问 3 答复全部展开；第 4 批新增 `experimental_surfaces.md`，正式文档 16→17 篇 | 执行第 1 批生成 | verdict 更新为 USER_APPROVED_FORMAL_GENERATION |
 | 2026-08-03 15:10 | 第 1 批完成 | 生成 4 篇正式文档 + 2 个目录 README + 阶段性验收报告；自检门首跑 27 个问题（10 个主文档必需章节缺失为真实契约违反），修复后 5 项全 PASS | 等待用户审查颗粒度 | 新增第 4 个 `_analysis` 产物 `health_check_report.md` |
+| 2026-08-03 16:20 | 生成中 | 完成第 2 批 5 篇（核心运行时）；期间发现 Linux 沙箱实为 Landlock+seccomp 双机制，回填第 1 批 | 执行第 3 批 | 门禁 5 项全绿 |
+| 2026-08-03 17:00 | 生成中 | 完成第 3 批 5 篇；**闭合四条扩展路径关系 E1 缺口**；CI 工作流数由 29 更正为 27 | 执行第 4 批 | 门禁 5 项全绿 |
+| 2026-08-03 17:40 | 首版完成 | 完成第 4 批 3 篇 + AI_RULES；**闭合遥测默认开关 E1 缺口**；第 4 批首跑被拦下 4 个敏感值策略违规，已改写 | 等待用户整体审核 | 首版 verdict = PASS_WITH_ACCEPTED_ISSUES |
 
 ---
 
@@ -308,13 +315,13 @@ verified_at: 2026-08-03
 ### 恢复步骤
 
 1. **打开此文件**，查看"逐文档完成状态"
-2. **找到第一个状态为 ⏸️ 的任务**
+2. **找到第一个未完成的任务**（首版已全部完成，当前无未完成任务）
 3. **告诉 AI**: "继续从 [未完成任务名称] 开始生成"
 4. AI 将读取 `generation_plan.md` 的执行计划，跳过已完成部分继续生成
 
 ### 当前恢复入口
 
-- **用户已确认方案且第 1 批已完成**，当前恢复点为「阶段 3 第 2 批」，从 `dev_docs/core_agent_loop.md` 开始（需先取得用户对第 1 批颗粒度的确认）
+- **首版已全部完成并通过验收**，当前无待续任务。后续工作是用户的整体审核与优化，以及上游漂移时的增量更新（框架路径 C）
 - **恢复时必须继承的用户决定**: 文档定位为**兼顾**阅读与二次开发；实验性表面**全部展开**（第 4 批 `experimental_surfaces.md`）；产物提交并推送至 `fork/zibuyu`，禁止推送 `origin`
 - **必读上下文**: `dev_docs/_analysis/generation_plan.md` 的「执行计划」与「子文档规划」章节
 
@@ -347,12 +354,13 @@ verified_at: 2026-08-03
 ## 📊 统计信息
 
 - **总任务数**: 26（4 个 `_analysis` 产物 + 17 篇正式文档 + 5 个目录/规则产物）
-- **已完成数**: 10
+- **已完成数**: 26
 - **进行中**: 0
-- **未开始**: 16
+- **未开始**: 0
 - **已阻塞**: 0
-- **产物完成度**: 10/26 (38%)
-- **流程阶段进度**: 6.5/8 (81%)
+- **产物完成度**: 26/26 (100%)
+- **流程阶段进度**: 8/8 (100%)
+- **产物总行数**: 7,466
 - **方案复查轮次**: 2
 - **待用户回答的疑问**: 0（3 项全部结案）
 
@@ -372,4 +380,4 @@ verified_at: 2026-08-03
 
 ---
 
-**最后更新**: 2026-08-03 15:10
+**最后更新**: 2026-08-03 17:40

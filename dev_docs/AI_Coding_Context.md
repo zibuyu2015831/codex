@@ -39,7 +39,7 @@ verified_at: 2026-08-03
 | 结构 | Cargo workspace，**134 个 crate** | E4 |
 | 核心特征 | **单二进制、多前端、收敛到同一份 `codex-core`** | E3 |
 | 构建 | Cargo（日常）+ Bazel（发布与 CI 校验），**双锁必须同步** | E2 |
-| 隔离 | 三平台原生沙箱：Seatbelt / Landlock / bwrap / Windows | E3 |
+| 隔离 | 三平台原生沙箱：Seatbelt / Landlock+seccomp / bwrap / Windows 受限令牌 | E3 |
 | 入口 | `codex` 一个二进制，27 个子命令变体 | E3 |
 | 测试资产 | 39 个测试目录 / 631 个测试文件 / 457 个 `*_tests.rs` / 681 个快照 | E4 |
 
@@ -62,7 +62,7 @@ verified_at: 2026-08-03
 | `codex-rs/utils/` | 20 个通用工具 crate | — |
 | `codex-rs/sandboxing/` | 三平台沙箱统一入口 + 3 个 `.sbpl` 策略 | — |
 | `sdk/` | TypeScript / Python / Python-runtime 三套 SDK | 115 |
-| `.github/` | CI 工作流（29 个）与脚本 | 89 |
+| `.github/` | CI 工作流（27 个 yml）与脚本 | 89 |
 | `scripts/` | 格式化与辅助脚本（`format.py` 等） | 38 |
 | `tools/` | `argument-comment-lint`（workspace 之外的独立 crate） | 31 |
 | `docs/` | 仓库内文档，**极薄**（`config.md` 15 行、`sandbox.md` 3 行） | 15 |
@@ -109,22 +109,24 @@ verified_at: 2026-08-03
 | 第 1 批 | [`architecture_overview.md`](./architecture_overview.md) — 架构总览 | ✅ |
 | 第 1 批 | [`crate_map.md`](./crate_map.md) — 134 个 crate 地图 | ✅ |
 | 第 1 批 | [`development_workflow.md`](./development_workflow.md) — 开发流程与规范 | ✅ |
-| 第 2 批 | `core_agent_loop.md` — 智能体核心循环 | ⏸️ |
-| 第 2 批 | `tools_and_sandbox.md` — 工具调用与沙箱 | ⏸️ |
-| 第 2 批 | `app_server_protocol.md` — app-server 协议 | ⏸️ |
-| 第 2 批 | `config_system.md` — 配置体系 | ⏸️ |
-| 第 2 批 | `tui_guide.md` — TUI 开发 | ⏸️ |
-| 第 3 批 | `testing_guide.md` — 测试指南 | ⏸️ |
-| 第 3 批 | `mcp_and_extensions.md` — MCP 与四条扩展路径 | ⏸️ |
-| 第 3 批 | `auth_and_providers.md` — 认证与模型接入 | ⏸️ |
-| 第 3 批 | `build_and_release.md` — 构建与发布 | ⏸️ |
-| 第 3 批 | `session_and_persistence.md` — 会话与持久化 | ⏸️ |
-| 第 4 批 | `experimental_surfaces.md` — 实验性表面 | ⏸️ |
-| 第 4 批 | `observability.md` — 可观测性与遥测边界 | ⏸️ |
-| 第 4 批 | `sdk_guide.md` — TypeScript / Python SDK | ⏸️ |
-| 第 4 批 | `rules/combined/AI_RULES.md` — AI 规则索引 | ⏸️ |
+| 第 2 批 | [`core_agent_loop.md`](./core_agent_loop.md) — 智能体核心循环 | ✅ |
+| 第 2 批 | [`tools_and_sandbox.md`](./tools_and_sandbox.md) — 工具调用与沙箱 | ✅ |
+| 第 2 批 | [`app_server_protocol.md`](./app_server_protocol.md) — app-server 协议 | ✅ |
+| 第 2 批 | [`config_system.md`](./config_system.md) — 配置体系 | ✅ |
+| 第 2 批 | [`tui_guide.md`](./tui_guide.md) — TUI 开发 | ✅ |
+| 第 3 批 | [`testing_guide.md`](./testing_guide.md) — 测试指南 | ✅ |
+| 第 3 批 | [`mcp_and_extensions.md`](./mcp_and_extensions.md) — MCP 与扩展体系 | ✅ |
+| 第 3 批 | [`auth_and_providers.md`](./auth_and_providers.md) — 认证与模型接入 | ✅ |
+| 第 3 批 | [`build_and_release.md`](./build_and_release.md) — 构建与发布 | ✅ |
+| 第 3 批 | [`session_and_persistence.md`](./session_and_persistence.md) — 会话与持久化 | ✅ |
+| 第 4 批 | [`experimental_surfaces.md`](./experimental_surfaces.md) — 实验性表面 | ✅ |
+| 第 4 批 | [`observability.md`](./observability.md) — 可观测性与遥测边界 | ✅ |
+| 第 4 批 | [`sdk_guide.md`](./sdk_guide.md) — TypeScript / Python SDK | ✅ |
+| 第 4 批 | [`rules/combined/AI_RULES.md`](./rules/combined/AI_RULES.md) — AI 规则索引 | ✅ |
 
 **辅助目录**：[`plans/`](./plans/README.md)（变更计划）、[`knowledge/`](./knowledge/README.md)（知识沉淀）、`_analysis/`（生成过程记录，非阅读材料）
+
+> **17 篇正式文档 + AI 规则索引已全部生成。** 每篇末尾都有「本文未覆盖的内容」表，列出该主题下仍需回去读代码的部分。
 
 ### 仓库自带文档（**只链接，不复制**）
 
@@ -397,14 +399,21 @@ pub struct SomeRequest { ... }
 
 ### 已知但未验证的架构点
 
-| 事项 | 当前证据 | 计划 |
+> 下表是**首版全部 17 篇文档完成后的最终状态**。已闭合的项保留划线记录，便于追溯。
+
+| 事项 | 当前证据 | 状态 |
 | ---- | ---- | ---- |
-| 四条扩展路径（`ext/` / plugins / skills / MCP）的相互关系 | E1 | 第 3 批 |
-| app-server ↔ exec-server 的跨 OS 传输实现 | E2 | 第 2 批 |
-| 遥测在 release 构建下的默认开关 | E3（部分） | 第 4 批 |
-| `codex-core` 67 个依赖的具体用途 | E1 | 第 2 批 |
-| 配置项全集与优先级 | E2 | 第 2 批 |
-| Python SDK 的运行时行为 | E2（本机 Python 3.9.6 低于要求的 3.10，无法实跑） | 待环境升级 |
+| ~~四条扩展路径的相互关系~~ | **E3** | ✅ 已闭合，见 [`mcp_and_extensions.md`](./mcp_and_extensions.md) §1 |
+| ~~遥测的默认开关~~ | **E3** | ✅ 已闭合，见 [`observability.md`](./observability.md) §1 |
+| ~~`find_codex_home` 是否重复实现~~ | **E3** | ✅ 已闭合：是薄委托，见 [`config_system.md`](./config_system.md) §5 |
+| app-server ↔ exec-server 的跨 OS 传输实现 | E2 | ⏳ **未闭合**，入口见 [`app_server_protocol.md`](./app_server_protocol.md) §7 |
+| `codex-core` 67 个依赖的具体用途 | E1 | ⏳ 未闭合，见 [`core_agent_loop.md`](./core_agent_loop.md) §8 |
+| 配置项全集（93 个键）的逐个语义 | E4（仅键名） | ⏳ 未闭合，查 `config.schema.json` |
+| turn 完整状态流转、工具调用次序 | E1 | ⏳ 未闭合，见 [`core_agent_loop.md`](./core_agent_loop.md) §8 |
+| insta 快照的更新流程 | E1 | ⏳ 未闭合，见 [`testing_guide.md`](./testing_guide.md) §7 |
+| Python SDK 的运行时行为 | E2（本机 Python 3.9.6 低于要求的 3.10，无法实跑） | ⏳ 待环境升级 |
+
+> **每篇文档末尾都有各自的「本文未覆盖的内容」表**，比上表更细。上表只列跨文档的关键缺口。
 
 ### 本体系不涉及的内容
 

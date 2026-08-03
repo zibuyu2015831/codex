@@ -173,7 +173,7 @@ graph TD
 | ---- | ---- | ---: | ---- |
 | `codex-sandboxing` | `codex-rs/sandboxing` | 6,882 | 三平台沙箱统一入口：`seatbelt.rs` / `landlock.rs` / `bwrap.rs` / `windows.rs` + 3 个 `.sbpl` 策略 |
 | `codex-windows-sandbox` | `codex-rs/windows-sandbox-rs` | 19,173 | Windows 沙箱实现 |
-| `codex-linux-sandbox` | `codex-rs/linux-sandbox` | 8,224 | Linux Landlock 沙箱 |
+| `codex-linux-sandbox` | `codex-rs/linux-sandbox` | 8,224 | Linux 沙箱：Landlock（文件系统）+ seccomp（系统调用）+ bwrap 回退 |
 | `codex-bwrap` | `codex-rs/bwrap` | 151 | bubblewrap 封装 |
 | `codex-execpolicy` | `codex-rs/execpolicy` | 2,937 | 执行策略；`codex execpolicy` 为 hidden 子命令 |
 | `codex-shell-command` | `codex-rs/shell-command` | 6,760 | shell 命令解析 |
@@ -230,8 +230,8 @@ graph TD
 
 ### 3.8 四条扩展路径（19）
 
-> [!CAUTION]
-> **四条路径的相互关系尚未做代码级验证**（当前仅 E1 目录存在性证据）。本节只列清单与目录，**不描述它们之间的调用关系**。关系核查已排入第 3 批 `mcp_and_extensions.md`。
+> [!IMPORTANT]
+> **关系已完成代码级核查（E3）**：`ext/extension-api` 是统一扩展点（13 个 Contributor trait），12 个 `ext/*` 全部依赖它；Skills 与 MCP 通过 `ext/skills`、`ext/mcp` 包装接入该体系；插件（`core-plugins`）不依赖 `extension-api`，是并行的独立机制。详见 [`mcp_and_extensions.md`](./mcp_and_extensions.md) §1。
 
 | 路径 | crate | 行数 |
 | ---- | ---- | ---: |
@@ -269,7 +269,7 @@ graph TD
 | `codex-install-context` | `codex-rs/install-context` | 825 | 安装环境上下文 |
 
 > [!NOTE]
-> 遥测的**默认开关行为尚未完整核实**（当前 E3 部分证据），完整结论待第 4 批 `observability.md`。在此之前，不要依据本表推断"release 构建是否默认上报"。
+> 遥测默认行为已完成核查（E3）：**指标默认开启（Statsig）、追踪与通用导出默认关闭、用户提示词默认不记录**，且 debug 构建下 Statsig 降级为不发送。详见 [`observability.md`](./observability.md) §1。
 
 ### 3.10 实验性与低频表面（8）
 
@@ -392,7 +392,7 @@ graph TD
 | 未覆盖项 | 原因 | 何时补齐 |
 | ---- | ---- | ---- |
 | 各 crate 的**内部模块结构** | 本文是 crate 级地图，不下钻到模块 | 各专题文档（第 2-4 批） |
-| 四条扩展路径的**相互关系** | 仅有 E1 目录证据，未做代码级验证 | 第 3 批 `mcp_and_extensions.md` |
+| ~~四条扩展路径的相互关系~~ | **已完成（E3）** | 见 `mcp_and_extensions.md` §1 |
 | `codex-core` 67 个依赖的**具体用途** | 需逐个读取才能给出 E3 结论 | 第 2 批 `core_agent_loop.md` |
 | app-server ↔ exec-server 的**传输实现** | 仅有 `AGENTS.md:321-322` 的 E2 声明 | 第 2 批 `app_server_protocol.md` |
 | 各 crate 的**外部（crates.io）依赖** | 本文只统计 workspace 内部 path 依赖 | 暂无计划，需要时直接读 `Cargo.toml` |
