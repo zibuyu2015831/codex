@@ -1,6 +1,6 @@
 ---
 title: Codex CLI 开发文档体系生成方案
-summary: 记录 openai/codex 仓库首次生成 dev_docs 开发文档体系的完整方案，包含项目检测结果、规模与复杂度评估、项目定位不可破坏约束、AI 与外部服务边界、16 份子文档清单、四批执行计划和证据验证记录。
+summary: 记录 openai/codex 仓库首次生成 dev_docs 开发文档体系的完整方案，包含项目检测结果、规模与复杂度评估、项目定位不可破坏约束、AI 与外部服务边界、17 份子文档清单、四批执行计划和证据验证记录；已含第 2 轮复查更正与用户确认结果，即 Cargo workspace crate 数由 130 更正为 134、版本管理结案为提交至个人 fork、脱敏规范升级为每批提交前的强制门禁、文档定位确认为兼顾阅读与二次开发、实验性表面确认全部展开。
 keywords: codex | dev-docs | generation-plan | rust-monorepo | cli-agent | phase1
 scope: openai/codex 仓库 dev_docs 文档体系首次生成方案 (仓库根目录)
 related_files: codex-rs/Cargo.toml | codex-rs/cli/src/main.rs | codex-rs/model-provider-info/src/lib.rs | AGENTS.md | justfile | package.json
@@ -33,7 +33,7 @@ verified_at: 2026-08-03
 
 1. **代码规模**
 
-   - Git 跟踪文件总数: 5913 个（`git ls-files | wc -l`）
+   - Git 跟踪文件总数: 5913 个（基线 commit `bb5054fe47` 口径，`git ls-tree -r --name-only bb5054fe47 | wc -l`）。本体系自身产物落盘并提交后，`git ls-files | wc -l` 会随之增长（提交 `8224f7c034` 后为 5916），全部规模统计一律以基线 commit 口径为准
    - 扫描器统计: 5910 文件 / 809 目录 / 最大深度 9（`project_scanner.py --mode summary --exclude-standard`，`complexity_level: advanced`）
    - Rust: 2858 文件 / 1,270,789 行
    - TypeScript: 665 文件 / 9,865 行（其中 641 个为 `codex-rs/app-server-protocol/schema/typescript/` 下的自动生成协议类型）
@@ -43,8 +43,8 @@ verified_at: 2026-08-03
 
 2. **架构复杂度**
 
-   - Cargo workspace 成员: 130 个 crate（`codex-rs/Cargo.toml` `[workspace] members`）
-   - 多前端单核心：`codex` 单一二进制通过 clap 子命令分发到 TUI / exec / app-server / mcp-server / responses-api-proxy / cloud 等 20+ 个入口
+   - Cargo workspace 成员: **134 个 crate**（`cargo metadata --no-deps` 权威计数，E4）。其中 `codex-rs/Cargo.toml` 的 `[workspace] members` 显式列出 128 项；差额 6 个为 `chatgpt`、`message-history`、`windows-sandbox-rs`（仅以 `[workspace.dependencies]` path 依赖参与）与 `app-server/tests/common`、`core/tests/common`、`mcp-server/tests/common`（测试辅助 crate）。另有 workspace 之外的独立 crate `tools/argument-comment-lint`
+   - 多前端单核心：`codex` 单一二进制通过 clap 子命令分发到 TUI / exec / app-server / mcp-server / responses-api-proxy / cloud 等入口。`codex-rs/cli/src/main.rs:124` 的 `Subcommand` 枚举共 **27 个变体**（3 个 `#[clap(hide = true)]`，1 个仅 macOS/Windows 条件编译）
    - 多进程协作：app-server、exec-server 可跨操作系统分离部署（`AGENTS.md:321-322`）
    - 四层扩展点：`ext/*` 内建扩展、`core-plugins`、`skills`、MCP 客户端/服务端
    - 三平台沙箱实现：Seatbelt(macOS) / Landlock+bwrap(Linux) / windows-sandbox-rs
@@ -73,12 +73,12 @@ verified_at: 2026-08-03
 - **阶段二 (第 1 批：主文档 + 架构 + crate 地图 + 开发流程)**: 5-7 小时
 - **阶段三 (第 2 批：核心运行时 5 篇)**: 5-7 小时
 - **阶段四 (第 3 批：集成与工程化 5 篇)**: 4-6 小时
-- **阶段五 (第 4 批：可选文档 + AI Rules + 首版验收)**: 2-3 小时
+- **阶段五 (第 4 批：实验性表面 + 可观测性 + SDK + AI Rules + 首版验收)**: 4-6 小时
 
 ### 风险点
 
 - [x] **大文件**: 存在多个远超 800 行的文件，必须分段读取。实测 Top 5：`codex-rs/tui/src/bottom_pane/chat_composer.rs` 12,616 行、`codex-rs/core/src/config/config_tests.rs` 12,127 行、`codex-rs/core/src/session/tests.rs` 11,434 行、`codex-rs/tui/src/app/tests.rs` 7,520 行、`codex-rs/tui/src/resume_picker.rs` 6,681 行
-- [x] **复杂依赖**: 130 个 crate 的依赖分层需通过 `codex-rs/Cargo.toml` 的 `[workspace.dependencies]` 路径映射反推，不得凭目录名臆测
+- [x] **复杂依赖**: 134 个 crate 的依赖分层需通过 `codex-rs/Cargo.toml` 的 `[workspace.dependencies]` 路径映射反推，不得凭目录名臆测
 - [ ] **文档不足**: 仓库自身产品文档托管在外部站点（`docs/config.md` 仅 15 行且指向 developers.openai.com），架构层面缺少仓库内说明，这正是本文档体系的价值点
 - [x] **特殊架构**: 存在跨 OS 的 app-server/exec-server 分离、双构建系统、四层扩展点，均需代码级确认后再写入文档
 - [x] **其他**: 上游高速迭代（单日多个 PR 合入），文档需标注基线 commit 并依赖路径 C 增量更新维持时效
@@ -108,8 +108,9 @@ verified_at: 2026-08-03
 **遇到以下情况时，必须询问用户**:
 
 - 文档服务对象与深度定位（见"需要人工确认的项目特性"第 1 项）
-- `dev_docs/` 是否纳入版本管理（见第 2 项）
 - 实验性表面（cloud-tasks / desktop app / v8-poc / code-mode）的文档优先级（见第 3 项）
+
+原第 2 项「`dev_docs/` 是否纳入版本管理」已由用户行动解决（提交至个人 fork），不再需要询问。
 
 **不应该做的**:
 
@@ -195,7 +196,7 @@ TUI 框架: ratatui（codex-rs/tui，样式约定见 codex-rs/tui/styles.md）
 - [x] 检查 `codex-rs/Cargo.toml` 的 `[workspace]` 与 `[workspace.package]`
 - [x] 检查 `package.json`、`pnpm-workspace.yaml`、`MODULE.bazel`、`justfile`
 - [x] 检查 `codex-rs/cli/Cargo.toml` 的 `[[bin]] name = "codex"`
-- [x] 扫描 `codex-rs/` 130 个 crate 目录
+- [x] 扫描 `codex-rs/` 134 个 crate 目录
 
 ---
 
@@ -256,7 +257,7 @@ Rust 代码量按 crate 排名（Top 10）:
 
 ```
 codex/（仓库根）
-├── codex-rs/               - Rust workspace，130 个 crate，项目主体（2858 个 .rs）
+├── codex-rs/               - Rust workspace，134 个 crate，项目主体（2858 个 .rs）
 │   ├── core/               - 智能体核心：会话、turn、工具调用、上下文管理（296,963 行）
 │   ├── tui/                - ratatui 交互式终端界面（238,439 行）
 │   ├── app-server/         - JSON-RPC 应用服务端，供 IDE/桌面端接入（128,364 行）
@@ -376,7 +377,7 @@ codex/（仓库根）
 **识别依据**:
 
 ```
-模块划分基于 codex-rs/Cargo.toml [workspace.dependencies] 的 130 条 path 映射，
+模块划分基于 codex-rs/Cargo.toml [workspace.dependencies] 的 128 条 path 映射，
 配合 codex-rs/cli/src/main.rs:1-90 的 use 语句（反映一级依赖关系）
 以及 codex-rs/cli/src/main.rs:123-200 的 Subcommand 枚举（反映用户可见能力面）。
 ```
@@ -453,18 +454,35 @@ codex/（仓库根）
 
 ## ⚠️ 代码脱敏规范
 
+> [!IMPORTANT]
+> **第 2 轮复查升级**：本体系产物已提交并推送至**公开** fork `zibuyu2015831/codex`（`isPrivate: false`）。`dev_docs/` 下的每一个字节都是公开可检索内容，且 GitHub 会长期缓存，删除提交不保证内容立即消失。本节由"生成时的写作规范"升级为**每批提交前必须执行的硬性门禁**。
+
 **适用性说明**：本项目为 Apache-2.0 开源仓库，源码中不含生产凭证。脱敏工作聚焦以下三类：
 
 1. **公开的服务端点保留**：`https://api.openai.com/v1`、`https://chatgpt.com/backend-api/codex`、`https://auth.openai.com` 属于公开技术信息，按框架规范（"公开 API 端点"可保留）予以保留。
 2. **凭证值一律不复述**：`auth.json`、`.credentials.json`、keyring 条目、JWT、OAuth code、API key 只写**变量名、配置项名与文件路径**，绝不写示例值或可复制的完整令牌。测试固件中的假 token（如 `codex-rs/login/src/token_data_tests.rs` 中的样例）不得引入文档。
-3. **本地绝对路径脱敏**：分析环境的本地绝对路径（形如 `/Users/<用户名>/...`）不得出现在正式文档中；框架软链接一律以 `AI-Coding-Context/`（相对路径）指代。
+3. **本地绝对路径脱敏**：分析环境的本地绝对路径（形如 `/Users/<用户名>/...`）禁止出现在 `dev_docs/` 的任何文件中（含 `_analysis` 过程文件）；框架软链接一律以 `AI-Coding-Context/`（相对路径）指代。此外禁止写入主机名、内网地址与个人邮箱。
 
 ### 脱敏检查清单
 
 - [x] 已确认不复述任何 `auth.json` / keyring / JWT 实际值
 - [x] 已确认保留公开服务端点（技术事实）
-- [x] 已确认正式文档中不出现本机绝对路径
+- [x] 已确认 `dev_docs/` 全部文件中不出现本机绝对路径（第 2 轮复查已修复 6 处）
 - [x] 保留了完整技术实现细节
+
+### 每批提交前的强制扫描命令
+
+```bash
+# 1) 本地绝对路径（期望无输出）
+#    正则要求 /Users/ 后必须跟真实路径段，因此不会匹配本命令自身，
+#    也不会匹配文档中 /Users/<用户名>/ 这类已脱敏的占位写法
+grep -rnE "/Users/[A-Za-z0-9._-]+/" dev_docs/
+
+# 2) 凭证样值（期望无输出）
+grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:]]*[:=][[:space:]]*[\"'][A-Za-z0-9_-]{12,}" dev_docs/
+```
+
+两条命令的执行结果必须记入 `generation_progress.md`，任一有输出即为 blocker，禁止提交。
 
 ---
 
@@ -531,9 +549,9 @@ codex/（仓库根）
 
 - [ ] `dev_docs/crate_map.md` — Cargo workspace crate 地图 ★ 本项目专属核心文档
 
-  - **内容来源**: `codex-rs/Cargo.toml` 的 `[workspace] members`（130 项）与 `[workspace.dependencies]` 路径映射，各 crate `Cargo.toml`
+  - **内容来源**: `cargo metadata --no-deps`（134 个包，权威计数）、`codex-rs/Cargo.toml` 的 `[workspace] members`（显式 128 项）与 `[workspace.dependencies]` 的 128 条 path 映射，各 crate `Cargo.toml`
   - **预计行数**: 500-700
-  - **关键章节**: 分层总览（mermaid 依赖图）/ 按职责分组的 130 crate 速查表（crate 名 ↔ 目录 ↔ 职责 ↔ 代码量）/ "新代码该放哪个 crate"决策树 / `codex-core` 减负指引（对应 `AGENTS.md:74-83`）
+  - **关键章节**: 分层总览（mermaid 依赖图）/ 按职责分组的 134 crate 速查表（crate 名 ↔ 目录 ↔ 职责 ↔ 代码量）/ "新代码该放哪个 crate"决策树 / `codex-core` 减负指引（对应 `AGENTS.md:74-83`）
 
 - [ ] `dev_docs/development_workflow.md` — 开发流程与仓库硬规范
 
@@ -611,7 +629,17 @@ codex/（仓库根）
   - **内容来源**: `codex-rs/rollout/`、`rollout-trace/`、`thread-store/`、`state/`、`message-history/`、`codex-rs/cli/src/state_db_recovery.rs`
   - **预计行数**: 350-450
 
-#### 第 4 批（P2，可选，2 篇 + 收尾）
+#### 第 4 批（P2，3 篇 + 收尾）
+
+> 用户已确认疑问 3 为「全部展开」，本批由原 2 篇增至 3 篇，新增 `experimental_surfaces.md`。
+
+- [ ] `dev_docs/experimental_surfaces.md` — 实验性与低频表面 ★ 用户指定展开
+
+  - **推荐理由**: 用户明确要求展开全部实验性表面。这些能力面在 `crate_map.md` 中只有条目，缺少"它是什么、当前成熟度、怎么用、代码在哪"的说明；且多数带 `[experimental]` / `#[clap(hide = true)]` 标记，误用风险高于稳定能力面
+  - **覆盖对象（6 项）**: `Cloud`（`cloud-tasks` / `cloud-tasks-client` / `backend-client`）、桌面端 `codex app`、`remote-control`、`responses-api-proxy`、`v8-poc`、`code-mode`（4 个 crate）
+  - **内容来源**: `codex-rs/cli/src/main.rs:147,150,154-155,173-174,195-200`、`codex-rs/cloud-tasks*/`、`codex-rs/v8-poc/`、`codex-rs/code-mode*/`、`codex-rs/app-server/` 的 remote-control 路径、各自 `Cargo.toml`
+  - **强制写作约束**: 每节必须首行标注**当前成熟度与可见性**（experimental / hidden / PoC），并注明"上游可能随时变更或移除"；不得把 PoC 描述为稳定能力
+  - **预计行数**: 500-700
 
 - [ ] `dev_docs/observability.md` — 可观测性与遥测边界
 
@@ -726,27 +754,32 @@ codex/（仓库根）
 
 **准入规则说明**: 以下 3 项均已确认无法通过代码、配置、锁文件、README 或现有项目文档回答，属于用户意图与工作方式层面的决策。所有可代码核查的问题已移入下节"下一步代码级核查"。
 
+> **第 2 轮复查状态**：第 2 项已由用户的实际操作解决，**当前仍需用户回答的为第 1、3 项**。已解决项保留原位并标注结论，不删除，以保持复查可追溯。
+
 1. **文档体系的服务对象与深度定位**
 
    - **当前保守结论**: 按「双重定位」处理——既服务于**阅读理解 upstream 代码**（强化 crate 地图、架构导航、"某功能在哪实现"），也服务于**在本仓库做二次开发**（保留 AGENTS.md 规范落地、测试与构建指引）。第 1 批 4 篇文档在两种定位下均为必需，因此不阻塞方案通过。
+   - **✅ 用户答复（2026-08-03）**: **兼顾**，与保守结论一致，批次顺序与权重维持方案原样，无需调整。
    - **已检查证据**: `README.md`（产品定位）、`docs/contributing.md:3`（外部贡献受邀制）、`git remote -v`（origin 为 `openai/codex` 本身而非 fork）、当前分支 `zibuyu`（本地 topic 分支，无本地提交差异证据表明开发意图）
    - **为什么代码或仓库文档无法回答**: 这是用户个人的使用目的，仓库本身不记录任何单个使用者的意图
    - **blocks_phase1**: false
    - **回写目标**: `generation_plan.md` 3.1-3.2 节子文档清单权重、`AI_Coding_Context.md` 场景快速导航
    - **建议做法**: 若答案是「主要为阅读理解」，第 2 批应把 `core_agent_loop.md` 提前并加大「功能定位索引」比重，`development_workflow.md` 可精简；若是「参与开发」，则维持当前批次顺序。
 
-2. **`dev_docs/` 是否纳入版本管理**
+2. **`dev_docs/` 是否纳入版本管理** —— ✅ **已由用户行动解决（第 2 轮复查），不再需要用户回答**
 
-   - **当前保守结论**: **不提交**。方案默认将 `dev_docs/` 视为本地文档资产，并在第 1 批结束时建议写入 `.git/info/exclude`（仅本地生效，不修改仓库根的 gitignore 文件）。理由：`origin` 直接指向 `openai/codex`，`docs/contributing.md:3-17` 规定外部贡献受邀制，误提交非受邀内容风险高。
-   - **已检查证据**: `git remote -v`（`org-14957082@github.com:openai/codex.git`）、仓库根 gitignore 文件（931 字节，未包含 dev_docs 相关规则）、`docs/contributing.md:3-17`、`AGENTS.md:32`
-   - **为什么代码或仓库文档无法回答**: 仓库不可能记录使用者对自己新增本地目录的版本管理偏好
+   - **当前保守结论**: **提交全部内容（含 `_analysis`），推送至个人 fork `zibuyu2015831/codex`，禁止向上游 `origin` 推送任何内容。** 该结论已由用户的实际操作确立，取代第 1 轮的「不提交」。
+   - **第 1 轮保守结论（已被推翻）**: 当时结论为"不提交、写入本地 exclude 文件"，依据是 `origin` 直连 `openai/codex` 且外部贡献受邀制。
+   - **已检查证据（E4）**: commit `8224f7c034` 已包含三件套；`gh repo view zibuyu2015831/codex` → `isFork: true` / `parent: openai/codex` / `isPrivate: false`；`git remote -v` 新增 `fork  https://github.com/zibuyu2015831/codex.git`；`zibuyu` 分支 upstream 已指向 `fork/zibuyu`；上游 `origin` 未收到任何 push；框架软链接写入本地 exclude 文件后未提交；仓库根 gitignore 文件未被修改
+   - **为什么代码或仓库文档无法回答**: 仓库不可能记录使用者对自己新增本地目录的版本管理偏好。第 2 轮中该项之所以能结案，是因为**用户用实际操作给出了答案**，而非代码提供了答案 —— 准入判定本身仍然成立。
    - **blocks_phase1**: false
-   - **回写目标**: `generation_plan.md` 执行计划、`development_workflow.md` 的「本地开发环境」章节
-   - **建议做法**: 如需团队共享，改为提交并在仓库根 gitignore 文件中排除 `dev_docs/_analysis/`（过程文件）。
+   - **回写目标**: 本文执行计划、`project_analysis_report.md` 疑问 2、`development_workflow.md` 的「本地开发环境」章节
+   - **对后续批次的约束**: ①正式文档同样提交至 `fork/zibuyu`；②push 目标必须显式写 `fork`，禁止 `git push origin`；③产物进入**公开**仓库，脱敏升级为硬性红线（见「代码脱敏规范」与报告 🟡 警告 6）
 
 3. **实验性与低频表面的文档优先级**
 
-   - **当前保守结论**: `cloud-tasks`、`desktop app`（`codex app`）、`v8-poc`、`code-mode`、`remote-control`、`responses-api-proxy` 在第 1-3 批中**仅在 `crate_map.md` 中登记为条目**，不单独展开；如需展开则进入第 4 批。
+   - **当前保守结论**（已被用户答复取代）: 上述表面在第 1-3 批中仅在 `crate_map.md` 中登记为条目，不单独展开。
+   - **✅ 用户答复（2026-08-03）**: **全部展开。** 已据此在第 4 批新增 `experimental_surfaces.md`，覆盖 `Cloud`/`cloud-tasks`、桌面端 `codex app`、`remote-control`、`responses-api-proxy`、`v8-poc`、`code-mode` 共 6 项；正式文档总数由 16 篇增至 17 篇。第 1-3 批仍在 `crate_map.md` 中登记条目，展开内容集中在第 4 批。
    - **已检查证据**: `codex-rs/cli/src/main.rs:147`（`/// [experimental] Run the app server or related tooling.`）、`:150`（`[experimental]` RemoteControl）、`:195`（`[EXPERIMENTAL]` Cloud）、`:199-200`（`#[clap(hide = true)]` responses-api-proxy）、`codex-rs/v8-poc/` 目录名本身即 PoC
    - **为什么代码或仓库文档无法回答**: 代码可以告诉我们「哪些是实验性的」，但无法告诉我们「用户是否关心它们」——这是优先级偏好
    - **blocks_phase1**: false
@@ -761,7 +794,7 @@ codex/（仓库根）
 | -------- | -------- | -------- | -------- | -------- |
 | OTLP / Statsig 遥测在 release 构建下的默认开关与关闭方式 | E3：`codex-rs/otel/src/config.rs:16,90,113` | 读取 `OtelSettings` / `StatsigMetricsSettings` 完整定义与 `provider.rs` 初始化链路，追溯 config.toml 键名 | 第 4 批 | `observability.md` |
 | analytics 本地采集与网络投递的分离边界 | E3：`codex-rs/analytics/src/client.rs:108,221,226` | 读取 `analytics_capture.rs`、`client.rs` 完整投递路径，确认"network delivery is disabled"是否为编译期常量 | 第 4 批 | `observability.md` |
-| 130 个 crate 的实际依赖分层（谁依赖 core，谁被 core 依赖） | E2：`codex-rs/Cargo.toml` `[workspace.dependencies]` | 逐 crate 读取 `Cargo.toml` 的 `[dependencies]` 并生成依赖图 | 第 1 批 | `crate_map.md` |
+| 134 个 crate 的实际依赖分层（谁依赖 core，谁被 core 依赖） | E2：`codex-rs/Cargo.toml` `[workspace.dependencies]` | 逐 crate 读取 `Cargo.toml` 的 `[dependencies]` 并生成依赖图 | 第 1 批 | `crate_map.md` |
 | 四层扩展机制（ext / core-plugins / skills / MCP）之间的关系与优先级 | E1：目录存在性 | 读取 `ext/extension-api/src/lib.rs`、`core-plugins/src/manager.rs`、`skills/src/lib.rs` 的公开 API | 第 3 批 | `mcp_and_extensions.md` |
 | app-server ↔ exec-server 跨 OS 分离的实际传输实现 | E2：`AGENTS.md:321-322` + crate 存在性 | 读取 `exec-server-protocol/src/`、`app-server-transport/src/`、`uds/src/` | 第 2 批 | `architecture_overview.md` |
 | `CODEX_HOME` 的实际解析顺序 | E3：`codex-rs/core/src/config/mod.rs:4578`、`codex-rs/utils/home-dir/src/lib.rs:13` 两处同名函数 | 读取两处实现，确认调用关系与是否重复定义 | 第 2 批 | `config_system.md` |
@@ -806,7 +839,8 @@ codex/（仓库根）
 
 | 事实 | 证据等级 | 来源文件 | 验证方式 | 当前结论 |
 | ---- | -------- | -------- | -------- | -------- |
-| Rust workspace 含 130 个 crate | E2 | `codex-rs/Cargo.toml` `[workspace] members` | 读取 + 计数 | 已确认 |
+| Rust workspace 含 134 个 crate | E4 | `codex-rs/Cargo.toml`（`cargo metadata --no-deps` 解析） | `cargo metadata --no-deps --format-version 1` 计数 `packages` | 已确认（第 2 轮复查更正，原记 130 有误） |
+| `[workspace] members` 显式列出 128 项 | E2 | `codex-rs/Cargo.toml` `[workspace] members` | 读取 + 计数 | 已确认；与 134 的差额为 3 个仅以 path 依赖参与的 crate 与 3 个 `tests/common` 测试辅助 crate |
 | 主二进制名为 `codex` | E2 | `codex-rs/cli/Cargo.toml` `[[bin]]` | 读取 | 已确认 |
 | Rust 版本 1.95.0，edition 2024 | E2 | `codex-rs/rust-toolchain.toml`、`codex-rs/Cargo.toml` `[workspace.package]` | 读取 | 已确认 |
 | Node ≥22、pnpm ≥10.33.0 | E2 | `package.json` `engines` / `packageManager` | 读取 | 已确认 |
@@ -835,7 +869,7 @@ codex/（仓库根）
 
 | 声明 | 数值 | 来源命令/文件 | 记录位置 |
 | ---- | ---- | ------------- | -------- |
-| Git 跟踪文件总数 | 5913 | `git ls-files \| wc -l` | 本文 1.2 节 |
+| Git 跟踪文件总数 | 5913 | `git ls-tree -r --name-only bb5054fe47 \| wc -l`（基线 commit 口径，不含本体系自身产物） | 本文 1.2 节 |
 | 扫描器文件总数 | 5910 | `python3 AI-Coding-Context/tools/py/project_scanner.py . --mode summary --exclude-standard` | 本文 1.2 节 |
 | 目录总数 | 809 | 同上（`total_dirs`） | 本文 1.2 节 |
 | 最大目录深度 | 9 | 同上（`max_depth`） | 本文 1.2 节 |
@@ -843,7 +877,10 @@ codex/（仓库根）
 | TypeScript 文件数 / 行数 | 665 / 9,865 | 同上（`*.ts`） | 本文 1.2 节 |
 | Python 文件数 / 行数 | 137 / 38,486 | 同上（`*.py`） | 本文 1.2 节 |
 | Markdown 文件数 / 行数 | 178 / 17,419 | 同上（`*.md`） | 本文 1.2 节 |
-| Cargo workspace crate 数 | 130 | `codex-rs/Cargo.toml` `[workspace] members` 计数 | 本文 1.1、1.3 节 |
+| Cargo workspace crate 数 | 134 | `cargo metadata --no-deps --format-version 1 --manifest-path codex-rs/Cargo.toml` 的 `packages` 计数 | 本文 1.1、1.3 节 |
+| `[workspace] members` 显式项数 | 128 | `codex-rs/Cargo.toml` `[workspace] members` 计数 | 本文 1.1、3.2 节 |
+| `[workspace.dependencies]` path 映射数 | 128 | `codex-rs/Cargo.toml` `[workspace.dependencies]` 中含 `path =` 的条目计数 | 本文 1.4 节 |
+| `codex-rs/` 下子 crate 清单数 | 134 | `git ls-files "codex-rs/**/Cargo.toml" \| wc -l`（不含 workspace 根清单） | 本文 1.1 节 |
 | CI 工作流数 | 29 | `ls .github/workflows/` 计数（含 `README.md`、`Dockerfile.bazel`、`zstd` 等非 yml 条目已剔除） | 本文 1.3 节 |
 | 测试目录数 / 测试文件数 | 39 / 631 | `semantic_review_checker.scan_test_topology`（全深度递归，识别 `tests`/`test`/`__tests__`/`spec` 等目录名） | 本文"测试资产扫描结果"章节 |
 | insta 快照数 | 681 | `git ls-files "*.snap" \| wc -l` | 本文 1.2 节 |
@@ -985,7 +1022,7 @@ node AI-Coding-Context/tools/js/semantic_review_checker.js --full-check --doc-di
 4. `dev_docs/development_workflow.md` — 开发流程（预计 1.5 小时）
 5. 目录结构：`dev_docs/plans/`、`dev_docs/knowledge/`（预计 0.5 小时）
 
-**批次出口**: 向用户交付并请求审查写作深度与颗粒度，确认后再进入第 2 批。
+**批次出口**: 执行脱敏强制扫描 → 提交 → `git push fork zibuyu`（禁止 `origin`）→ 向用户交付并请求审查写作深度与颗粒度，确认后再进入第 2 批。
 
 ### 第 2 批
 
@@ -997,7 +1034,7 @@ node AI-Coding-Context/tools/js/semantic_review_checker.js --full-check --doc-di
 
 ### 第 4 批
 
-`observability.md`、`sdk_guide.md`、`dev_docs/rules/combined/AI_RULES.md`，随后执行首版质量验收并生成 `dev_docs/_analysis/health_check_report.md`（预计 2-3 小时）
+`experimental_surfaces.md`、`observability.md`、`sdk_guide.md`、`dev_docs/rules/combined/AI_RULES.md`，随后执行首版质量验收并生成 `dev_docs/_analysis/health_check_report.md`（预计 4-6 小时；因用户要求展开全部实验性表面，较原估增加 2-3 小时）
 
 ---
 
@@ -1005,23 +1042,23 @@ node AI-Coding-Context/tools/js/semantic_review_checker.js --full-check --doc-di
 
 ### 数据准确性审核
 
-- [ ] 项目规模数据已验证（5913 文件、1,270,789 行 Rust、130 crate）
+- [x] 项目规模数据已验证（5913 文件、1,270,789 行 Rust、134 crate）—— 第 2 轮复查已全部重跑复核
 - [ ] 目录结构描述准确
 - [ ] 17 个业务模块清单完整无遗漏
 - [ ] 7 项架构特点识别准确
 
 ### 文档规划审核
 
-- [ ] 16 篇子文档清单合理（第 1 批 4 篇 + 第 2 批 5 篇 + 第 3 批 5 篇 + 第 4 批 2 篇）
+- [x] 17 篇子文档清单合理（第 1 批 4 篇 + 第 2 批 5 篇 + 第 3 批 5 篇 + 第 4 批 3 篇）—— 用户已确认
 - [ ] 主文档章节规划完整
 - [ ] 12 个场景导航覆盖常见需求
 - [ ] 未生成独立 `cli_usage.md` / `installation.md`（改为索引 `docs/` 与外部站点）的取舍可接受
 
 ### 待确认项决策
 
-- [ ] 待确认项 1：文档服务对象与深度定位
-- [ ] 待确认项 2：`dev_docs/` 是否纳入版本管理
-- [ ] 待确认项 3：实验性表面的文档优先级
+- [x] 待确认项 1：文档服务对象与深度定位 —— 用户答复：**兼顾**，维持方案原样
+- [x] 待确认项 2：`dev_docs/` 是否纳入版本管理 —— 已解决：提交全部内容并推送个人 fork，不向上游推送
+- [x] 待确认项 3：实验性表面的文档优先级 —— 用户答复：**全部展开**，第 4 批新增 `experimental_surfaces.md`
 
 ### 风险评估
 
@@ -1061,7 +1098,7 @@ _（待用户填写）_
 | :--- | :----: | :--: | :------- |
 | 1.27M 行 Rust 无法全量覆盖 | 高 | 高 | 分 4 批 + 主文档显式声明「未覆盖范围」+ 优先覆盖 Top 10 crate |
 | 超大文件（最大 12,616 行）无法一次读取 | 高 | 中 | 先 grep 结构概览（`^pub fn` / `^impl` / `^pub struct`），再分段读取关键部分 |
-| 130 个 crate 依赖关系复杂 | 高 | 高 | 先从 `[workspace.dependencies]` 生成路径映射，再逐 crate 采集 `[dependencies]` 绘图 |
+| 134 个 crate 依赖关系复杂 | 高 | 高 | 先从 `[workspace.dependencies]` 生成路径映射，再逐 crate 采集 `[dependencies]` 绘图 |
 | 上游高速迭代导致文档漂移 | 高 | 中 | 记录基线 commit + `verified_at` + 后续走路径 C 增量更新 |
 | AI token 限制导致会话中断 | 高 | 低 | 每批结束更新 `generation_progress.md`，支持断点续传 |
 | Bazel 构建无法本地验证 | 中 | 中 | 相关结论降级为 E2，标注「未本机验证」，以 CI 工作流交叉参考 |
@@ -1099,7 +1136,7 @@ _（待用户填写）_
 
 ### 可用性验证
 
-- [ ] 依据主文档能在 5 分钟内定位到 130 个 crate 中的目标 crate
+- [ ] 依据主文档能在 5 分钟内定位到 134 个 crate 中的目标 crate
 - [ ] 「我要新增 X」类任务有 step-by-step 指引
 - [ ] 所有 markdown 链接可跳转
 - [ ] mermaid 图表可正确渲染
