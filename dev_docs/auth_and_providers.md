@@ -73,7 +73,9 @@ verified_at: 2026-08-05
 > **`ChatgptAuthTokens` 的入口不是 `account/chatgptAuthTokens/refresh`。** 那个方法是 **server→client 的 `ServerRequest`**——Codex **反向**向宿主应用要一份新 token（注册在 `codex-rs/app-server-protocol/src/protocol/common.rs:1569`，实现在 `codex-rs/app-server/src/external_auth.rs`）。它是**刷新回调**，不是注入入口。
 > **真正的注入入口是 `account/login/start` 的 `LoginAccountParams::ChatgptAuthTokens` 变体**（`codex-rs/app-server-protocol/src/protocol/v2/account.rs:84-89`），带 `#[experimental("account/login/start.chatgptAuthTokens")]`，注释写明 *"[UNSTABLE] FOR OPENAI INTERNAL USE ONLY - DO NOT USE."*
 >
-> **`AuthMode::Headers` 在本仓库全部生产代码中零构造。** 对 `CodexAuth::Headers(..)` 的**构造**全部命中都在测试里（`codex-rs/core/tests/suite/external_auth.rs:27`、`codex-rs/model-provider/src/auth.rs:459`、`codex-rs/login/src/auth/auth_tests.rs:1117`、`codex-rs/codex-mcp/src/connection_manager_tests.rs`、`codex-rs/core-plugins/src/remote/catalog_cache_tests.rs`，以及 `codex-rs/app-server/src/request_processors/feedback_processor.rs:728`——该文件 `#[cfg(test)]` 从 `:432` 开始，故同属测试）；生产侧只有**模式匹配**（如 `codex-rs/model-provider/src/auth.rs:287`、`codex-rs/login/src/auth/manager.rs:1119`）。
+> **本仓库生产代码中没有任何一处构造 `CodexAuth::Headers(..)`**——即**承载凭证的那个值**只能由宿主注入。全部构造命中都在测试里（`codex-rs/core/tests/suite/external_auth.rs:27`、`codex-rs/model-provider/src/auth.rs:459`、`codex-rs/login/src/auth/auth_tests.rs:1117`、`codex-rs/codex-mcp/src/connection_manager_tests.rs`、`codex-rs/core-plugins/src/remote/catalog_cache_tests.rs`，以及 `codex-rs/app-server/src/request_processors/feedback_processor.rs:728`——该文件 `#[cfg(test)]` 从 `:432` 开始，故同属测试）。
+>
+> ⚠️ **不要把这条推广成「`AuthMode::Headers` 零构造」——那是错的。** 枚举标签 `AuthMode::Headers` 在生产路径上确实会被构造，只是**由已有的 `CodexAuth::Headers` 值反推出来**：`codex-rs/login/src/auth/manager.rs:425` 与 `:438` 的 `Self::Headers(_) => AuthMode::Headers`，以及 `codex-rs/tui/src/onboarding/auth.rs:959` 的 `ApiAuthMode::Headers => AuthMode::Headers`。**区分「承载凭证的值」与「描述模式的标签」**：前者宿主专属，后者在展示、诊断、遥测路径上到处都是。
 > 它由**嵌入 Codex 的宿主应用**自行构造 `AuthHeaders` 后经 `ExternalAuth` 注入——因此它是一个**下游兼容面**，不是 CLI 路径。类型经 `codex-rs/login/src/lib.rs:32` 与 `codex-rs/core-api/src/lib.rs:78` 对外导出。仓库内唯一的行为覆盖是 `codex-rs/core/tests/suite/external_auth.rs`。
 
 `AuthMode` 上还有两个辅助方法（`codex-rs/protocol/src/auth.rs:36-56`），**分组判据不同，不要混用**：
@@ -101,7 +103,7 @@ verified_at: 2026-08-05
 > - `codex-rs/login/src/auth/access_token.rs` 被写成"access token 处理（**含从 stdin 读入**）"。该文件**总共 18 行**，只有一个前缀常量、一个两变体枚举和一个分类函数，**没有任何 IO**。stdin 读入根本不在这里。
 > - 表只列了 8 个文件，实际有 **13 个非测试文件**，漏掉的 `codex-rs/login/src/auth/auth_headers.rs` 恰恰是 `AuthMode::Headers` 的实现——于是又反过来支撑了 §1 那句错误的"它们没有同名实现文件"。**一个越权的证据等级，制造了两处下游错误。**
 
-这些是**实现**，与上面的模式**不是一一对应**。`codex-rs/login/src/auth/` 下共 **13 个非测试文件**（另有 5 个 `*_tests.rs`，不计入）：
+这些是**实现**，与上面的模式**不是一一对应**。`codex-rs/login/src/auth/` 下共 **13 个非测试文件**（另有 6 个 `*_tests.rs`，不计入；目录共 19 个文件）：
 
 | 文件 | 承载的能力 |
 | ---- | ---- |
@@ -134,7 +136,7 @@ verified_at: 2026-08-05
 | `read_api_key_from_stdin` | `codex-rs/cli/src/login.rs:264` | `codex login --with-api-key` |
 | `read_access_token_from_stdin` | `codex-rs/cli/src/login.rs:272` | `codex login --with-access-token` |
 
-两者都转调 `read_stdin_secret`（`codex-rs/cli/src/login.rs:281`）。**API key 与 access token 一律从 stdin 读，不接受命令行字面量**——这是一处刻意的设计（见 §1.3 末尾已废弃的 `--api-key`）。
+两者都转调 `read_stdin_secret`（`codex-rs/cli/src/login.rs:280`）。**API key 与 access token 一律从 stdin 读，不接受命令行字面量**——这是一处刻意的设计（见 §1.3 末尾已废弃的 `--api-key`）。
 
 ### 1.3 两个**隐藏的 OAuth 覆盖参数**（E3，修订补入）
 
@@ -181,10 +183,17 @@ verified_at: 2026-08-05
 
 另外，`CODEX_OSS_BASE_URL` / `CODEX_OSS_PORT` 同属端点改写类别，但走的是 provider 构造而非认证链路，见 §5.1。
 
-### 1.4 **7 个变体里只有 4 个会写进 `auth.json`**（E3，本轮补入）
+### 1.4 **7 个变体里只有 4 个会把 `auth_mode` 写进 `auth.json`**（E3，本轮补入）
 
 > [!CAUTION]
-> **这是本文最容易误导人的一处「类型存在 ≠ 路径生效」。** `AuthMode` 有 7 个变体，但**存储层只接受其中 4 个**。剩下 3 个各有各的原因，而且都不是"暂未实现"，是**代码里显式做掉的**。
+> **这是本文最容易误导人的一处「类型存在 ≠ 路径生效」，也是一处口径陷阱。** 两个数字不要混：
+>
+> | 口径 | 数量 | 谁被排除 |
+> | ---- | ---: | ---- |
+> | **凭证会落进 `auth.json`** | **5** | `Headers`（被存储层显式拒绝）、`ChatgptAuthTokens`（强制 `Ephemeral`，只存内存） |
+> | **`auth_mode` 字段会被写出** | **4** | 上述 2 个，**外加 `PersonalAccessToken`**——它落盘，但 `auth_mode` 刻意写 `None` |
+>
+> 被排除的三种都不是"暂未实现"，是**代码里显式做掉的**。下表按第二个口径（`auth_mode` 字段）列。
 
 | `AuthMode` 变体 | 会写进 `auth.json`？ | 依据 |
 | ---- | ---- | ---- |
@@ -234,10 +243,12 @@ verified_at: 2026-08-05
 >
 > | 取值 | 调用点（生产） | 场景 |
 > | ---- | ---- | ---- |
-> | **`true`** | `codex-rs/cli/src/main.rs:1893`、`codex-rs/cli/src/main.rs:2101`、`codex-rs/cli/src/mcp_cmd.rs:574`、`codex-rs/cli/src/doctor.rs:354` | **CLI 主路径** |
-> | **`false`** | `codex-rs/app-server/src/lib.rs:511`、`codex-rs/app-server/src/lib.rs:752`、`codex-rs/mcp-server/src/message_processor.rs:62`、`codex-rs/tui/src/lib.rs:561`、`codex-rs/core/src/prompt_debug.rs:36`、`codex-rs/core/src/connectors.rs:121`、`codex-rs/cli/src/main.rs:2055` | **app-server / MCP server / TUI / connectors** |
+> | **`true`** | `codex-rs/cli/src/main.rs:1893`、`codex-rs/cli/src/main.rs:2101`、`codex-rs/cli/src/mcp_cmd.rs:574`、`codex-rs/cli/src/doctor.rs:354`、**`codex-rs/exec/src/lib.rs:570`** | **CLI 主路径**，以及 `codex exec`（经 in-process app-server） |
+> | **`false`** | `codex-rs/app-server/src/lib.rs:511`、`codex-rs/app-server/src/lib.rs:752`、`codex-rs/mcp-server/src/message_processor.rs:62`、`codex-rs/tui/src/lib.rs:561`、`codex-rs/core/src/prompt_debug.rs:36`、`codex-rs/core/src/connectors.rs:121`、`codex-rs/cli/src/main.rs:2055`、`codex-rs/exec/src/lib.rs:358`（云配置包加载器） | **stdio app-server / MCP server / TUI / connectors** |
 >
-> ⇒ **在 IDE 扩展、app-server、MCP server 场景下 `CODEX_API_KEY` 根本不生效。** 这不是 bug，是宿主不希望环境变量悄悄改写会话身份。
+> ⇒ **在 stdio app-server 二进制、MCP server、TUI 场景下 `CODEX_API_KEY` 不生效。** 这不是 bug，是宿主不希望环境变量悄悄改写会话身份。
+>
+> ⚠️ **不要把这条推广成「所有 app-server 场景都不生效」。** in-process app-server 把它做成了**调用方可设的公开字段**（`codex-rs/app-server/src/in_process.rs:149` 的 `pub enable_codex_api_key_env: bool`，在 `:414` 传给 `AuthManager::shared_from_config`），因此取值由嵌入方决定——`codex exec` 传 `true`（`codex-rs/exec/src/lib.rs:570`）。**同一个 `codex exec` 内部还有第二个调用点传 `false`**（`:358`，云配置包加载器），两者作用域不同，勿混。
 
 > [!CAUTION]
 > **`OPENAI_API_KEY` 不在 `load_auth()` 的任何一级里。**
@@ -289,6 +300,7 @@ verified_at: 2026-08-05
 | `https://auth.openai.com/oauth/revoke` | `REVOKE_TOKEN_URL`（`codex-rs/login/src/auth/manager.rs:192`） | 令牌撤销；可被 `CODEX_REVOKE_TOKEN_URL_OVERRIDE` 覆盖 |
 | `https://auth.openai.com/api/accounts` | `PROD_AGENT_IDENTITY_AUTHAPI_BASE_URL`（`codex-rs/agent-identity/src/lib.rs:43`）与 `PROD_AUTHAPI_BASE_URL`（`codex-rs/login/src/auth/personal_access_token.rs:11`） | 账号 API 基址：Agent Identity 注册、PAT 的 whoami 校验（`WHOAMI_PATH`，`codex-rs/login/src/auth/personal_access_token.rs:13`）；后者可被 `CODEX_AUTHAPI_BASE_URL` 覆盖 |
 | `https://chatgpt.com/backend-api/codex` | `CHATGPT_CODEX_BASE_URL`（`codex-rs/model-provider-info/src/lib.rs:38`） | ChatGPT 通道；对应配置键 `chatgpt_base_url` |
+| `https://api.openai.com/v1` | `to_api_provider()` 的兜底值（`codex-rs/model-provider-info/src/lib.rs:257`） | **非 ChatGPT 后端模式（`ApiKey` / `BedrockApiKey` 等）的默认 base URL。这是真实的请求目标**——不要因为它与下方两个 `api.openai.com/*` 标识符长得像就一并剔除 |
 
 #### JWT / OIDC 标识符（**不是端点**）
 
@@ -301,7 +313,9 @@ verified_at: 2026-08-05
 > [!WARNING]
 > **这三个都不可请求。** 它们是 JWT / OIDC 规范里用 URI 形式充当**命名空间**的标识符（自定义 claim 必须用 URI 形式命名以避免撞名，`iss` 同理），背后没有对应的 HTTP 资源。
 >
-> **不要把它们写进网络白名单、代理规则或防火墙配置**——放行它们既不会让认证工作，也会平白扩大出网面。上一稿把 `https://api.openai.com/auth`、`/profile`、`/v1` 合并成一行标"API"，正是这种误读最容易造成的后果。
+> **不要把 `https://api.openai.com/auth` 与 `https://api.openai.com/profile` 写进网络白名单、代理规则或防火墙配置**——它们是 claim 键名，放行既不会让认证工作，也会平白扩大出网面。
+>
+> ⚠️ **但 `https://api.openai.com/v1` 是真端点，必须放行**（见上表）。上一稿把这三个合并成一行标"API"，既掩盖了前两者不可请求，也让人有可能连真端点一起剔除——**两个方向的误读都会出事**。
 >
 > 同理，`AGENT_IDENTITY_JWT_AUDIENCE`（`codex-rs/agent-identity/src/lib.rs:40`）是 `aud` 声明的期望值，也不是端点。
 
@@ -406,7 +420,7 @@ pub(super) fn get_auth_file(codex_home: &Path) -> PathBuf {
 
 #### 2.1.2 文件权限：Unix `0o600`（E3，本轮补入）
 
-写入 `auth.json` 时显式设定权限位（`codex-rs/login/src/auth/storage.rs:210-214`）：
+写入 `auth.json` 时显式设定权限位（`codex-rs/login/src/auth/storage.rs:209-214`）：
 
 ```rust
 let mut options = OpenOptions::new();
@@ -513,7 +527,7 @@ impl Config {
 
 由 `create_auth_storage()`（`codex-rs/login/src/auth/storage.rs:498`）按 `(mode, backend_kind)` 二元组选择。**mode 和 backend_kind 是两个正交的枚举**——这正是 §2 开头那条 `_mode` 命名注释想要区分的东西。
 
-它的注册项在 `codex-rs/features/src/lib.rs:853-857`：
+它的注册项在 `codex-rs/features/src/lib.rs:852-857`：
 
 ```rust
 FeatureSpec {
@@ -666,17 +680,17 @@ fn storage_mode(
 
 | 字段 | 位置 | 说明 |
 | ---- | ---- | ---- |
-| `requires_openai_auth` | `codex-rs/model-provider-info/src/lib.rs:139` | 是否需要 OpenAI API key / ChatGPT 登录；`true` 时首次运行弹登录界面 |
-| **`supports_websockets`** | `codex-rs/model-provider-info/src/lib.rs:142` | *"Whether this provider supports the Responses API WebSocket transport."* |
-| **`supports_standalone_web_search`** | `codex-rs/model-provider-info/src/lib.rs:145` | *"Whether this provider supports the standalone web-search endpoint."* |
+| `requires_openai_auth` | `codex-rs/model-provider-info/src/lib.rs:137` | 是否需要 OpenAI API key / ChatGPT 登录；`true` 时首次运行弹登录界面 |
+| **`supports_websockets`** | `codex-rs/model-provider-info/src/lib.rs:140` | *"Whether this provider supports the Responses API WebSocket transport."* |
+| **`supports_standalone_web_search`** | `codex-rs/model-provider-info/src/lib.rs:143` | *"Whether this provider supports the standalone web-search endpoint."* |
 
 三者都带 `#[serde(default)]`，即**默认 `false`**——省略等于关闭。
 
-> **上一稿的推断可以升级为直证。** 原文写"**存在 WebSocket 超时字段**，说明部分 provider 走 WebSocket 而非纯 HTTP 流"——这是从超时字段反推能力，属推断。实际有一个**直接的布尔开关** `supports_websockets`（`codex-rs/model-provider-info/src/lib.rs:142`），且内置 `openai` provider 明确设为 `true`（`codex-rs/model-provider-info/src/lib.rs:365`）。结论不变，但依据从"存在某个超时字段"换成"存在一个名为 supports_websockets 的字段并被置为 true"。（另见 `codex-websocket-client`、`codex-rs/core/tests/suite/client_websockets.rs`。）
+> **上一稿的推断可以升级为直证。** 原文写"**存在 WebSocket 超时字段**，说明部分 provider 走 WebSocket 而非纯 HTTP 流"——这是从超时字段反推能力，属推断。实际有一个**直接的布尔开关** `supports_websockets`（`codex-rs/model-provider-info/src/lib.rs:140`），且内置 `openai` provider 明确设为 `true`（`codex-rs/model-provider-info/src/lib.rs:365`）。结论不变，但依据从"存在某个超时字段"换成"存在一个名为 supports_websockets 的字段并被置为 true"。（另见 `codex-websocket-client`、`codex-rs/core/tests/suite/client_websockets.rs`。）
 
 ### 3.6 `validate()`：配置面唯一的运行期校验（E3，本轮补入）
 
-`ModelProviderInfo::validate()`（`codex-rs/model-provider-info/src/lib.rs:157-214`）是 provider 配置**唯一**的运行期校验逻辑——用户看到的 provider 配置错误信息**全部**由这里产生。规则有三组：
+`ModelProviderInfo::validate()`（`codex-rs/model-provider-info/src/lib.rs:157-214`）是 `ModelProviderInfo` **自身字段互斥关系**的校验入口。规则分两块共 4 条：
 
 | # | 规则 | 报错信息 | 位置 |
 | ---: | ---- | ---- | ---- |
@@ -684,6 +698,15 @@ fn storage_mode(
 | 2 | `aws` **不能**与 `env_key` / `experimental_bearer_token` / `auth` / `requires_openai_auth` 同时出现 | `provider aws cannot be combined with <逗号分隔的冲突项>` | `codex-rs/model-provider-info/src/lib.rs:168-186` |
 | 3 | `auth.command` **不得**为空白 | `provider auth.command must not be empty` | `codex-rs/model-provider-info/src/lib.rs:192-194` |
 | 4 | `auth` **不能**与 `env_key` / `experimental_bearer_token` / `requires_openai_auth` 同时出现 | `provider auth cannot be combined with <逗号分隔的冲突项>` | `codex-rs/model-provider-info/src/lib.rs:196-213` |
+
+> [!NOTE]
+> **`validate()` 不是 provider 配置报错的唯一来源。** 另有两条独立路径，本文其他章节各自引用了它们——排查配置报错时三处都要看：
+>
+> | 路径 | 管什么 | 位置 | 本文何处 |
+> | ---- | ---- | ---- | ---- |
+> | `validate()` | 单个 provider **自身字段的互斥关系** | `codex-rs/model-provider-info/src/lib.rs:157-214` | 本节 |
+> | `merge_configured_model_providers()` | 用户 provider **能否覆盖内置项** | `codex-rs/model-provider-info/src/lib.rs:482-486` | §3.7 |
+> | `WireApi` 的手写 `Deserialize` | `wire_api = "chat"` 的**迁移拒绝** | `codex-rs/model-provider-info/src/lib.rs:80` | §4 |
 
 要点：
 
@@ -732,7 +755,7 @@ pub enum WireApi {
 > [!IMPORTANT]
 > **`WireApi` 现在只有 `Responses` 一个变体。** 曾经存在的 `chat` 已被移除。
 >
-> 源码中保留了两条迁移错误信息（`codex-rs/model-provider-info/src/lib.rs:51-52`）：
+> 源码中保留了两条迁移错误信息（`codex-rs/model-provider-info/src/lib.rs:50` 与 `:52`）：
 >
 > | 场景 | 错误提示要点 |
 > | ---- | ---- |
