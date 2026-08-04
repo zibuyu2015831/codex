@@ -161,7 +161,7 @@ pub use registry::empty_extension_registry;
 ### 能力接口（`codex-rs/ext/extension-api/src/capabilities/`）
 
 > [!IMPORTANT]
-> **这不是一个 `capabilities.rs` 文件，而是一个目录**，含 `mod.rs`、`agent.rs`、`events.rs`、`metrics.rs`、`response_items.rs` 五个文件（全路径见下表；`codex-rs/ext/extension-api/src/lib.rs:1` 是 `mod capabilities;`）。<!-- ref-exempt: 此处列的是目录内的裸文件名，全路径在紧随的表格中给出 -->
+> **这不是一个 `capabilities.rs` 文件，而是一个目录**，含 `mod.rs`、`codex-rs/ext/extension-api/src/capabilities/agent.rs`、`events.rs`、`metrics.rs`、`codex-rs/ext/extension-api/src/capabilities/response_items.rs` 五个文件（全路径见下表；`codex-rs/ext/extension-api/src/lib.rs:1` 是 `mod capabilities;`）。<!-- ref-exempt: 此处列的是目录内的裸文件名，全路径在紧随的表格中给出 -->
 >
 > **更要紧的区分：这 4 个 capability trait 的方向与 §2 开头那 13 个扩展点 trait 相反。** capability 由**宿主实现、注入给扩展使用**；13 个扩展点 trait 则由**扩展实现、由宿主调用**。
 

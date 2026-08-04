@@ -105,7 +105,7 @@ verified_at: 2026-08-05
 > [!WARNING]
 > **继 `ConfigLayerSource::Mdm` 之后，本体系的第二个「类型存在 ≠ 类型生效」实例。**
 >
-> `ConfigToml::profiles: HashMap<String, ConfigProfile>`（`codex-rs/config/src/config_toml.rs:311-313`）仍会被 serde 反序列化，`ConfigProfile`（`codex-rs/config/src/profile_toml.rs:24`）有 40+ 个字段——但排除测试后，`ConfigProfile` 这个名字在全仓**只有 3 处命中**：结构体定义、`codex-rs/config/src/config_toml.rs:9` 的 `use`、以及 `:313` 的字段声明。**没有任何生产代码读取 `cfg.profiles` 的内容。**
+> `ConfigToml::profiles: HashMap<String, ConfigProfile>`（`codex-rs/config/src/config_toml.rs:311-313`）仍会被 serde 反序列化，`ConfigProfile`（`codex-rs/config/src/profile_toml.rs:24-71`）有 **29 个字段**——但排除测试后，`ConfigProfile` 这个名字在全仓**只有 3 处命中**：结构体定义、`codex-rs/config/src/config_toml.rs:9` 的 `use`、以及 `:313` 的字段声明。**没有任何生产代码读取 `cfg.profiles` 的内容。**
 >
 > 它唯一的实际作用是：让 `[profiles.*]` 能通过 strict-config 的未知字段校验，并出现在 `codex-rs/core/config.schema.json` 里。真正会去看 `profiles` 的地方（`codex-rs/config/src/loader/mod.rs:265-268`）读的是**原始 `TomlValue`**，而不是这个类型化字段——目的仅仅是**检测冲突并报错**，见下一小节。
 >
@@ -150,7 +150,7 @@ verified_at: 2026-08-05
 >
 > **而且没有任何测试会捕捉到不同步**——本次核查未发现任何跨 crate 的一致性测试。可用的检查手段都不到位：
 > - `codex-rs/config/src/state.rs:569` 的 `verify_layer_ordering` **只校验层栈「已按 precedence 排好序」，不校验 precedence 的取值是否正确**（`:570` 用的是 `is_sorted()`）；把两份副本的数值同步改错，它照样通过。
-> - `codex-rs/config/src/loader/tests.rs` 只有 12 个测试函数，且全部围绕 profile-v2，**没有一个断言完整的八变体优先级次序**。
+> - `codex-rs/config/src/loader/tests.rs` 只有 **3 个测试函数**（`#[tokio::test]`，全部围绕 profile-v2；该文件另有 9 个 `fn` 是 mock 文件系统的 trait 方法，按 `fn` 数会误计为 12），**没有一个断言完整的八变体优先级次序**。
 >
 > 这是**纯人工约定**，改动时格外小心。
 
@@ -198,7 +198,7 @@ verified_at: 2026-08-05
 | ---- | ---- | ---- |
 | system `config.toml` / `requirements.toml` | 硬编码常量 `SYSTEM_CONFIG_TOML_FILE_UNIX = "/etc/codex/config.toml"`（`codex-rs/config/src/loader/mod.rs:55`），由 `:652-655` 的 `system_config_toml_file()` 返回 | `:671-681` 的 `windows_codex_system_dir()`：`SHGetKnownFolderPath(FOLDERID_ProgramData)`（`:696-701` 的 `windows_program_data_dir_from_known_folder()`）**动态解析**，再 `.join("OpenAI").join("Codex")`；解析失败时 `tracing::warn!` 并回退到 `:58` 的 `DEFAULT_PROGRAM_DATA_DIR_WINDOWS = r"C:\ProgramData"` | <!-- ref-exempt: 运行时用户配置文件，非仓库内文件 -->
 | legacy `managed_config.toml`（precedence 40） | `codex-rs/config/src/loader/layer_io.rs:20` 的 `CODEX_MANAGED_CONFIG_SYSTEM_PATH = "/etc/codex/managed_config.toml"` | **`$CODEX_HOME\managed_config.toml`**（`codex-rs/config/src/loader/layer_io.rs:171-183` 的 `managed_config_default_path()`，`#[cfg(not(unix))]` 分支） |
-| admin 托管偏好（precedence 50） | **不存在** | **不存在**（`codex-rs/config/src/loader/layer_io.rs:77-87` 只有 `#[cfg(target_os = "macos")]` 才加载；其余平台 `let managed_preferences = None;`） |
+| admin 托管偏好（precedence 50） | **仅 macOS 存在**（全场最高优先级）；**其余 Unix 不存在** | **不存在**（`codex-rs/config/src/loader/layer_io.rs:77-87` 只有 `#[cfg(target_os = "macos")]` 才加载；其余平台 `let managed_preferences = None;`） |
 
 > [!WARNING]
 > **Windows 上存在一处强制力不对称。**
@@ -269,7 +269,7 @@ codex-rs/config/src/state.rs:542   .filter(|layer| include_disabled || !layer.is
 
 被禁用的层在 `effective_config()`（`codex-rs/config/src/state.rs:492-501`）、`origins()`（`:506-519`）、`layers_high_to_low()`（`:524-529`）里**全部以 `include_disabled = false` 过滤掉**，但仍通过 `get_layers(ordering, include_disabled = true)` 暴露给 UI。`codex-rs/config/src/loader/README.md` 的说法是：「Layers with a `disabled_reason` are still surfaced for UI, but are ignored when computing the effective config and origins metadata.」
 
-`include_disabled = true` 的**生产调用点**（E1，非测试）：
+`include_disabled = true` 的**代表性生产调用点**（E1，非测试；**下表非穷举**——全量见 `grep -rn '/\*include_disabled\*/ true' --include='*.rs' codex-rs`，非测试共 16 处，另有 `codex-rs/hooks/src/config_rules.rs`、`codex-rs/core-skills/src/loader.rs`、`codex-rs/core/src/session/mod.rs` 等）：
 
 | 调用点 | 用途 |
 | ---- | ---- |
@@ -329,7 +329,7 @@ codex-rs/config/src/state.rs:542   .filter(|layer| include_disabled || !layer.is
 | `ConfigToml` **仍会被 serde 接受的**顶层字段 | **96** | E2：`codex-rs/config/src/config_toml.rs` 的 `pub` 字段 |
 | 其中**刻意对 schema 隐藏**的废弃/移除键 | **3** | E2：带 `#[schemars(skip)]` |
 | `codex-config` crate `src/` 行数 | 21,167 | E1：`find codex-rs/config/src -type f \| xargs wc -l`（**全部文件**口径） |
-| 同上，**仅 `.rs`** 口径 | 21,034 | E1：`git ls-files 'codex-rs/config/**/*.rs' \| xargs wc -l`。[`crate_map.md`](./crate_map.md) §3 用的是这个口径，两处数字不同**不是矛盾**，差额 133 行来自 `src/` 下的非 `.rs` 文件 |
+| 同上，**仅 `.rs`** 口径 | 21,034 | E1：`git ls-files 'codex-rs/config/**/*.rs' \| xargs wc -l`。[`crate_map.md`](./crate_map.md) §3 用的是这个口径。⚠️ **这两个数同时改了「文件类型」与「目录范围」两个维度**：21,034 含 `codex-rs/config/examples/generate-proto.rs`（19 行，在 `src/` 之外）。三个口径分别是 —— `src/` 全部文件 21,167；`src/` 仅 `.rs` 21,015；跟踪的全部 `.rs`（含 `examples/`）21,034。21,167 − 21,015 = 152 行来自 `src/` 下的 `codex-rs/config/src/loader/README.md`(83) 与 `.proto`(69) |
 | `codex-rs/core/src/config/config_tests.rs` 行数 | 12,127 | E1：`wc -l` |
 
 > [!IMPORTANT]
@@ -492,7 +492,7 @@ let sqlite_home = cfg
 | 3（回退） | `codex_home` 本身 |
 
 > [!WARNING]
-> **配置文件压过环境变量，与大多数工具相反。** 在绝大多数 CLI 里环境变量优先级更高；这里恰好倒过来。所以「我导出了 `CODEX_SQLITE_HOME` 但数据库还在老地方」的答案通常是：某一层 `config.toml` 里已经写了 `sqlite_home`。两者同时存在时会推送启动警告，注意看启动输出。 <!-- ref-exempt: 运行时用户配置文件，非仓库内文件 -->
+> **配置文件压过环境变量，与大多数工具相反。** 在绝大多数 CLI 里环境变量优先级更高；这里恰好倒过来。所以「我导出了 `CODEX_SQLITE_HOME` 但数据库还在老地方」的答案通常是：某一层 `config.toml` 里已经写了 `sqlite_home`。⚠️ **两者同时存在时不会有任何提示**——`push_sqlite_home_env_override_warning`（`codex-rs/core/src/config/requirements.rs:107-134`）第一件事就是 `if configured_sqlite_home.is_some() { return; }`。那条 `$CODEX_SQLITE_HOME is overridden by...` 警告只在**配置文件没写、环境变量已设、且 requirements 给出不同精确值**时才触发——恰是本段场景的补集。要确认实际生效值，只能查配置层来源。 <!-- ref-exempt: 运行时用户配置文件，非仓库内文件 -->
 
 **而且它可以被 requirements 覆盖。** 这是 §5「requirements 是不可协商约束」的具体例证：`ConfigRequirementsToml::sqlite_home`（`codex-rs/config/src/config_requirements.rs:876`，该结构体的**第一个**字段）给出精确值时，会压过上面整条链。`codex-rs/core/src/config/mod.rs:3886-3891` 调用 `requirements::push_sqlite_home_env_override_warning(...)`，实现（`codex-rs/core/src/config/requirements.rs:126-133`）会同时发一条 `tracing::warn!` 和一条启动警告：
 

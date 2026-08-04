@@ -27,10 +27,18 @@ from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ref_checker import DOC_ROOT, REF, REPO_ROOT, resolve  # noqa: E402
+from ref_checker import DOC_ROOT, EXEMPT_MARKER, REF, REPO_ROOT, resolve  # noqa: E402
 
 
 def rewrite_line(line: str, changes: list[tuple[str, str]]) -> str:
+    # 尊重与 ref_checker 同一套行级豁免标记。
+    #
+    # 这条是被真实事故逼出来的：本轮曾自动把 tui_guide 里一句 AGENTS.md 的**逐字引文**
+    # 从 `chatwidget.rs` 改写成 `codex-rs/tui/src/chatwidget.rs`，既破坏了引文保真度，
+    # 也让紧随的括注「原文只写文件名 X」变成自相矛盾。凡标了豁免的行，一律不碰。
+    if EXEMPT_MARKER.search(line):
+        return line
+
     def sub(m: re.Match[str]) -> str:
         ref, spec = m.group(1), m.group(2)
         if ref.startswith("dev_docs/"):

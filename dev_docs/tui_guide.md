@@ -210,9 +210,9 @@ AGENTS.md **举例**点名了 5 个 TUI 高触碰文件（grep `high-touch files
 
 AGENTS.md 顶部规则列表（grep `keep chatwidget.rs focused on orchestration`）：
 
-> "Avoid adding new standalone methods to `codex-rs/tui/src/chatwidget.rs` unless the change is trivial; prefer new modules/files and keep `chatwidget.rs` focused on orchestration."
+> "Avoid adding new standalone methods to `codex-rs/tui/src/chatwidget.rs` unless the change is trivial; prefer new modules/files and keep `chatwidget.rs` focused on orchestration." <!-- ref-exempt: AGENTS.md 逐字引文，原文后半句只写文件名，不得补全路径否则破坏可 grep 性 -->
 
-（原文后半句只写文件名 `chatwidget.rs`；此处照录以保持可 grep，实际指的是 `codex-rs/tui/src/chatwidget.rs`。）
+（原文后半句只写文件名 `chatwidget.rs`；此处照录以保持可 grep，实际指的是 `codex-rs/tui/src/chatwidget.rs`。）<!-- ref-exempt: 说明引文为何不补全路径 -->
 
 **翻译成操作**：`codex-rs/tui/src/chatwidget.rs`（2,020 行）只做编排。要加逻辑，新建模块，让它调用。`chatwidget/` 目录下已有 60 个 `.rs` 兄弟模块，绝大多数就是这样被拆出来的——加新文件是这里的常规动作，不是例外。
 
@@ -273,7 +273,7 @@ git grep -n "^pub fn\|^impl\|^pub struct\|^fn " codex-rs/tui/src/bottom_pane/cha
 >
 > **自定义颜色是被机器拦下的，不只是文档劝阻。** `Color::Rgb` 与 `Color::Indexed` 是构造任意颜色的两条路，两条都在禁用列表里——这正是 `codex-rs/tui/styles.md` 第 1 条 Avoid 的执行手段。
 >
-> `codex-rs/tui/styles.md` 末尾写道 "(There are some rules to try to catch this in `clippy.toml`.)"（原文只写文件名，实际指 `codex-rs/clippy.toml`）——**文档约定与机器规则并不完全重合**。**机器强制只覆盖 Avoid 清单的一部分，且只覆盖到具体的方法/构造路径。** 落在文档一侧、clippy 不拦的至少有：ANSI `blue`；经 `Color::White` / `Color::Black` 而非 `Stylize::white` / `Stylize::black` 硬编码黑白；以及 `codex-rs/tui/styles.md` 的**全部正向条款**（标题用 `bold`、次要文本用 `dim`、cyan / green / red / magenta 的语义分配）——这些没有任何机器强制，只能靠 review。
+> `codex-rs/tui/styles.md` 末尾写道 "(There are some rules to try to catch this in `clippy.toml`.)"（原文只写文件名，实际指 `codex-rs/clippy.toml`）<!-- ref-exempt: styles.md 逐字引文，原文只写 clippy.toml -->——**文档约定与机器规则并不完全重合**。**机器强制只覆盖 Avoid 清单的一部分，且只覆盖到具体的方法/构造路径。** 落在文档一侧、clippy 不拦的至少有：ANSI `blue`；经 `Color::White` / `Color::Black` 而非 `Stylize::white` / `Stylize::black` 硬编码黑白；以及 `codex-rs/tui/styles.md` 的**全部正向条款**（标题用 `bold`、次要文本用 `dim`、cyan / green / red / magenta 的语义分配）——这些没有任何机器强制，只能靠 review。
 
 同一个 `disallowed-methods` 数组里还有一批与样式无关的 sqlx 条目，共 **13 条**，跨 5 个路径前缀：`sqlx::Pool::connect{,_with,_lazy,_lazy_with}`、`sqlx::Pool::set_connect_options`、`sqlx::pool::PoolOptions::connect{,_with,_lazy,_lazy_with}`、`sqlx::Connection::connect{,_with}`、`sqlx::ConnectOptions::connect`、`sqlx::migrate::MigrateDatabase::create_database`。理由文案也不止「建池」一种：分别要求经 `codex-state` 的 sqlite shim **建池**、**建连接**、**建库**，外加一条「不得替换 shim 已建池的 options」（`set_connect_options`）。`codex-rs/clippy.toml:14` 的注释注明该名单是按 workspace sqlx 0.9.0 审计的——**升级 sqlx 时需要复查这份名单**。改 TUI 时通常不会碰到这一批。
 

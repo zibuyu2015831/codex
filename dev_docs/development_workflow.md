@@ -342,7 +342,7 @@ CI 校验锁文件漂移
 | 不要创建只被引用一次的小助手方法 | `referenced only once` |
 | trait 中的异步方法用 `fn foo(&self, ...) -> impl Future<Output = T> + Send`，**不要**用 `#[allow(async_fn_in_trait)]` 绕过 | `async_fn_in_trait` |
 | 追踪异步任务用 `#[tracing::instrument(...)]` 标注定义处，**不要**在调用点 `.instrument(...)`；加之前先查是否已被标注 | `tracing::instrument` |
-| MCP 工具调用优先走 MCP 连接管理器（grep `mcp_connection_manager`）。⚠️ **`AGENTS.md` 记的路径已陈旧**：原文写 `codex-rs/codex-mcp/src/mcp_connection_manager.rs`，该文件**已不存在**；实际是 `codex-rs/codex-mcp/src/connection_manager.rs`，外加同名子模块目录 `connection_manager/`（含 `resources.rs` / `tool_catalog.rs` / `startup.rs` / `required.rs`）与 `codex-rs/codex-mcp/src/connection_manager_tests.rs`。按 `AGENTS.md` 的路径 grep 会一无所获 <!-- ref-exempt: 复述 AGENTS.md 的陈旧路径，其不存在正是本行要指出的 --> | `mcp_connection_manager` |
+| MCP 工具调用优先走 MCP 连接管理器（grep `mcp_connection_manager`）。⚠️ **`AGENTS.md` 记的路径已陈旧**：原文写 `codex-rs/codex-mcp/src/mcp_connection_manager.rs`，该文件**已不存在**；实际是 `codex-rs/codex-mcp/src/connection_manager.rs`，外加同名子模块目录 `connection_manager/`（含 `resources.rs` / `codex-rs/codex-mcp/src/connection_manager/tool_catalog.rs` / `startup.rs` / `codex-rs/codex-mcp/src/connection_manager/required.rs`）与 `codex-rs/codex-mcp/src/connection_manager_tests.rs`。按 `AGENTS.md` 的路径 grep 会一无所获 <!-- ref-exempt: 复述 AGENTS.md 的陈旧路径，其不存在正是本行要指出的 --> | `mcp_connection_manager` |
 | 不要无必要地调用 `reset_client_session` | `reset_client_session` |
 | 尽量让 `match` 穷尽，避免通配分支 | `avoid wildcard arms` |
 | 新增 trait 要写文档注释，说明其角色与实现方的预期用法 | `Newly added traits should include doc comments` |

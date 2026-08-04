@@ -1,26 +1,26 @@
 ---
 title: Codex CLI 文档体系生成进度记录
-summary: 记录 openai/codex 仓库 dev_docs 文档体系的生成进度、流程阶段状态、两轮 Phase 1 方案复查记录、结构化机器检查结果、脱敏扫描记录与用户确认状态，并记录第二轮七路独立审查把首版验收由 PASS_WITH_ACCEPTED_ISSUES 改判为 FAIL 的经过、15 项 HIGH 级事实错误的统计与 5,182 行产物总量的正确口径，支持会话中断后的断点续传。
-keywords: codex | progress | phase1-review | machine-checks | dev-docs | tracking | independent-review
+summary: 记录 openai/codex 仓库 dev_docs 文档体系的生成进度、流程阶段状态、两轮 Phase 1 方案复查记录、结构化机器检查结果、脱敏扫描记录与用户确认状态；含第二轮七路独立审查把首版验收由 PASS_WITH_ACCEPTED_ISSUES 改判为 FAIL 的经过，以及第 5 轮双轨交叉审查（核验轨 + 禁读文档的重推导轨 + 会拒改的修订轨）逐批次执行记录、自建三项门禁的落地、产物行数与门禁状态的实测重建，支持会话中断后的断点续传。
+keywords: codex | progress | phase1-review | machine-checks | dev-docs | tracking | dual-track-review
 scope: openai/codex 仓库 dev_docs 文档体系生成过程追踪
 related_files: AGENTS.md | codex-rs/Cargo.toml | codex-rs/cli/src/main.rs
 dependencies: dev_docs/_analysis/generation_plan.md | dev_docs/_analysis/project_analysis_report.md
-verified_at: 2026-08-03
+verified_at: 2026-08-05
 ---
 
 # 文档生成进度记录
 
 > **项目**: Codex CLI（仓库 `openai/codex`）
 > **开始时间**: 2026-08-03 12:28
-> **最后更新**: 2026-08-03 19:30
-> **当前状态**: 首版产物全部落盘，但首版验收结论已被第二轮独立审查推翻，现判定为 FAIL，事实错误修复进行中
-> **流程阶段进度**: Step 8/8 已执行完毕，其中 Step 8 的结论已改判
+> **最后更新**: 2026-08-05
+> **当前状态**: 第 5 轮双轨交叉审查已完成主体批次，各批次修订均已提交；`health_check_report.md` 判定 `PASS_WITH_ACCEPTED_ISSUES`
+> **流程阶段进度**: Step 8/8 已执行完毕；Step 8 的结论历经「通过 → FAIL → 通过（附 accepted issue）→ 第 5 轮重新验收」四次更新
 > **产物完成度**: 26/26 (100%)
-> **当前 gate**: 事实修复门 —— 15 项 HIGH 级事实错误修复完毕并经独立复核前，本体系不作为可信参考
-> **下一步动作**: 按 `health_check_report.md` 的修复计划逐项修复 HIGH 级事实错误，修复后重新验收
-> **阻塞原因**: 无（修复可直接推进，不需用户输入）
+> **当前 gate**: 8 项门禁（5 项框架 checker + 3 项自建门禁）+ 双轨交叉审查 + 修订代理独立复核
+> **下一步动作**: 见 `health_check_report.md` 的 `accepted_issues`（AI-005 待联网、AI-007 待下一轮抽样复核）
+> **阻塞原因**: 无
 > **正式生成授权**: 已授权（用户 2026-08-03 明确回复"方案审核通过"）
-> **版本控制状态**: 已提交 commit `8224f7c034`，已推送至 `fork/zibuyu`（`zibuyu2015831/codex`，公开）；上游 `origin` 无任何写入
+> **版本控制状态**: 已提交并推送至 `origin/zibuyu`。**注意**：本仓库只配置了一个 remote，且它就是个人 fork `git@github.com:zibuyu2015831/codex.git`（`git remote -v` 实测），未配置任何指向 `openai/codex` 的 remote
 
 ---
 
@@ -33,9 +33,9 @@ verified_at: 2026-08-03
 - [x] 步骤 5: 等待人工审核 ✅ 已完成（历经 2 轮方案复查）
 - [x] 步骤 6: 已获用户确认 ✅ 已完成（2026-08-03）
 - [x] 步骤 7: 执行文档生成 ✅ 已完成（4 批全部完成）
-- [x] 步骤 8: 首版质量验收 ⚠️ 已执行，**结论已改判为 FAIL**（首版曾记 `PASS_WITH_ACCEPTED_ISSUES`，被第二轮 7 路独立审查推翻，见 `health_check_report.md`）
+- [x] 步骤 8: 质量验收 ✅ 已执行 4 次并各自回写 `health_check_report.md`：首版记 `PASS_WITH_ACCEPTED_ISSUES` → 第二轮 7 路独立审查推翻，改判 **FAIL** → 第 3/4 轮修复后回到 `PASS_WITH_ACCEPTED_ISSUES`（附 AI-006）→ **第 5 轮双轨交叉审查兑现 AI-006，重新验收**
 
-**流程阶段进度**: 8/8 (100%)。步骤 8 的产出（验收报告）已重写，结论由通过改为不通过。
+**流程阶段进度**: 8/8 (100%)。步骤 8 的产出（验收报告）已随每一轮结论重写；当前有效结论是第 5 轮的重新验收。
 
 ---
 
@@ -43,18 +43,18 @@ verified_at: 2026-08-03
 
 | 项目 | 结果 | 验证方式 |
 | ---- | ---- | -------- |
-| 操作系统 | macOS（Darwin 25.4.0，arm64） | `uname -a` |
+| 操作系统 | macOS（Darwin 25.5.0，arm64） | `uname -sr` |
 | Shell | zsh | `echo $SHELL` |
-| Python | 3.9.6 | `python3 --version` |
-| Node.js | v24.13.0 | `node --version` |
+| Python | **3.14.6**（第 5 轮实测；首轮记录的 3.9.6 已过期） | `python3 --version` |
+| Node.js | **v26.3.1**（第 5 轮实测；首轮记录的 v24.13.0 已过期） | `node --version` |
 | 框架位置 | `AI-Coding-Context/` → `<本地工作区>/AI-Coding-Context`（软链接） | `ls -la` |
 | 框架已排除 | 是 | `project_scanner.py --exclude-standard` 输出不含框架文件 |
 | 排除目录 | 框架目录、`node_modules/`、`.git/`、`target/`、IDE 配置 | `--exclude-standard` |
 | 分析基线 commit | `bb5054fe47abe73ecbbd454751066a28c89f4bb9` | `git log -1` |
-| 当前分支 | `zibuyu`，upstream 为 `fork/zibuyu` | `git status -sb` |
-| push 目标 | `fork` → `https://github.com/zibuyu2015831/codex.git`（个人 fork，公开） | `git remote -v`、`gh repo view --json isFork,parent,isPrivate` |
-| 上游 `origin` | `openai/codex`，**只读，无任何 push** | `git remote -v` |
-| 产物提交 | `8224f7c034`（`_analysis` 三件套） | `git log --oneline` |
+| 当前分支 | `zibuyu`，upstream 为 `origin/zibuyu` | `git status -sb` |
+| remote 配置 | **只有一个 remote，名为 `origin`，指向 `git@github.com:zibuyu2015831/codex.git`（个人 fork，公开）**。仓库**未配置**任何指向 `openai/codex` 的 remote（无 `upstream`、无 `fork`） | `git remote -v` |
+| push 目标 | `origin`（即上面那个 fork） | `git remote -v`、`git rev-parse --abbrev-ref '@{u}'` |
+| 产物提交 | `8224f7c034`（`_analysis` 三件套首提）；第 5 轮的批次修订见 `git log 73f3fce005..HEAD` | `git log --oneline` |
 | 框架软链接处置 | 写入 `.git/info/exclude`，未提交 | `git status --short` 不含该条目 |
 | 文档语言 | 中文（zh-CN） | 用户明确指定 |
 | 用户配置文件 | `config/user_config.md` 不存在，采用默认配置 | `test -f` |
@@ -131,6 +131,34 @@ verified_at: 2026-08-03
 
 ---
 
+### 阶段 7: 第 5 轮 — 双轨交叉审查与修订
+
+> 兑现第 4 轮遗留的 accepted issue **AI-006**（「第四轮修复未经独立复核」）。用户确认的四项决策：审查方法用双轨交叉、代码基线保持 `bb5054fe47`、覆盖范围为「修错 + 把已知缺口补进现有文档」（不新增文档文件）、引用格式改为符号名为主行号为辅并全面归一化为仓库根相对路径。
+
+**每篇文档派三类代理**（前两类并行，第三类串在后面）：
+
+- **核验轨** —— 输入是文档全文 + 源码。把文档拆成可核验断言逐条回源取证，判 OK / WRONG / UNVERIFIABLE。抓「写错的」。
+- **重推导轨** —— **明令禁读 `dev_docs/`**，只给源码。从零推导该主题的事实，写成独立结论后再与文档差分。抓「漏写的」与「框架性定性错误」。
+- **修订轨** —— 拿前两轨的裁定落笔修订，并被要求「**若裁定与源码不符就拒改并回报反证**」。抓「主控在汇总两轨结论时自己引入的错误」。这一步本轮确实生效，拒改与纠正记录见 `health_check_report.md`。
+
+**逐批次执行记录**（`git log 73f3fce005..HEAD`，7 次提交）：
+
+- **批次 0** `d44796f16d` — 先建工具再审查。新增 `dev_docs/_analysis/ref_checker.py`（引用可解析性 / 行号越界 / 符号邻近性 / frontmatter）、`dev_docs/_analysis/normalize_refs.py`（批量归一化，歧义引用一律不碰）、`dev_docs/_analysis/claim_ledger.jsonl`（数值断言账本，每条附可复现命令）、`dev_docs/_analysis/redact_scan.sh` 与 `dev_docs/_analysis/gate.sh`；`dev_docs/_analysis/cross_doc_consistency_checker.py` 改为消费账本。同批修正 `dev_docs/AI_Coding_Context.md` 与 `dev_docs/rules/combined/AI_RULES.md` 各 1 处。
+- **单篇试点** `04e1e83bfa` — `session_and_persistence`，核验轨 121 条断言 + 重推导轨。这一篇验证了双轨的必要性：时区语义不一致（写入用 `OffsetDateTime::now_local()`、反向解析用 `assume_utc()`）是重推导轨独有发现，核验轨 121 条逐条取证后未发现。
+- **批次 1** `3ede89a850` — `architecture_overview`（核验 138 条）+ `crate_map`（核验 171 条）。
+- **批次 2** `18491f67ad` — `core_agent_loop`（158 条）+ `tools_and_sandbox`（171 条）。
+- **单篇** `f98b5b8795` — `observability`（74 条），两项 HIGH 均直接影响隐私判断。
+- **批次 3** `ff531542c1` — `config_system`（124 条）+ `auth_and_providers`（124 条），后者 420 → 941 行。
+- **批次 4** `169ac97129` — `app_server_protocol`（124 条）+ `sdk_guide`（104 条）+ `mcp_and_extensions`（118 条）。本批回填账本最后两条待复核项后，**跨文档对账首次全绿**。
+
+**本轮新增的机器检查**（补上此前完全缺失的两类）：
+
+- `python3 dev_docs/_analysis/ref_checker.py` —— 校验「引用能否被定位」。本体系的运行机制是「会话中携带入口文档、按需阅读」，一条无法从仓库根解析的引用等价于一条断链。
+- `python3 dev_docs/_analysis/cross_doc_consistency_checker.py --verify-repo` —— 校验「数值是否与仓库真值相符」，并检查「标题里声明的计数」与「紧随其后的表格行数」是否相符。
+- `bash dev_docs/_analysis/redact_scan.sh` —— 脱敏 7 项。
+
+---
+
 ## 🧪 验收进度
 
 - [x] `summary_validator` 已执行（仅代表 `_analysis` 元数据/摘要格式检查）
@@ -143,6 +171,10 @@ verified_at: 2026-08-03
 - [x] `health_check_report.md` 已落盘并通过自身检查（第 1 批阶段性验收）
 - [x] 首版最终 verdict 曾记为 `PASS_WITH_ACCEPTED_ISSUES`
 - [x] 第二轮独立审查已执行：**verdict 改判为 FAIL**（见 `health_check_report.md`）
+- [x] 第 5 轮双轨交叉审查已执行：verdict 重回 `PASS_WITH_ACCEPTED_ISSUES`，AI-006 已闭合并另立 AI-007 记录残留风险
+- [x] 自建门禁 `dev_docs/_analysis/redact_scan.sh` 已执行（脱敏 7 项全绿）
+- [x] 自建门禁 `dev_docs/_analysis/cross_doc_consistency_checker.py` 已执行（`--verify-repo`，0 问题）
+- [x] 自建门禁 `dev_docs/_analysis/ref_checker.py` 已执行（逐项结果详见 `health_check_report.md` 的 `machine_checks` 表，含未闭合的 WARN）
 
 ### checker_status_matrix
 
@@ -153,9 +185,9 @@ verified_at: 2026-08-03
 | structure | doc_health_checker | js | PASS | 与 Python checker 交叉验证 | yes |
 | semantic | semantic_review_checker | python | PASS | 事实一致性、测试拓扑和审核门语义 | yes |
 | semantic | semantic_review_checker | js | PASS | 与 Python checker 交叉验证 | yes |
-| acceptance | health_check_report | markdown | FAIL | **改判后的验收结论**：15 项 HIGH 级事实错误（blocker），1 项 accepted issue | yes |
+| acceptance | health_check_report | markdown | PASS_WITH_ACCEPTED_ISSUES | **第 5 轮双轨交叉审查后的验收结论**：0 blocker，2 项 accepted issue（AI-005 / AI-007）。曾于第二轮改判为 FAIL（15 项 HIGH 级事实错误） | yes |
 
-> 说明：Phase 1 的 hard gate 为 metadata / structure / semantic 五行，均为 PASS。`acceptance` 行记录的是最终验收结论，现为 FAIL。
+> 说明：Phase 1 的 hard gate 为 metadata / structure / semantic 五行，均为 PASS。`acceptance` 行记录的是最终验收结论。第 5 轮新增的 3 项自建门禁（`ref_checker` / `cross_doc_consistency_checker` / `redact_scan`）不在上表内，其逐项结果记录在 `health_check_report.md` 的 `machine_checks` 表。
 >
 > **五行 checker 全 PASS 与 acceptance FAIL 并存不是矛盾**：checker 覆盖结构与格式，不覆盖事实正确性与跨文档数值一致性。`summary_validator PASS` 不得单独表述为"验证通过"，五项全绿同样不得表述为"内容正确"。
 
@@ -242,7 +274,7 @@ verified_at: 2026-08-03
 
 **Python / JS 交叉验证结论**: 终轮两套实现均为 0 issue，结果一致。过程中出现过**两次**跨实现分歧，均发生在 `doc_health_checker` 对 `machine_checks` 表边界的解析上（第 2 轮与第 4 轮，js 版比 python 版更严格），两次均按框架要求先行修正而非豁免。`semantic_review_checker` 的分歧仅出现在第 4 轮的 `fact_conflict` 数量上（py 1 项 / js 2 项）；在判定结构性 blocker 的第 5 轮，两套实现的 issue 数量、类型与文件完全一致。
 
-**工具环境说明**: 全部 5 项检查在本机 Python 3.9.6 / Node v24.13.0 下均可正常执行，无 `UNAVAILABLE` 项，无需替代复核。
+**工具环境说明**（Phase 1 当时的环境快照）: 全部 5 项检查在当时的 Python 3.9.6 / Node v24.13.0 下均可正常执行，无 `UNAVAILABLE` 项，无需替代复核。第 5 轮实测环境已变为 Python 3.14.6 / Node v26.3.1，5 项检查与新增的 3 项自建门禁在新环境下同样可跑。
 
 ### phase1_review_verdict
 
@@ -265,7 +297,7 @@ verified_at: 2026-08-03
 
 ## 🔎 质量验收记录（含首版结论被推翻的经过）
 
-> 本节记录正式文档生成后的质量验收。**首版结论已作废**，当前有效结论来自第二轮独立审查。
+> 本节记录正式文档生成后的质量验收。**首版结论已作废**；第二轮的 FAIL 亦已被后续修复取代。**当前有效结论来自第 5 轮双轨交叉审查**，完整内容见 `health_check_report.md`。
 
 ### 首版验收（已作废）
 
@@ -279,7 +311,7 @@ verified_at: 2026-08-03
 - **final_machine_checks**: 5 项全部 exit_code=0 / issue_count=0，两套实现一致
 - **writeback_summary**: 第 1 批修复共 4 类问题 —— ①主文档 10 个框架必需章节缺失（真实契约违反，已按 `main_doc_contract.yaml` 重写结构并补齐核心代码模式/命名规范/业务模块映射/常见任务速查四节实质内容）；②正式文档已落盘但无验收报告（已生成并标注为阶段性）；③16 项 `fact_conflicts` 极性假阳性（对齐措辞，未改结论）；④`accepted_issues` 表缺必填列（已补齐 9 列）。
 
-### 第二轮独立审查（当前有效结论）
+### 第二轮独立审查（已被后续轮次取代）
 
 - **review_trigger**: 用户要求对首版产物做独立复核
 - **review_method**: **7 个独立代理**分头从源码重新推导全部可核验断言，不复用首版的任何结论
@@ -294,6 +326,24 @@ verified_at: 2026-08-03
 - **完整清单**: `health_check_report.md`
 - **user_confirmation_status**: pending（用户已授权完成全部文档，整体审核与优化在修复完成后进行）
 
+### 第 3–4 轮修复（已被第 5 轮取代）
+
+- **动作**: 第 3 轮修复第二轮查出的 6 个新 HIGH，第 4 轮修复第 3 轮引入的 7 个新 HIGH
+- **verdict**: 回到 `PASS_WITH_ACCEPTED_ISSUES`
+- **遗留**: accepted issue **AI-006** —— 第 4 轮修复未经独立复核。本项目实测的「修复引入新错」基准率为每轮 6–7 个 HIGH，故合理推断仍存在少量未知错误
+
+### 第 5 轮双轨交叉审查（当前有效结论）
+
+- **review_trigger**: 兑现 AI-006
+- **review_method**: 每篇文档同时派 **核验轨**（读文档，逐条断言回源取证）与 **重推导轨**（禁读 `dev_docs/`，仅凭源码从零推导后差分）；裁定交由第三个 **修订轨** 代理落笔，并要求「若与源码不符就拒改并回报」
+- **执行范围**: 7 次提交，覆盖 13 篇文档 + `dev_docs/rules/combined/AI_RULES.md`；逐批次记录见上文「阶段 7」
+- **final_verdict**: `PASS_WITH_ACCEPTED_ISSUES`
+- **blocker_count**: 0
+- **accepted_issue_count**: 2（AI-005 改写后保留、AI-007 新增）
+- **AI-006 处置**: 已闭合
+- **修订轨的有效性**: 多篇文档的修订代理拒改或纠正了主控的裁定并附反证，逐条记录在 `health_check_report.md`
+- **完整清单**: `health_check_report.md`
+
 ### accepted_issues
 
 | issue_id | 摘要 | 消解条件 |
@@ -302,7 +352,9 @@ verified_at: 2026-08-03
 | ~~AI-002~~ | ~~四条扩展路径的相互关系仅有 E1 证据~~ | ✅ 已消解：第 3 批完成 E3 核查 |
 | ~~AI-003~~ | ~~app-server ↔ exec-server 跨 OS 传输实现未做代码级验证~~ | ⛔ 已撤销：第二轮已定位到可读的实现入口，不构成证据等级限制，转为覆盖缺口 |
 | ~~AI-004~~ | ~~insta 快照更新流程在 justfile 与 AGENTS.md 中均无记载~~ | ⛔ 已撤销：**前提为假**。AGENTS.md 的「### Snapshot tests」一节完整记载了该流程与一条强制要求。此条属漏读，不应登记为 accepted issue |
-| AI-005 | 本机 Python 3.9.6 低于 SDK 要求，无法取得 E4 验证 | 升级 Python 后补跑 |
+| AI-005 | Python SDK 测试无法在本环境运行，无法取得 E4 验证 | **原因已改写**（第 5 轮）：本机 Python 已是 3.14.6，「版本过低」前提不成立；真实阻塞是缺 `pytest` / `pydantic` / `openai-codex-cli-bin` 三个包且禁止联网安装。即便装上，契约测试第 43 行仍硬断言一个只发 PyPI 的平台 wheel（取证见 `project_analysis_report.md` 警告 3）。消解条件改为「允许联网 `uv sync --group dev --frozen`」 |
+| ~~AI-006~~ | ~~第四轮修复未经独立复核，按每轮 6–7 个 HIGH 的基准率推断仍有未知错误~~ | ✅ **已闭合**：第 5 轮双轨交叉审查即为对该项的兑现 |
+| AI-007 | 第 5 轮自身同样可能「修复引入新错」 | 下一轮对绝对化断言与本轮新增章节做抽样复核；详见 `health_check_report.md` |
 
 > 完整字段见 `health_check_report.md` 的 `accepted_issues` 表。
 
@@ -328,6 +380,9 @@ verified_at: 2026-08-03
 | 2026-08-03 17:00 | 生成中 | 完成第 3 批 5 篇；**闭合四条扩展路径关系 E1 缺口**；CI 工作流数由 29 更正为 27 | 执行第 4 批 | 门禁 5 项全绿 |
 | 2026-08-03 17:40 | 首版完成 | 完成第 4 批 3 篇 + AI_RULES；**闭合遥测默认开关 E1 缺口**；第 4 批首跑被拦下 4 个敏感值策略违规，已改写 | 等待用户整体审核 | 首版 verdict = PASS_WITH_ACCEPTED_ISSUES |
 | 2026-08-03 19:30 | 首版验收被推翻 | 第二轮 7 路独立审查从源码重新推导全部可核验断言，查出 15 项 HIGH / 约 45 项 MED / 约 25 项 LOW；`health_check_report.md` 重写，verdict 由 PASS_WITH_ACCEPTED_ISSUES 改判为 **FAIL**；脱敏复扫检出并修复组织 SSH remote 串 1 处 | 逐项修复 HIGH 级事实错误 | 5 项 checker 在错误存在期间始终全绿，说明门禁不覆盖事实正确性 |
+| 第 3–4 轮 | 修复中 | 第三轮修复第二轮的 6 个新 HIGH，第四轮修复第三轮的 7 个新 HIGH；verdict 回到 `PASS_WITH_ACCEPTED_ISSUES`，但附 accepted issue **AI-006**（第四轮修复未经独立复核） | 兑现 AI-006 | 本项目实测的「修复引入新错」基准率为每轮 6–7 个 HIGH |
+| 2026-08-05 | 第 5 轮双轨交叉审查 | 批次 0 先建三件门禁工具（`dev_docs/_analysis/ref_checker.py`、`dev_docs/_analysis/claim_ledger.jsonl`、`dev_docs/_analysis/redact_scan.sh`）并改造 `dev_docs/_analysis/cross_doc_consistency_checker.py` 消费账本；随后按 `session_and_persistence` → 批次 1 → 批次 2 → `observability` → 批次 3 → 批次 4 的顺序逐篇双轨审查并修订，共 7 次提交 | 处理 AI-005 / AI-007 | 引用可从仓库根解析率由 25.1% 大幅提升；跨文档对账首次全绿；修订代理多次拒改主控裁定并附反证 |
+| 2026-08-05 | 元文件回写 | 重写 `health_check_report.md` 为第 5 轮验收报告；`generation_progress.md` 更正「推送红线」失真陈述与过期统计；`generation_plan.md` 补入双轨方法论与三条反模式硬约束并闭合 CLI 子命令口径遗留项；两个元文件的 55 条不可解析引用全部补全或标注豁免 | 见 `health_check_report.md` 的后续建议 | 元文件也在验收范围内——这是第二轮 H15 的教训 |
 
 ---
 
@@ -342,8 +397,8 @@ verified_at: 2026-08-03
 
 ### 当前恢复入口
 
-- **产物已全部落盘，但首版验收结论已被推翻**（现判 FAIL）。当前待续任务是按 `health_check_report.md` 的修复计划修复 15 项 HIGH 级事实错误，修复后重新验收；再之后才是用户整体审核与上游漂移时的增量更新（框架路径 C）
-- **恢复时必须继承的用户决定**: 文档定位为**兼顾**阅读与二次开发；实验性表面**全部展开**（第 4 批 `experimental_surfaces.md`）；产物提交并推送至 `fork/zibuyu`，禁止推送 `origin`
+- **产物已全部落盘，第 5 轮双轨交叉审查已完成主体批次并逐批提交**。当前待续任务见 `health_check_report.md` 的 `accepted_issues`（AI-005 待联网环境、AI-007 待下一轮抽样复核）与「后续建议」；再之后才是上游漂移时的增量更新（框架路径 C）
+- **恢复时必须继承的用户决定**: 文档定位为**兼顾**阅读与二次开发；实验性表面**全部展开**（`dev_docs/experimental_surfaces.md`）；审查方法为**双轨交叉 + 修后复核**；代码基线保持 `bb5054fe47`，不同步上游；覆盖范围为「修错 + 把已知缺口补进现有文档」，**不新增文档文件**；引用格式**符号名为主、行号为辅**，路径一律写仓库根相对；产物只进个人 fork `zibuyu2015831/codex`
 - **必读上下文**: `dev_docs/_analysis/generation_plan.md` 的「执行计划」与「子文档规划」章节
 
 ---
@@ -356,7 +411,7 @@ verified_at: 2026-08-03
 
 2. **初次统计代码行数时 `xargs wc -l | tail -1` 因分批产生多个 total 行而低估**，已改为 `awk '$2=="total"{s+=$1} END{print s}'` 并用 `cat | wc -l` 交叉复核，两法结果一致（Rust 1,270,789 行）。
 
-3. **本机 Python 3.9.6 低于 `sdk/python` 要求的 3.10**，无法运行 Python SDK 测试取得 E4 证据。已记录为 `project_analysis_report.md` 警告 3，相关文档章节将标注证据等级上限。
+3. **Python SDK 测试无法取得 E4 证据**。首轮记录的原因「本机 Python 3.9.6 低于 `sdk/python` 要求的 3.10」在第 5 轮实测中已过期（本机现为 **3.14.6**）。真实阻塞改为：缺 `pytest` / `pydantic` / `openai-codex-cli-bin` 且核验期禁止联网安装；即便装上，`sdk/python/tests/test_contract_generation.py:43` 仍硬断言 `openai-codex-cli-bin == "0.144.4"`，而该包是只发 PyPI 的平台专属 wheel（`sdk/python-runtime/hatch_build.py:17-20` 对 sdist 直接 raise）。已记录为 `project_analysis_report.md` 警告 3 与 accepted issue AI-005。
 
 4. **首轮记录的 Cargo crate 数 130 为错误值**（第 2 轮复查发现）。该值当时标注来源为 `[workspace] members` 计数，但实测 `members` 为 128 项、`cargo metadata --no-deps` 为 134 个包，130 在任何口径下均不成立。已全量更正并把证据等级提升为 E4。教训：结构性计数必须以工具实跑为准，不得用近似或记忆值。
 
@@ -365,7 +420,7 @@ verified_at: 2026-08-03
 ### 特殊说明
 
 - **框架边界**: `AI-Coding-Context` 是指向 `<本地工作区>/AI-Coding-Context` 的软链接，已在所有扫描、统计与文档引用中排除；框架自身内容不进入任何分析结果。
-- **推送红线**: `origin` 指向上游 `openai/codex`，**禁止向其推送任何内容**。本体系的全部提交只推送至 `fork`（`zibuyu2015831/codex`）。
+- **推送红线（第 5 轮更正）**: 早前版本写「`origin` 指向上游 `openai/codex`，禁止向其推送」，**该陈述与实测不符**。`git remote -v` 实测只有一个 remote：`origin` → `git@github.com:zibuyu2015831/codex.git`，也就是个人 fork 本身；仓库**没有配置**任何指向 `openai/codex` 的 remote。因此不存在「误推上游」的技术路径。规则的实质仍然成立并应保留为约定：**本体系产物只进个人 fork，任何时候都不得配置并推送到 `openai/codex`**——但这是一条待守的纪律，不是当前配置的既成事实。
 - **公开可见性**: `fork` 为公开仓库，`dev_docs/` 全部内容公开可检索。每批提交前必须执行 `generation_plan.md`「代码脱敏规范」中的两条强制扫描命令。
 - **产物路径红线**: AGENTS.md 顶部规则列表（docs/ 条目） 禁止向 `docs/` 添加通用产品或用户文档。本体系全部产物固定在仓库根 `dev_docs/`，任何后续操作不得将其迁入 `docs/`。
 - **治理前提**: 本仓库外部代码贡献受邀制（`docs/contributing.md:3-17`），文档中的代码层面观察均为长期记录，不作为面向上游的修复待办。
@@ -381,12 +436,15 @@ verified_at: 2026-08-03
 - **已阻塞**: 0
 - **产物完成度**: 26/26 (100%)
 - **流程阶段进度**: 8/8 (100%)
-- **产物总行数**: **5,182**（20 个交付产物：17 篇正式文档 + `dev_docs/rules/combined/AI_RULES.md` + `dev_docs/plans/README.md` + `dev_docs/knowledge/README.md`）；连同 `_analysis` 四件套为 **7,518**
-- **行数口径**: `wc -l`。此前记录的 7,466 对不上任何口径（既非 20 个产物之和，也非含 `_analysis` 之和），已作废；逐产物行数见 `health_check_report.md` 的「验收对象」表
+- **产物总行数**: **11,463**（20 个交付产物：17 篇正式文档 + `dev_docs/rules/combined/AI_RULES.md` + `dev_docs/plans/README.md` + `dev_docs/knowledge/README.md`）；`_analysis` 四件套另计 **约 2,660** 行，合计 **约 14,120**
+- **行数口径**: `wc -l`，第 5 轮实测。复现命令 `wc -l dev_docs/*.md dev_docs/rules/combined/AI_RULES.md dev_docs/plans/README.md dev_docs/knowledge/README.md` 与 `wc -l dev_docs/_analysis/*.md`。逐产物行数见 `health_check_report.md` 的「验收对象」表。**此前记录的 5,182 / 7,518 是首版数字，早已过期**；更早的 7,466 对不上任何口径，已作废
 - **方案复查轮次**: 2
-- **独立审查轮次**: 1（7 个独立代理）
+- **审查与修复轮次**: 5（首版 → 第 2 轮 7 路独立审查改判 FAIL → 第 3 轮修复 → 第 4 轮修复 → 第 5 轮双轨交叉审查）
+- **第 5 轮审查方式**: 双轨交叉（核验轨 + 禁读文档的重推导轨）+ 修订代理独立复核，共 7 次提交
 - **待用户回答的疑问**: 0（3 项全部结案）
-- **待修复的 HIGH 级事实错误**: 15
+- **未闭合的 blocker**: 0
+- **accepted issue**: 2（AI-005 环境限制、AI-007 本轮修复的残留风险）；AI-001/002/006 已闭合，AI-003/004 已撤销
+- **门禁状态**: 5 项框架 checker 全绿；自建 3 项中 `dev_docs/_analysis/redact_scan.sh` 与 `dev_docs/_analysis/cross_doc_consistency_checker.py`（`--verify-repo`）全绿；`dev_docs/_analysis/ref_checker.py` 的 ERROR 已归零但 **WARN 未清零**（如实记录，逐项见 `health_check_report.md`）
 
 ---
 
@@ -404,4 +462,4 @@ verified_at: 2026-08-03
 
 ---
 
-**最后更新**: 2026-08-03 19:30
+**最后更新**: 2026-08-05（第 5 轮双轨交叉审查回写）

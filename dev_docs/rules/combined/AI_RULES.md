@@ -83,7 +83,7 @@ verified_at: 2026-08-05
 | 设计模块可见性 | 顶部规则列表 | `Prefer private modules` |
 | 控制 crate 对外 API | `### Crate API surface` | `Keep crate API surfaces as small as possible` |
 | 改配置类型 | 顶部规则列表 | `just write-config-schema` |
-| 改 MCP 工具调用 | 顶部规则列表 | `mcp_connection_manager` ⚠️ **该路径在上游规则中已陈旧**，实际文件是 `codex-rs/codex-mcp/src/connection_manager.rs`（另有 `connection_manager/` 目录与 `connection_manager_tests.rs`）。关键词仍用陈旧串才能命中原文，见 §3.5 <!-- ref-exempt: 左侧为 AGENTS.md 原文关键词，其不可解析正是本行要指出的问题 --> |
+| 改 MCP 工具调用 | 顶部规则列表 | `mcp_connection_manager` ⚠️ **该路径在上游规则中已陈旧**，实际文件是 `codex-rs/codex-mcp/src/connection_manager.rs`（另有 `connection_manager/` 目录与 `codex-rs/codex-mcp/src/connection_manager_tests.rs`）。关键词仍用陈旧串才能命中原文，见 §3.5 <!-- ref-exempt: 左侧为 AGENTS.md 原文关键词，其不可解析正是本行要指出的问题 --> |
 | 改 Cargo 依赖 | 顶部规则列表 | `just bazel-lock-update` |
 | 用 `include_str!` / `sqlx::migrate!` | 顶部规则列表 | `compile_data` |
 | 写辅助方法 | 顶部规则列表 | `referenced only once` |

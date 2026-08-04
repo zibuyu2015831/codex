@@ -1,11 +1,11 @@
 ---
 title: Codex CLI 项目分析与问题报告
-summary: 记录 openai/codex 仓库 Phase 1 分析阶段发现的风险、警告、疑问与建议，全部条目标注证据等级、当前状态、是否阻断 Phase 1 及回写目标，并前置说明维护者治理规则对建议边界的约束；已含第 2 轮复查结果（更正 Cargo crate 计数、解决版本管理疑问、新增公开发布脱敏红线警告），以及第二轮独立审查新增的警告 7——自验收流程本身不足以发现事实错误，首版验收在 15 项 HIGH 级事实错误存在的情况下判定通过，现已改判为 FAIL。
+summary: 记录 openai/codex 仓库 Phase 1 分析阶段发现的风险、警告、疑问与建议，全部条目标注证据等级、当前状态、是否阻断 Phase 1 及回写目标，并前置说明维护者治理规则对建议边界的约束；已含第 2 轮复查结果（更正 Cargo crate 计数、解决版本管理疑问、新增公开发布脱敏红线警告）、第二轮独立审查新增的警告 7（自验收流程本身不足以发现事实错误），以及第 5 轮双轨交叉审查的回写——11 条无法从仓库根解析的引用已补全或标注豁免，警告 3 的阻塞原因由过期的「Python 版本过低」改写为「缺依赖且禁止联网安装 + 只发 PyPI 的平台 wheel 硬断言」。
 keywords: codex | analysis-report | risks | evidence-level | governance | phase1 | self-acceptance-gap
 scope: openai/codex 仓库首次文档生成前的问题与风险报告
 related_files: AGENTS.md | docs/contributing.md | codex-rs/tui/src/bottom_pane/chat_composer.rs | codex-rs/otel/src/config.rs | codex-rs/analytics/src/client.rs | sdk/python/pyproject.toml
 dependencies: dev_docs/_analysis/generation_plan.md | dev_docs/_analysis/generation_progress.md
-verified_at: 2026-08-03
+verified_at: 2026-08-05
 ---
 
 # Codex CLI - 分析与问题报告
@@ -142,29 +142,32 @@ AGENTS.md 顶部规则列表（docs/ 条目） 明文规定："Do not add genera
 
 ---
 
-### 警告 3: 本地 Python 版本低于 SDK 要求，无法取得 E4 级验证证据
+### 警告 3: Python SDK 测试无法在本环境运行，无法取得 E4 级验证证据
 
 - **问题类型**: 分析环境限制
-- **发现位置**: `sdk/python/pyproject.toml:10`、`sdk/python-runtime/pyproject.toml:10` vs 本机运行时
-- **证据等级**: E2（配置文件 `requires-python = ">=3.10"`）+ E4（`python3 --version` → `Python 3.9.6`）
-- **当前状态**: 已确认
+- **发现位置**: `sdk/python/pyproject.toml:10`、`sdk/python-runtime/pyproject.toml:10`、`sdk/python/tests/test_contract_generation.py:43`、`sdk/python-runtime/hatch_build.py:17-20`
+- **证据等级**: E4（`python3 --version` → `Python 3.14.6`；`python3 -c "import pytest"` → `No module named 'pytest'`）+ E3（读取硬断言与构建钩子实现）
+- **当前状态**: 已确认（第 5 轮改写原因，结论保留）
 - **blocks_phase1**: false
 - **回写目标**: `sdk_guide.md`、`testing_guide.md`、`generation_plan.md` 风险清单
 
 **问题描述**:
 
-本机 Python 为 3.9.6，低于 `sdk/python` 与 `sdk/python-runtime` 声明的 `requires-python = ">=3.10"`。因此本次分析无法通过实际运行 pytest 来验证 Python SDK 的测试拓扑与行为。
+原记原因「本机 Python 3.9.6 低于 `requires-python = ">=3.10"`」**已过期**：本机 Python 现为 **3.14.6**，版本前提不再成立。但结论不变，真实阻塞原因是另外两条：
+
+1. **缺依赖且核验期禁止联网安装**：`pytest`、`pydantic`、`openai-codex-cli-bin` 均未安装，`cd sdk/python && python3 -m pytest --collect-only` 连收集阶段都进不去。
+2. **即便跨过第 1 条，仍有一堵不可绕过的硬墙**：`sdk/python/tests/test_contract_generation.py:43` 硬断言 `importlib.metadata.version("openai-codex-cli-bin") == "0.144.4"`，而该包是**只发 PyPI 的平台专属 wheel**——`sdk/python-runtime/hatch_build.py:17-20` 对 sdist 构建直接 `raise RuntimeError("openai-codex-cli-bin is wheel-only; ...")`，仓库内无法本地构建替代品。
 
 **影响评估**:
 
 - `sdk_guide.md` 与 `testing_guide.md` 中 Python SDK 部分的证据等级上限为 E2/E3（配置 + 源码阅读），不能写"已验证"
 - 不影响 Rust 主体（Rust 工具链未受影响）
-- AICC 框架自身的 5 个 checker 已在 Python 3.9.6 下验证可运行（E4），不受此影响
+- 本体系自建的 3 项门禁（`dev_docs/_analysis/ref_checker.py`、`dev_docs/_analysis/cross_doc_consistency_checker.py`、`dev_docs/_analysis/redact_scan.sh`）只用标准库与 shell，不受此影响
 
 **处理方式**:
 
 - 相关章节显式标注"未在本机运行验证，结论基于配置与源码"
-- 若用户后续升级 Python ≥3.10，可补跑测试将证据提升至 E4
+- 消解条件已随之改写：**不是**「升级 Python」，而是「允许联网 `uv sync --group dev --frozen` 从 PyPI 装入 pin 住的运行时 wheel」
 
 ---
 
@@ -209,14 +212,14 @@ Rust 主体 1,270,789 行、134 个 crate。即便分 4 批生成 17 篇文档�
 | 事实 | 证据位置 | 原文要点 |
 | ---- | -------- | -------- |
 | 存在 Statsig 默认指标导出器 | `codex-rs/otel/src/config.rs:90` | 注释 `Statsig metrics ingestion exporter using Codex-internal defaults` |
-| debug 构建下该默认导出器关闭 | `codex-rs/otel/src/config.rs:16`、测试 `:113` | 注释 `Keep the built-in Statsig default off in debug builds`；测试名 `statsig_default_metrics_exporter_is_disabled_in_debug_builds` |
+| debug 构建下该默认导出器关闭 | `codex-rs/otel/src/config.rs:16`、测试 `codex-rs/otel/src/config.rs:113` | 注释 `Keep the built-in Statsig default off in debug builds`；测试名 `statsig_default_metrics_exporter_is_disabled_in_debug_builds` |
 | analytics 采用 opt-out 语义 | `codex-rs/analytics/src/client.rs:221` | `queue: (analytics_enabled != Some(false))` — 未显式设为 false 即启用入队 |
 | analytics 网络投递当前关闭 | `codex-rs/analytics/src/client.rs:108` | 日志文案 `analytics event capture enabled; network delivery is disabled` |
 | 存在显式禁用构造 | `codex-rs/analytics/src/client.rs:226` | `pub fn disabled()` |
 
 **为何不写成强结论**:
 
-上述证据来自定向 grep，未读取 `OtelSettings` / `StatsigMetricsSettings` 的完整字段定义、`provider.rs` 的初始化链路，也未确认 `analytics_enabled` 对应的 config.toml 键名。按证据等级规则，"release 构建默认开启遥测"这类结论需要完整调用链（E3 完整读取）才能成立。
+上述证据来自定向 grep。未读取的部分有三处：`codex-rs/otel/src/config.rs` 中 `OtelSettings` / `StatsigMetricsSettings` 的完整字段定义；`codex-rs/otel/src/provider.rs` 的初始化链路；`analytics_enabled` 对应的 config.toml 键名。按证据等级规则，"release 构建默认开启遥测"这类结论需要完整调用链（E3 完整读取）才能成立。
 
 **下一步动作**:
 
@@ -255,7 +258,7 @@ Rust 主体 1,270,789 行、134 个 crate。即便分 4 批生成 17 篇文档�
 
 **对后续 17 篇正式文档的硬性约束**:
 
-1. 禁止写入真实 API key、token、私钥、`auth.json` / `.credentials.json` 的**值**；只允许出现变量名、配置键名与文件路径
+1. 禁止写入真实 API key、token、私钥、`auth.json` / `.credentials.json` 的**值**；只允许出现变量名、配置键名与文件路径 <!-- ref-exempt: auth.json / .credentials.json 均为用户机器上的运行时凭证文件，仓库内不存在 -->
 2. 禁止写入本地绝对路径、主机名、内网地址、个人邮箱
 3. 引用测试 fixture 中的凭证样本时，只写文件路径与字段名，不复制值
 4. 每批提交前必须复跑本节的两条扫描命令，结果记入 `generation_progress.md`
@@ -380,7 +383,7 @@ Rust 主体 1,270,789 行、134 个 crate。即便分 4 批生成 17 篇文档�
 | responses-api-proxy | 199-200 | `#[clap(hide = true)]` `/// Internal: run the responses API proxy.` |
 | `Execpolicy` | 173-174 | `#[clap(hide = true)]` |
 
-另有 `codex-rs/v8-poc/`（目录名即 PoC）、`codex-rs/code-mode*`（4 个 crate）、`codex app` 桌面端（仅 macOS/Windows 条件编译，`main.rs:154-155`）。
+另有 `codex-rs/v8-poc/`（目录名即 PoC）、`codex-rs/code-mode*`（4 个 crate）、`codex app` 桌面端（仅 macOS/Windows 条件编译，`codex-rs/cli/src/main.rs:154-155`）。
 
 **当前保守结论**（已被用户答复取代）: 上述表面在第 1-3 批中仅在 `crate_map.md` 中登记为条目，不单独展开。
 
@@ -406,7 +409,7 @@ Rust 主体 1,270,789 行、134 个 crate。即便分 4 批生成 17 篇文档�
 
 **当前状态**: 134 个 crate 的清单若纯手写，上游每次新增 crate 都会造成漂移。第 2 轮复查中该数值本身即从错误的 130 更正为 134，正说明手写计数不可靠。
 
-**建议**: 在 `dev_docs/` 下附一段可复现的采集命令（以 `cargo metadata --no-deps` 为权威来源，辅以各 crate `Cargo.toml`），把 crate 表格的"数据来源"固化为命令而非记忆。文档中同时保留生成时间与基线 commit。
+**建议**: 在 `dev_docs/` 下附一段可复现的采集命令（以 `cargo metadata --no-deps` 为权威来源，辅以各 crate `Cargo.toml` <!-- ref-exempt: 「各 crate Cargo.toml」为泛指 -->），把 crate 表格的"数据来源"固化为命令而非记忆。文档中同时保留生成时间与基线 commit。
 
 > 提升为 P1：第 2 轮复查证实纯手写/近似计数会直接产生事实错误（130 vs 134），该建议不再是可选优化。
 
@@ -477,19 +480,19 @@ Rust 主体 1,270,789 行、134 个 crate。即便分 4 批生成 17 篇文档�
 ### 观察 1: 单二进制多前端的收敛式架构
 
 - **证据等级**: E3
-- **发现**: `codex-rs/cli/Cargo.toml` 定义唯一主二进制 `codex`；`codex-rs/cli/src/main.rs:123-215` 的 `Subcommand` 枚举分发到 TUI / exec / app-server / mcp-server / cloud / responses-api-proxy 等入口；`main.rs:9-10` 使用 `codex_arg0::arg0_dispatch_or_else` 支持通过 argv[0] 分发
+- **发现**: `codex-rs/cli/Cargo.toml` 定义唯一主二进制 `codex`；`codex-rs/cli/src/main.rs:124-212` 的 `Subcommand` 枚举分发到 TUI / exec / app-server / mcp-server / cloud / responses-api-proxy 等入口；`codex-rs/cli/src/main.rs:9-10` 使用 `codex_arg0::arg0_dispatch_or_else` 支持通过 argv[0] 分发
 - **评价**: 这是理解整个项目的第一把钥匙 —— 所有前端共享同一份 codex-core crate。文档必须以此为主线组织。
 
 ### 观察 2: 协议先行的类型单一事实源
 
 - **证据等级**: E2 + E3
-- **发现**: `codex-rs/app-server-protocol/schema/typescript/v2/` 下有 550 个自动生成的 TS 类型文件；AGENTS.md「### Core Rules」 要求 v2 类型必须标注 `#[ts(export_to = "v2/")]`；AGENTS.md「### Development Workflow」 规定 API 形状变更后需跑 `just write-app-server-schema` 并用 `just test -p codex-app-server-protocol` 验证
+- **发现**: `codex-rs/app-server-protocol/schema/typescript/v2/` 下有 550 个自动生成的 TS 类型文件；AGENTS.md「### Core Rules」 要求 v2 类型必须标注 `#[ts(export_to = "v2/")]`；AGENTS.md「### Development Workflow」 规定 API 形状变更后需跑 `just write-app-server-schema` 并用 `just test -p codex-app-server-protocol` 验证。**⚠️ 后续核查更正**：`just write-app-server-schema` 这条 recipe **跑不通**（它引用的 `--bin write_schema_fixtures` 不存在），属上游 AGENTS.md/justfile 自身的陈旧；真实可执行路径见 `dev_docs/app_server_protocol.md` §6
 - **评价**: Rust 类型是唯一事实源，TS 类型为构建产物。文档中不得把生成的 TS 文件描述为"手写代码"。
 
 ### 观察 3: 三平台原生沙箱 + 独立执行服务
 
 - **证据等级**: E3（沙箱实现）+ E2（跨 OS 分离）
-- **发现**: `codex-rs/sandboxing/src/` 同时含 `seatbelt.rs` / `landlock.rs` / `bwrap.rs` / `windows.rs` 与 3 个 `.sbpl` 策略文件；另有独立 crate `linux-sandbox`、`windows-sandbox-rs`、`bwrap`、`execpolicy`、`shell-escalation`；AGENTS.md「## Platform Support」 声明 app-server 与 exec-server 可运行在不同操作系统
+- **发现**: `codex-rs/sandboxing/src/` 同时含 `codex-rs/sandboxing/src/seatbelt.rs` / `codex-rs/sandboxing/src/landlock.rs` / `codex-rs/sandboxing/src/bwrap.rs` / `codex-rs/sandboxing/src/windows.rs` 与 3 个 `.sbpl` 策略文件；另有独立 crate `linux-sandbox`、`windows-sandbox-rs`、`bwrap`、`execpolicy`、`shell-escalation`；AGENTS.md「## Platform Support」 声明 app-server 与 exec-server 可运行在不同操作系统
 - **评价**: 沙箱是本项目的核心差异化能力，且与 AGENTS.md 顶部规则列表（CODEX_SANDBOX 红线条目） 的 `CODEX_SANDBOX_*` 红线直接相关，必须单独成文。
 
 ### 观察 4: 双构建系统带来的双锁同步义务
@@ -518,8 +521,8 @@ Rust 主体 1,270,789 行、134 个 crate。即便分 4 批生成 17 篇文档�
 | -------- | -------- | -------- | -------- | -------------- | -------------- |
 | 文档产物若落入 `docs/` 将违反仓库规范 | E2 | AGENTS.md 顶部规则列表（docs/ 条目） | 已确认 | 无需进一步验证（方案已规避） | P1（已落实） |
 | 高触碰大文件会持续吸引无关改动 | E2 + E4 | AGENTS.md 顶部规则列表（high-touch files 条目） 点名清单 + `wc -l` 实测 12,616 行 | 已确认 | 无需进一步验证 | 否（受维护者规则约束，仅记录） |
-| Python SDK 章节无法取得 E4 证据 | E2 + E4 | `pyproject.toml:10` `>=3.10` + 本机 `Python 3.9.6` | 已确认 | 用户升级 Python 后可补跑 pytest | 否 |
-| 四层扩展机制的关系可能被误述 | E1 | 仅目录存在性 | 待验证 | 第 3 批读取 `codex-rs/ext/extension-api/src/lib.rs`、`codex-rs/core-plugins/src/manager.rs`、`skills/src/lib.rs` 公开 API | P1 |
+| Python SDK 章节无法取得 E4 证据 | E3 + E4 | 缺 `pytest` / `pydantic` / `openai-codex-cli-bin` 且禁止联网安装；`sdk/python/tests/test_contract_generation.py:43` 硬断言只发 PyPI 的平台 wheel（`sdk/python-runtime/hatch_build.py:17-20` 对 sdist 直接 raise） | 已确认 | 允许联网后 `uv sync --group dev --frozen` 再补跑 pytest（**非**升级 Python：本机已是 3.14.6） | 否 |
+| 四层扩展机制的关系可能被误述 | E1 | 仅目录存在性 | 待验证 | 第 3 批读取 `codex-rs/ext/extension-api/src/lib.rs`、`codex-rs/core-plugins/src/manager.rs`、`codex-rs/skills/src/lib.rs` 公开 API | P1 |
 | release 构建下遥测默认开启 | E3（部分） | `otel/src/config.rs:16,90,113` grep 命中 | 待验证 | 第 4 批完整读取 `otel/src/{config,provider,otlp}.rs` 与 `codex-rs/analytics/src/client.rs` 投递链路 | P1 |
 | app-server ↔ exec-server 跨 OS 分离的传输实现 | E2 | AGENTS.md「## Platform Support」 + crate 存在性 | 待验证 | 第 2 批读取 `exec-server-protocol/src/`、`app-server-transport/src/`、`uds/src/` | P1 |
 | `find_codex_home` 存在两处同名实现可能造成描述冲突 | E3 | `codex-rs/core/src/config/mod.rs:4578` 与 `codex-rs/utils/home-dir/src/lib.rs:13` 均定义 `pub fn find_codex_home` | 待验证 | 第 2 批读取两处实现，确认调用关系（委托 or 重复） | P1 |
@@ -631,8 +634,9 @@ Rust 主体 1,270,789 行、134 个 crate。即便分 4 批生成 17 篇文档�
 
 - **生成者**: AI Assistant（AICC 框架路径 A / Step 6）
 - **生成日期**: 2026-08-03
-- **最近复查**: 2026-08-03，第二轮独立审查（7 个独立代理回源码复核全部可核验断言，首版验收结论改判为 FAIL）
-- **上一次复查**: 2026-08-03，第 2 轮方案复查（回到 Step 7.4 自检门，未生成任何正式文档）
+- **最近复查**: 2026-08-05，第 5 轮双轨交叉审查回写（引用可解析性归一化 11 处、警告 3 阻塞原因改写、`Subcommand` 枚举行号由 `:123-215` 校正为实测的 `:124-212`、`just write-app-server-schema` 补入「上游 recipe 跑不通」的更正）
+- **上一次复查**: 2026-08-03，第二轮独立审查（7 个独立代理回源码复核全部可核验断言，首版验收结论改判为 FAIL）
+- **更早复查**: 2026-08-03，第 2 轮方案复查（回到 Step 7.4 自检门，未生成任何正式文档）
 - **分析时长**: 约 2 小时（首轮）+ 第 2 轮复查
 - **分析基线**: commit `bb5054fe47abe73ecbbd454751066a28c89f4bb9`
 - **产物提交**: commit `8224f7c034`，推送至 `fork/zibuyu`（`zibuyu2015831/codex`）

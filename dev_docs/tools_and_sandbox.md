@@ -146,7 +146,7 @@ pub enum PermissionProfile {
 > 两者由 `ManagedFileSystemPermissions::to_sandbox_policy()`（`codex-rs/protocol/src/models.rs:288`）与 `::from_sandbox_policy()`（`:273`）互转。
 >
 > 换言之：**`PermissionProfile::Managed` 的字段签名是 `file_system: ManagedFileSystemPermissions, network: NetworkSandboxPolicy`**（`codex-rs/protocol/src/models.rs:320-322`）——只有 `network` 这一维是直接用 `*SandboxPolicy` 类型的，文件系统那一维隔了一层。上面代码块里的枚举定义是对的，是这张表的措辞把它抹平了。
-| **没有任何一个 `SandboxManager` 方法接受 `SandboxPolicy`** ——这才是结论。签名并不整齐：`select_initial`（`codex-rs/sandboxing/src/manager.rs:272`）与 `should_sandbox`（`:289`）**直接**收 `&PermissionProfile`；`transform`（`:310`）收的是 `SandboxTransformRequest<'_>`（`:310-313`），`PermissionProfile` 只是它的 `permissions` 字段（结构体定义在 `:131`）。此外还有第四个公开方法 `transform_for_direct_spawn`（`:443`），收 `SandboxDirectSpawnTransformRequest<'_>` | `codex-rs/sandboxing/src/manager.rs:272`、`:289`、`:310-313`、`:443` |
+| **没有任何一个 `SandboxManager` 方法接受 `SandboxPolicy`** ——这才是结论。签名并不整齐：`select_initial`（`codex-rs/sandboxing/src/manager.rs:272`）与 `should_sandbox`（`:289`）**直接**收 `&PermissionProfile`；`transform`（`:310`）收的是 `SandboxTransformRequest<'_>`（`:310-313`），`PermissionProfile` 只是它的 `permissions` 字段（结构体定义在 `:129`，该字段在 `:131`）。此外还有第四个公开方法 `transform_for_direct_spawn`（`:443`），收 `SandboxDirectSpawnTransformRequest<'_>` | `codex-rs/sandboxing/src/manager.rs:272`、`:289`、`:310-313`、`:443` |
 | `SandboxPolicy` 退化为**线上/兼容层类型** | `codex-rs/sandboxing/src/lib.rs:27` 导出 `compatibility_sandbox_policy_for_permission_profile`，被 `codex-rs/core/src/config/mod.rs:479`、`codex-rs/core/src/codex_thread.rs:139` 调用 |
 
 ### 策略的合成：`codex-rs/sandboxing/src/policy_transforms.rs`
@@ -326,9 +326,9 @@ let requires_bubblewrap = allow_network_for_proxy
 > [!IMPORTANT]
 > **这是 Linux 默认沙箱所依赖二进制的真实源头，路径容易记错。** `vendor/` **不在仓库根**——仓库根下的 `third_party/` 与 `patches/` 与沙箱无关；bubblewrap 的 C 源码在 **`codex-rs/vendor/bubblewrap/`**。
 
-**是什么。** 上游 `containers/bubblewrap` **v0.11.2** 的完整源码 drop，约 508 KB / 49 个文件（`git ls-files` 数为 50，多出的一条是 `LICENSE -> COPYING` 符号链接），未见 Codex 侧改动（E2：目录比对，未做逐字节 diff）。版本证据：`codex-rs/vendor/bubblewrap/meson.build:4` 的 `version : '0.11.2'`，以及 `codex-rs/vendor/bubblewrap/NEWS.md:1-4`（含 CVE-2026-41163 的 setuid 修复）。上游的 `meson.build` / `tests/` / `demos/` 一并带入，但 **Codex 的构建不使用它们**。
+**是什么。** 上游 `containers/bubblewrap` **v0.11.2** 的完整源码 drop，约 508 KB / 49 个文件（`git ls-files` 数为 50，多出的一条是 `LICENSE -> COPYING` 符号链接），未见 Codex 侧改动（E2：目录比对，未做逐字节 diff）。版本证据：`codex-rs/vendor/bubblewrap/meson.build:4` 的 `version : '0.11.2'`，以及 `codex-rs/vendor/bubblewrap/NEWS.md:1-18`（0.11.2 条目；CVE-2026-41163 的 setuid 修复在 `:10`）。上游的 `meson.build` / `tests/` / `demos/` 一并带入，但 **Codex 的构建不使用它们**。
 
-**怎么编。** `codex-rs/bwrap` 是个薄壳 crate（Rust 侧仅 151 行，其中 `codex-rs/bwrap/src/main.rs` 只有 29 行），产出**独立二进制 `bwrap`**，无 lib target（`codex-rs/bwrap/Cargo.toml:7-9` 只有 `[[bin]]`）：
+**怎么编。** `codex-rs/bwrap` 是个薄壳 crate（Rust 侧仅 151 行 = `codex-rs/bwrap/build.rs` 106 行 + `codex-rs/bwrap/src/main.rs` 45 行；后者的三个 `#[cfg]` 分支各只有几行，第一个 `fn main()` 结束于 `:29`——**别把它当成文件总行数**），产出**独立二进制 `bwrap`**，无 lib target（`codex-rs/bwrap/Cargo.toml:7-9` 只有 `[[bin]]`）：
 
 - `codex-rs/bwrap/build.rs:14` 指向 `../vendor/bubblewrap`（也可用 `CODEX_BWRAP_SOURCE_DIR` 覆盖，`:84-99`）；
 - `codex-rs/bwrap/build.rs:53-56` 用 `cc` 把 4 个 C 文件（`bubblewrap.c` / `bind-mount.c` / `network.c` / `utils.c`）编成静态库；
@@ -434,7 +434,7 @@ Bazel 侧只做 smoke build，不产出发布物。
 
 ```
 SandboxManager::transform_for_direct_spawn        codex-rs/sandboxing/src/manager.rs:443
-   └─(cfg(windows))→ transform_for_direct_spawn_with_codex_home   :460
+   └─(cfg(windows))→ transform_for_direct_spawn_with_codex_home   :461（:460 是 #[cfg] 属性行）
           └─→ wrap_windows_sandbox_exec_request_for_direct_spawn  :482
 ```
 
@@ -551,7 +551,7 @@ SandboxManager::transform_for_direct_spawn        codex-rs/sandboxing/src/manage
 > `codex-rs/sandboxing/src/denial.rs:11-12` 的文档注释把这个分工写死了：
 > > "This predicate is intentionally side-effect free. **Callers that handle a denial should record it where the relevant audit context is available.**"
 >
-> 即判定是纯函数，记录由各自持有审计上下文的调用方完成。全部调用点：
+> 即判定是纯函数，记录由各自持有审计上下文的调用方完成。`codex-core` 与 `codex-exec-server` 中的全部调用点：
 >
 > | 调用点 | 场景 |
 > | ---- | ---- |
@@ -560,6 +560,7 @@ SandboxManager::transform_for_direct_spawn        codex-rs/sandboxing/src/manage
 > | `codex-rs/core/src/tools/runtimes/apply_patch.rs:262-263` | apply_patch |
 > | `codex-rs/core/src/tools/runtimes/shell/unix_escalation.rs:1064-1065` | Unix 权限提升路径 |
 > | `codex-rs/core/src/tools/network_approval.rs:1051` | 网络违规（`record_network_sandbox_violation`） |
+> | `codex-rs/exec-server/src/local_process.rs:950` | **exec-server 本地进程**——只做判定并写进 `process.sandbox_denied`，记录在别处 |
 
 **「no re-approval thanks to caching」的边界**：普通情况下重试不再打扰用户（审批结果被缓存），但 `codex-rs/core/src/tools/orchestrator.rs:391-395` 有例外注释——「retrying without the sandbox requires a fresh guardian review」，即**去掉沙箱的重试在严格自动评审模式下必须重新评审**。
 

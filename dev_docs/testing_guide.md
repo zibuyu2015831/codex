@@ -296,7 +296,7 @@ slow-timeout = { period = "1m", terminate-after = 4 }
 
 **builder 模式**：`TestCodexBuilder` → `TestCodex` → `TestCodexHarness`。另有 `test_codex_exec()` 专门用于 `codex exec` 路径。
 
-测试支撑 crate 共 **6 个**，都不在 `[workspace] members` 中，而是在 `codex-rs/Cargo.toml` 的 `[workspace.dependencies]` 里以 path 依赖声明：
+测试支撑 crate 共 **6 个**。⚠️ **其中 3 个是 `[workspace] members`**（`app-server-test-client`、`test-binary-support`、`exec-server/tests/support`），另 3 个 `*/tests/common` 不是 member、仅靠 `[workspace.dependencies]` 的 path 依赖被 Cargo 纳入 workspace：
 
 | crate | 位置 | workspace 声明处 | 作用 | 行数 |
 | ---- | ---- | ---- | ---- | ---: |
@@ -308,11 +308,11 @@ slow-timeout = { period = "1m", terminate-after = 4 }
 | `codex-app-server-test-client` | `codex-rs/app-server-test-client/` | `codex-rs/Cargo.toml:158` | 对**真二进制**说话的客户端，由 `just app-server-test-client` 驱动（`justfile:39-41`：先 `cargo build -p codex-cli`，再 `cargo run -p codex-app-server-test-client -- --codex-bin ./target/debug/codex`） | — |
 
 > [!NOTE]
-> **第一版只列了前三个**，漏掉了后三个。其中两个不在 `tests/` 目录下而是**独立的顶层 crate**（`codex-rs/test-binary-support/`、`codex-rs/app-server-test-client/`），按目录找找不到，只能从 `[workspace.dependencies]` 里认。
+> **第一版只列了前三个**，漏掉了后三个。其中两个不在 `tests/` 目录下而是**独立的顶层 crate**（`codex-rs/test-binary-support/`、`codex-rs/app-server-test-client/`）——按 `tests/` 目录找找不到，但它们是显式 member，`cargo metadata` 直接可见。
 >
 > 顺带纠正一个可能的误解：这些 crate **并没有**用 `publish = false` 屏蔽——全仓 `codex-rs/**/Cargo.toml` 里只有 `codex-rs/backend-client/Cargo.toml:6` 出现过 `publish` 键。它们不进生产依赖树，靠的是消费方把它们放在 `[dev-dependencies]` 里。
 
-**HTTP mock** 统一用 `wiremock`（`codex-rs/Cargo.toml:485` 声明 `wiremock = "0.6"`），被 **21 个 manifest** 引用——§4A.4 讲的 `core_test_support::responses` 那一整套 `mount_sse*` / `ResponseMock` 就是架在它上面的。
+**HTTP mock** 统一用 `wiremock`（`codex-rs/Cargo.toml:485` 声明 `wiremock = "0.6"`），被 **20 个成员 crate 的 manifest** 引用（另加 `codex-rs/Cargo.toml` 的 workspace 声明本身）——§4A.4 讲的 `core_test_support::responses` 那一整套 `mount_sse*` / `ResponseMock` 就是架在它上面的。
 
 ---
 
@@ -350,7 +350,7 @@ slow-timeout = { period = "1m", terminate-after = 4 }
 
 #### 挂载链（也是 §2.1 里 `--test all` 的出处）
 
-这两个 crate 都只有**一个集成测试 target，名为 `all`**，所以 `--test all` 才是标准形式：
+这两个 crate 的**聚合** target 都叫 `all`，所以 `--test all` 才是标准形式（注意 `codex-core` 另有 `responses_headers` 一个独立 target，见 §6.1）：
 
 | crate | target 入口 | 聚合模块 |
 | ---- | ---- | ---- |
@@ -367,7 +367,7 @@ codex-rs/login       codex-rs/tui           codex-rs/linux-sandbox
 codex-rs/apply-patch codex-rs/exec          codex-rs/chatgpt
 ```
 
-> 对上 §1 的规模数据：全仓 91 个集成测试 target 分布在 29 个包里，而这 9 个 crate 每个只贡献 **1** 个 target——**测试代码量最大的几个 crate 恰恰是 target 数最少的**。所以 `--test all` 在这 9 个 crate 里都适用，其余包才需要按具体 target 名指定。
+> 对上 §1 的规模数据：全仓 91 个集成测试 target 分布在 29 个包里，而这 9 个 crate 里有 **7 个只贡献 1 个 target**；例外是 `codex-core`（另有 `responses_headers`，共 2 个）与 `codex-tui`（另有 `manager_dependency_regression` / `test_backend`，共 3 个）——**测试代码量最大的几个 crate 恰恰是 target 数最少的**。所以 `--test all` 在这 9 个 crate 里都适用，其余包才需要按具体 target 名指定。
 
 #### `v2/` 的组织方式
 
@@ -595,7 +595,7 @@ bazel test //codex-rs/app-server:app-server-all-wine-exec-test
 
 **2. Bazel 的 clippy 默认漏 lint 测试代码。**
 
-`defs.bzl:350` 与 `defs.bzl:410` 给**每一个**底层 `rust_test` 都打了 `tags = ["manual"]`，因此 `bazel build --config=clippy //...` 根本不会展开到它们。必须走 `scripts/list-bazel-clippy-targets.sh`，它用 `bazel query 'kind("rust_test rule", attr(tags, "manual", //codex-rs/...))'`（`scripts/list-bazel-clippy-targets.sh:25-28`）把这些 manual target 显式列出来。脚本 `:48-51` 的注释说得很清楚：
+`defs.bzl:350` 与 `defs.bzl:410`（以及分片集成测试的 `:535`、`:647`）给**单元测试的**底层 `rust_test` 打了 `tags = ["manual"]`（例外：`defs.bzl:575` 的直出集成测试不带该标签），因此 `bazel build --config=clippy //...` 根本不会展开到它们。必须走 `scripts/list-bazel-clippy-targets.sh`，它用 `bazel query 'kind("rust_test rule", attr(tags, "manual", //codex-rs/...))'`（`scripts/list-bazel-clippy-targets.sh:25-28`）把这些 manual target 显式列出来。脚本 `:48-51` 的注释说得很清楚：
 
 > *"`--config=clippy` on the `workspace_root_test` wrappers does not lint the underlying `rust_test` binaries. Add the internal manual `*-unit-tests-bin` targets explicitly so inline `#[cfg(test)]` code is linted like `cargo clippy --tests`."*
 

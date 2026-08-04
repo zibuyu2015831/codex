@@ -56,7 +56,7 @@ CI 直接跑 scripts/check-module-bazel-lock.sh 校验漂移
 （本地等价命令为 just bazel-lock-check）
 ```
 
-`.github/workflows/bazel.yml:74-77` 的步骤 "Check MODULE.bazel.lock is up to date" 是 `run: ./scripts/check-module-bazel-lock.sh`，并不经过 just——全仓 `.github/` 下 `grep -rn "bazel-lock-check"` 零命中。两者跑的是同一个脚本（见 §3），但表述上不要写成"CI 用 just …"。
+`.github/workflows/bazel.yml:74-77` 的步骤 "Check MODULE.bazel.lock is up to date" 是 `run: ./scripts/check-module-bazel-lock.sh`，并不经过 just——全仓 `.github/` 下 `grep -rn "bazel-lock-check"` 零命中。Unix 下两者跑的是同一个脚本（见 §3）；**Windows 版 recipe 则不调脚本**，直接 `bazel mod deps --lockfile_mode=error` 加一段 PowerShell 错误处理（`justfile:147-148`）——等价但不共用实现。无论哪个平台，表述上都不要写成"CI 用 just …"。
 
 这是 `AGENTS.md` **顶部规则列表**中 "If you change Rust dependencies (`Cargo.toml` or `Cargo.lock`), run `just bazel-lock-update`" 一条的明文要求（grep 关键词：`bazel-lock-update`）。<!-- ref-exempt: 本行的 Cargo.toml / Cargo.lock 位于 AGENTS.md 顶部规则的逐字引文内，加路径前缀会破坏引文保真度；限定口径见下一句 -->
 
@@ -88,7 +88,7 @@ CI 直接跑 scripts/check-module-bazel-lock.sh 校验漂移
 > | `rules_rs` | 1 | `:98` |
 > | `rules_cc` | 1 | `:87` |
 > | `abseil-cpp` / `bzip2` / `xz` | 各 1 | `:25`、`:302`、`:328` |
-> | crate 级 annotation | 6 | `zstd-sys :261`、`ring :268`、`rusty_v8 :409`、`webrtc-sys :451`、`windows-link :460` 等 |
+> | crate 级 annotation | 5 | `zstd-sys :261`、`ring :268`、`rusty_v8 :409`、`webrtc-sys :451`、`windows-link :460`（**这 5 个就是全部，无"等"**） |
 >
 > **Cargo 侧用的是另一套完全不相干的源替换**：`codex-rs/Cargo.toml:572-583` 的 `[patch.crates-io]`，指向 `openai-oss-forks` 组织下的 `crossterm` / `tokio-tungstenite` / `tungstenite` 三个 git fork（另有一段 `[patch."ssh://…/tungstenite-rs.git"]`）。
 >
@@ -170,7 +170,11 @@ devcontainer up --workspace-folder . --config .devcontainer/devcontainer.secure.
 
 nightly 侧同样是 Cargo/Bazel 对齐的：`tools/argument-comment-lint/rust-toolchain`（**注意无 `.toml` 后缀**）为 `nightly-2025-09-18`，`MODULE.bazel:123-131` 的 `versions = ["nightly/2025-09-18"]` 与之相同。Bazel 自身版本由 `.bazelversion` 钉在 `9.0.0`。
 
-> **含义**：在 Nix shell 或 devcontainer 里编译成功，不能推断 CI 的 1.95.0 也能过（反之亦然）——这两条链路会随时间漂移到更新的 Rust。它们适合快速上手，不适合当作发版前的最终验证。
+> **含义**：**只有 Nix 那条链路会随时间漂移。** `rust-bin.stable.latest` 绕开 rustup，**不读 `codex-rs/rust-toolchain.toml`**，所以 Nix shell 里编译成功不能推断 CI 的 1.95.0 也能过。
+>
+> **devcontainer 不漂移。** `.devcontainer/Dockerfile` 装的是 rustup（`curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal`），而 rustup 会沿 cwd 及其祖先目录查找 toolchain 文件；根 `justfile:1` 的 `set working-directory := "codex-rs"` 使所有非 `[no-cd]` recipe 都在 `codex-rs/` 下执行，于是被 `codex-rs/rust-toolchain.toml` 拉回 **1.95.0**（仓库根没有 `rust-toolchain*` 文件，不存在被截胡的情况）。Dockerfile 那条不钉版本的安装**只影响镜像内的 default toolchain**，不影响实际构建。
+>
+> 两者都适合快速上手；把 Nix 当作发版前的最终验证是不安全的。
 
 ---
 
@@ -656,7 +660,7 @@ git push origin rust-v0.1.0
 四者都有**机器校验**：schema fixtures 有配套测试，Bazel 锁有 CI 检查。忘了跑就会失败。
 
 > [!CAUTION]
-> **上游自身存在一处循环陈旧**：app-server fixtures 那条校验测试**的失败文案本身就在推荐这条跑不通的命令**——`codex-rs/app-server-protocol/src/schema_fixtures_tests.rs:183` 与 `:204` 的 `panic!` 信息都含 *"Run `just write-app-server-schema` to overwrite with your changes."*。测试挂了以后照它说的做只会再挂一次，请直接改用上面的 Python 脚本。
+> **上游自身存在一处循环陈旧**：app-server fixtures 那条校验测试**的失败文案本身就在推荐这条跑不通的命令**——`codex-rs/app-server-protocol/src/schema_fixtures_tests.rs:180-183` 与 `:201-205` 的 `panic!` 信息（文案本身落在 `:182` 与 `:203`）都含 *"Run `just write-app-server-schema` to overwrite with your changes."*。测试挂了以后照它说的做只会再挂一次，请直接改用上面的 Python 脚本。
 
 ### 7.1 上游文档的已知陈旧点
 

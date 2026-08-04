@@ -336,7 +336,7 @@ loop {
 > [!NOTE]
 > **本轮补入**：`codex-rs/core/src/session/mod.rs`、`codex-rs/core/src/session/world_state.rs`、`codex-rs/core/src/session/config_lock.rs` 三个生产文件此前漏列。其中模块根的遗漏尤其要命——§2.1 自己就在引用 `codex-rs/core/src/session/mod.rs:769` 与 `:766-778`，而本表却没有它。
 >
-> 上表 23 个生产文件之外，`session/` 还有 6 个 `*_tests.rs`（`tests.rs`、`turn_tests.rs`、`mcp_tests.rs`、`code_mode_warning_tests.rs`、`elicitation_holders_tests.rs`、`rollout_reconstruction_tests.rs`）<!-- ref-exempt: 此处列举的是同目录内测试文件的裸文件名，前文已给出目录 --> 与 `snapshots/`、`tests/` 两个目录，合计 29 个文件。
+> 上表 23 个生产文件之外，`session/` 还有 6 个 `*_tests.rs`（`tests.rs`、`codex-rs/core/src/session/turn_tests.rs`、`codex-rs/core/src/session/mcp_tests.rs`、`codex-rs/core/src/session/code_mode_warning_tests.rs`、`codex-rs/core/src/session/elicitation_holders_tests.rs`、`codex-rs/core/src/session/rollout_reconstruction_tests.rs`）<!-- ref-exempt: 此处列举的是同目录内测试文件的裸文件名，前文已给出目录 --> 与 `snapshots/`、`tests/` 两个目录，合计 29 个文件。
 
 ### 3.2 turn 的内部状态（E3）
 
