@@ -101,7 +101,7 @@ verified_at: 2026-08-03
 | 1. 搞清楚整体架构 | [`architecture_overview.md`](./architecture_overview.md) | 从 §2 运行时拓扑图开始 |
 | 2. 知道某个 crate 是干什么的 | [`crate_map.md`](./crate_map.md) §3 | 按职责分组速查表 |
 | 3. 找到某个功能在哪实现 | [`crate_map.md`](./crate_map.md) §3 → 对应 crate 目录 | `git grep -n "<关键词>" codex-rs/<crate>/src` |
-| 4. 理解某个 CLI 子命令做了什么 | [`architecture_overview.md`](./architecture_overview.md) §3 | `codex-rs/cli/src/main.rs:124`（枚举）→ `:1016`（分发） |
+| 4. 理解某个 CLI 子命令做了什么 | [`architecture_overview.md`](./architecture_overview.md) §3 | `codex-rs/cli/src/main.rs:124`（枚举）→ `:1001` 的 `match subcommand`（分发；`:1002` 为 `None` 默认 TUI） |
 | 5. 搞清楚数据往哪里发 | [`architecture_overview.md`](./architecture_overview.md) §8 | 外部服务边界表 |
 | 6. 知道配置和凭证存在哪 | [`architecture_overview.md`](./architecture_overview.md) §7 | `CODEX_HOME`，默认 `~/.codex` |
 
