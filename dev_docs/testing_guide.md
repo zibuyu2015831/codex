@@ -1,11 +1,11 @@
 ---
 title: Codex 测试指南
-summary: 描述 codex 仓库的测试拓扑与规模、nextest 配置中的重试与超时与串行化分组、core 与 app-server 两大集成测试套件的组织方式、test_codex 测试夹具、insta 快照工作流（AGENTS.md 已明文规定且要求 UI 变更必须带快照覆盖）、$remote-tests skill 描述的跨 OS 远程执行器测试，以及 CI 的 nextest archive 分片策略与 AGENTS.md 的测试编写强制约束。
-keywords: codex | testing | nextest | insta | integration-test | test-codex | snapshot | test-group | remote-tests | nextest-archive
+summary: 描述 codex 仓库的测试拓扑与规模（91 个集成测试 target / 29 包、1448 处 #[cfg(test)]、仅 1 个 bench target）、nextest 配置中的重试与超时与串行化分组、本地 local profile 与 CI default profile 的实际差异、6 个测试支撑 crate、core 与 app-server 两大集成测试套件的组织方式（含 9 个 crate 共用的 all.rs 单聚合二进制模式与 suite/mod.rs 的 #[ctor] arg0 分派机制）、test_codex 测试夹具、insta 快照工作流与依赖事实（快照 92% 集中在 TUI，协议层走 schema fixture 对拍而非 insta）、跨 OS 与远程执行的四套机制（Bazel RBE / 构建远程测试本地 / Wine / Docker remote-env）、两条 Bazel 绿不等于 Cargo 绿的漏检机制，以及 CI 的 nextest archive 分片策略（五条平台通道中仅 macOS 用 GitHub 托管 runner）与 AGENTS.md 的测试编写强制约束。
+keywords: codex | testing | nextest | insta | integration-test | test-codex | snapshot | test-group | remote-tests | nextest-archive | ctor-dispatch | self-hosted-runner | nextest-profile | bazel-rbe | wine-exec | skip-macros
 scope: openai/codex 仓库的测试组织、运行与编写规范
-related_files: codex-rs/.config/nextest.toml | codex-rs/core/tests/common/test_codex.rs | codex-rs/core/tests/suite | codex-rs/app-server/tests/suite | justfile | AGENTS.md | .codex/skills/remote-tests/SKILL.md | .github/workflows/rust-ci-full-nextest-platform.yml
+related_files: codex-rs/.config/nextest.toml | codex-rs/Cargo.toml | codex-rs/core/tests/common/test_codex.rs | codex-rs/core/tests/common/lib.rs | codex-rs/core/tests/suite/mod.rs | codex-rs/app-server/tests/suite/mod.rs | codex-rs/app-server/tests/common/test_app_server.rs | justfile | .bazelrc | defs.bzl | AGENTS.md | .codex/skills/remote-tests/SKILL.md | .github/workflows/rust-ci-full.yml | .github/workflows/rust-ci-full-nextest-platform.yml
 dependencies: dev_docs/development_workflow.md | dev_docs/core_agent_loop.md
-verified_at: 2026-08-03
+verified_at: 2026-08-05
 ---
 
 # 测试指南
@@ -54,6 +54,22 @@ verified_at: 2026-08-03
 > git ls-files "codex-rs/core/tests/suite/*.rs" | wc -l        # 116
 > ```
 
+换个口径看（同为 E1，均已实测）：
+
+| 指标 | 数量 | 复核命令 |
+| ---- | ---: | ---- |
+| Cargo **集成测试 target** 数 | **91**（分布于 **29** 个包） | `cargo metadata --no-deps` 里 `kind == ["test"]` 计数 |
+| `codex-rs` 下 `tests/` 里的 `.rs` 文件 | **436** | `find codex-rs -type f -path '*/tests/*.rs' -not -path '*/target/*' \| wc -l` |
+| `#[cfg(test)]` 出现次数（内联单测入口） | **1,448** | `rg -c --no-filename '#\[cfg\(test\)\]' -g '*.rs' codex-rs \| awk '{s+=$1} END{print s}'` |
+| Cargo **bench target** | **1** | `cargo metadata` 里 `kind == ["bench"]` |
+| Python 测试文件 | **27** | `find . -name 'test_*.py'`（排除 `dev_docs/`、`node_modules/`） |
+| TypeScript 测试文件 | **4**（jest） | `ls sdk/typescript/tests/*.test.ts` |
+
+> [!IMPORTANT]
+> **全仓只有 1 个 Cargo bench target**：`codex-utils-image` 的 `prompt_images`（`codex-rs/utils/image/Cargo.toml:25` 的 `[[bench]]`）。所以 `just bench` 的 `cargo bench --workspace --bench '*'` 实际只有这一个目标——**基准测试的覆盖面非常窄**，不要把它当成性能回归的安全网。重量级的性能验证在 Bazel 侧的 `//codex-rs:e2e-benchmarks`（`just bench-e2e`）。
+>
+> 另外注意 **91 个集成测试 target vs 29 个包**：平均每包 3 个，但分布极不均——§6.2 会讲到 9 个主要 crate 走的是"单一聚合二进制"模式，它们各自只贡献 1 个 target。
+
 > [!NOTE]
 > 两处修订：
 > 1. 证据等级从 E4 降为 **E1**——这些只是文件计数，不是构建/测试/lint 的实际运行结果。
@@ -82,7 +98,7 @@ RUST_MIN_STACK=8388608 NEXTEST_PROFILE=local cargo nextest run --no-fail-fast "$
 三个要点：
 
 - **`RUST_MIN_STACK` 设为 8 MiB** —— 默认栈不够用
-- **`NEXTEST_PROFILE=local`** —— 本地用 local profile，CI 用 default（CI 侧已证实：JUnit 落在 `target/nextest/default/junit.xml`，见 §10）
+- **`NEXTEST_PROFILE=local`** —— 本地显式指定 local profile；**CI 全程不设这个变量**，因此 CI 跑的是 nextest 的 **`default`** profile。两者不是同一套配置，差异见 §3.4
 - **`--no-fail-fast`** —— 全部跑完再报，不中途停
 
 > [!TIP]
@@ -115,13 +131,16 @@ inherits = "default"
 
 **`slow-timeout` 30 秒**是全仓的基准超时预算，注释里说明它要与"分片 CI 的超时预算"保持一致。
 
-**`[profile.local] inherits = "default"`（第一版漏了）**：`just test` 用的 local profile **不是另起一套配置**，而是完整继承 default，只额外定义了自己的 override（把 app-server 集成测试放进 `app_server_integration_local` 分组）。所以本地和 CI 的超时、重试行为是一致的。
+**`[profile.local] inherits = "default"`（第一版漏了）**：`just test` 用的 local profile **不是另起一套配置**，而是完整继承 default，只额外定义了自己的 override（把 app-server 集成测试放进 `app_server_integration_local` 分组）。所以本地和 CI 的**超时与重试**行为是一致的——但**并发度不一致**，见 §3.4。
+
+> [!IMPORTANT]
+> **`codex-rs/.config/nextest.toml` 里只有 `[profile.default]` 与 `[profile.local]` 两个 profile。** 别把它和 §10 里的 **`ci-test`** 搞混——那是 **Cargo profile**（`codex-rs/Cargo.toml:566-570`，`inherits = "test"` / `opt-level = 0` / `debug = "limited"`），由 `.github/workflows/rust-ci-full-nextest-platform.yml:182` 通过 `--cargo-profile` 传入，管的是**怎么编译**；nextest profile 管的是**怎么跑**（超时、重试、分组、JUnit）。两者名字都叫 "profile"，但分属不同工具、互不继承。
 
 ### 3.2 串行化分组（test-groups）
 
-| 分组 | `max-threads` | 配置文件里的注释 |
+| 分组 | `max-threads` | 配置文件里的注释（多数挂在**引用该组的 `[[profile.default.overrides]]`** 上，而非组定义处） |
 | ---- | ---: | ---- |
-| `app_server_protocol_codegen` | 1 | **无注释**（分组定义处没有说明，用途只能从引用它的 override filter 反推：app-server-protocol 的 TS/JSON schema 生成一致性测试） |
+| `app_server_protocol_codegen` | 1 | **全文件唯一没有任何注释的分组**——组定义处与引用它的 override 处都没有说明，用途只能从 filter 反推：app-server-protocol 的 TS/JSON schema 生成一致性测试 |
 | `app_server_integration` | 1 | 每个用例都会拉起一个全新的 app-server 子进程；库单测保持并行 |
 | `app_server_integration_local` | 4 | 更高并发会在常见开发机的资源竞争下导致集成测试超时；全局 nextest 池仍受逻辑 CPU 数限制 |
 | `core_apply_patch_cli_integration` | 1 | 跑完整 Codex turn + apply_patch，对 Windows runner 的进程启动停顿敏感 |
@@ -129,6 +148,8 @@ inherits = "default"
 | `windows_process_heavy` | 2 | 这些 Windows 重测试会拉子进程、写会话文件或起 JSON-RPC 客户端，是 30s 全量 CI 超时的主要来源 |
 
 > **纠正**：第一版这张表声称"原因（配置文件注释要点）"，但 `app_server_protocol_codegen` 在 `codex-rs/.config/nextest.toml` 里**根本没有注释**，"代码生成类测试"是推断而非原文。
+>
+> **另一处订正**：表头原写"配置文件里的注释"，容易让人以为注释都挂在 `[test-groups.*]` 定义处。实际上 6 个分组里**只有 `app_server_integration_local` 的注释在定义处**（`codex-rs/.config/nextest.toml:20-21`）；`app_server_integration`（L48-49）、`core_apply_patch_cli_integration`（L60-61）、`windows_sandbox_legacy_sessions`（L66-67）、`windows_process_heavy`（L79-80）的注释都写在**引用它们的 `[[profile.default.overrides]]`** 块里。按注释找分组说明时要往 override 处看。
 
 > **可读出的信息**：**Windows 是测试稳定性的主要痛点**——6 个分组里有 2 个是专门为 Windows 资源限制设的。app-server 集成测试的成本也很高（每用例一个子进程）。
 
@@ -157,6 +178,27 @@ slow-timeout = { period = "1m", terminate-after = 4 }
 > 但要理解准确：仓库**并非绝对禁止任何超时放宽**——另外两条 Windows 相关的放宽就没有这句注释，它们的注释说明的是"在两条 Windows 全量 CI 通道上，即使降低了竞争仍然超时"。也就是说：**平台级的系统性超时是被接受的例外，个别测试写得慢则不是**。第一版把这里写成了绝对的"不要申请豁免"，措辞过强。
 >
 > 还有一条 override 是把 `approval_matrix_covers_all_modes` **显式设回 30s × 2**（与默认相同），属于防漂移的固化，不是放宽。
+
+### 3.4 本地与 CI 跑的**不是同一个 nextest profile**
+
+这条直接影响"本地绿 = CI 绿"的判断，值得单列：
+
+| | 本地 `just test` | CI（`.github/workflows/rust-ci-full-nextest-platform.yml`） |
+| ---- | ---- | ---- |
+| nextest profile | **`local`**（`justfile:82` 显式 `NEXTEST_PROFILE=local`） | **`default`**——**该工作流全文不设 `NEXTEST_PROFILE`**，nextest 回落到默认 |
+| app-server 集成测试并发 | `app_server_integration_local`，**`max-threads = 4`** | `app_server_integration`，**`max-threads = 1`** |
+| 超时 / 重试 / 分组的其余部分 | 完全一致（`[profile.local] inherits = "default"`） | 同左 |
+
+`[profile.local]` 的**唯一** override 就是把 app-server 集成测试改挂到 4 线程组。所以：
+
+> [!WARNING]
+> **本地跑得过、CI 挂掉的一类典型原因，就在这 4 vs 1 的差异里**——本地 4 路并发下暴露的竞态，CI 串行时可能测不出来；反过来，CI 串行下每个用例分到的资源更多、本地并发时更容易撞上 30s 超时。§10 的 JUnit 落盘路径 `target/nextest/default/junit.xml` 里那个 `default` 就是这件事的直接证据。
+
+### 3.5 配置里**没有**的东西（同样值得知道）
+
+- **不使用 `threads-required`**——并发控制全部通过 test-group 的 `max-threads` 表达。
+- **`fail-fast` / `failure-output` 都不在 toml 里**：`--no-fail-fast` 是命令行给的，本地在 `justfile:82`、CI 在 `.github/workflows/rust-ci-full-nextest-platform.yml:377`。改这两项要改调用方，不是改配置文件。
+- CI 另在环境层面加了 `RUST_BACKTRACE: 1` 与 `NEXTEST_STATUS_LEVEL: leak`（`.github/workflows/rust-ci-full-nextest-platform.yml:408-410`），本地默认没有——**本地复现 CI 失败时建议手工带上这两个**。
 
 ---
 
@@ -208,16 +250,18 @@ slow-timeout = { period = "1m", terminate-after = 4 }
 ### 4A.3 `### Spawning workspace binaries in tests (Cargo vs Bazel)`
 
 > [!IMPORTANT]
-> 这是**双构建系统的正确性问题**，不是风格偏好——Bazel 下二进制与资源位于 runfiles，写死 Cargo 假设会在 Bazel 侧失败。
+> **原文用的是 Prefer / avoid，而不是硬禁令**（"**Prefer** `codex_utils_cargo_bin::cargo_bin(...)` **over** ..."、"**avoid** `env!("CARGO_MANIFEST_DIR")`"，全节没有 must / never）。第一版把它硬化成禁令，并断言"不是风格偏好"——**措辞过强，但给出的理由是对的**：原文自己说明了这是正确性问题而非风格问题——Bazel 下二进制与资源位于 runfiles，`codex_utils_cargo_bin::cargo_bin` 解析出的绝对路径在 `chdir` 之后依然稳定，写死 Cargo 假设会在 Bazel 侧失败。
 
-| 场景 | 用 | 不要用 |
+| 场景 | 优先用 | 避免用 |
 | ---- | ---- | ---- |
 | 在测试里拉起一方（first-party）二进制 | `codex_utils_cargo_bin::cargo_bin("...")` | `assert_cmd::Command::cargo_bin(...)`、`escargot` |
-| 定位 fixture / 测试资源 | `codex_utils_cargo_bin::find_resource!` | `env!("CARGO_MANIFEST_DIR")` |
+| 定位 fixture / 测试资源（原文限定 **"under Bazel"**） | `codex_utils_cargo_bin::find_resource!` | `env!("CARGO_MANIFEST_DIR")` |
 
-`cargo_bin` 解析出的绝对路径在 `chdir` 之后依然有效，这是它相对其他方案的关键优势。
+> 第二条的作用域限定第一版也漏了：原文是 *"When locating fixture files or test resources **under Bazel**, avoid `env!("CARGO_MANIFEST_DIR")`. Prefer `codex_utils_cargo_bin::find_resource!` so paths resolve correctly under both Cargo and Bazel runfiles."*——`find_resource!` 的卖点是**两套构建系统下都能解析**，纯 Cargo 场景下 `CARGO_MANIFEST_DIR` 本身没有错。
 
-### 4A.4 `#### codex_core integration testing`：`core_test_support::responses` 的使用契约
+### 4A.4 `### Integration tests` → `#### codex_core integration testing`：`core_test_support::responses` 的使用契约
+
+> 下面两小节（4A.4 / 4A.5）都是 `AGENTS.md` 的 `## Tests` → **`### Integration tests`** 之下的 `####` 级子节。按 §0 立的"小节标题定位"规矩，父节标题在此给出，便于 grep 定位。
 
 写 core 端到端测试时优先用 `core_test_support::responses`，并遵守：
 
@@ -231,7 +275,7 @@ slow-timeout = { period = "1m", terminate-after = 4 }
 
 原文给出的典型形态是：`mount_sse_once(&server, sse(vec![ev_response_created, ev_function_call, ev_completed]))` → `codex.submit(Op::UserTurn { .. })` → `mock.single_request()` 上断言。
 
-### 4A.5 `#### app-server integration testing`
+### 4A.5 `### Integration tests` → `#### app-server integration testing`
 
 - 测试应当针对 app-server 的**公开 JSON-RPC API**，mock 方式与 core 集成测试相同
 - 默认用 **`TestAppServer::builder().build()`** 与 `TestAppServer::send_thread_start_request_with_auto_env()`
@@ -252,13 +296,23 @@ slow-timeout = { period = "1m", terminate-after = 4 }
 
 **builder 模式**：`TestCodexBuilder` → `TestCodex` → `TestCodexHarness`。另有 `test_codex_exec()` 专门用于 `codex exec` 路径。
 
-三个测试辅助 crate（都不在 `[workspace] members` 中，通过 path 依赖纳入）：
+测试支撑 crate 共 **6 个**，都不在 `[workspace] members` 中，而是在 `codex-rs/Cargo.toml` 的 `[workspace.dependencies]` 里以 path 依赖声明：
 
-| crate | 位置 | 行数 |
-| ---- | ---- | ---: |
-| `core_test_support` | `core/tests/common` | 6,752 |
-| `app_test_support` | `app-server/tests/common` | 3,878 |
-| `mcp_test_support` | `mcp-server/tests/common` | 507 |
+| crate | 位置 | workspace 声明处 | 作用 | 行数 |
+| ---- | ---- | ---- | ---- | ---: |
+| `core_test_support` | `codex-rs/core/tests/common/` | `codex-rs/Cargo.toml:271` | `test_codex` / `TestCodexBuilder` + skip 宏（见 §8.3） | 6,752 |
+| `app_test_support` | `codex-rs/app-server/tests/common/` | `codex-rs/Cargo.toml:145` | `TestAppServer` JSON-RPC 客户端 | 3,878 |
+| `mcp_test_support` | `codex-rs/mcp-server/tests/common/` | `codex-rs/Cargo.toml:272` | MCP server 测试助手 | 507 |
+| `codex-exec-server-test-support` | `codex-rs/exec-server/tests/support/` | `codex-rs/Cargo.toml:189` | exec-server 脚手架 | — |
+| `codex-test-binary-support` | `codex-rs/test-binary-support/` | `codex-rs/Cargo.toml:242` | 定位/启动已构建的测试二进制（§6.3 的 `#[ctor]` 分派就用它） | — |
+| `codex-app-server-test-client` | `codex-rs/app-server-test-client/` | `codex-rs/Cargo.toml:158` | 对**真二进制**说话的客户端，由 `just app-server-test-client` 驱动（`justfile:39-41`：先 `cargo build -p codex-cli`，再 `cargo run -p codex-app-server-test-client -- --codex-bin ./target/debug/codex`） | — |
+
+> [!NOTE]
+> **第一版只列了前三个**，漏掉了后三个。其中两个不在 `tests/` 目录下而是**独立的顶层 crate**（`codex-rs/test-binary-support/`、`codex-rs/app-server-test-client/`），按目录找找不到，只能从 `[workspace.dependencies]` 里认。
+>
+> 顺带纠正一个可能的误解：这些 crate **并没有**用 `publish = false` 屏蔽——全仓 `codex-rs/**/Cargo.toml` 里只有 `codex-rs/backend-client/Cargo.toml:6` 出现过 `publish` 键。它们不进生产依赖树，靠的是消费方把它们放在 `[dev-dependencies]` 里。
+
+**HTTP mock** 统一用 `wiremock`（`codex-rs/Cargo.toml:485` 声明 `wiremock = "0.6"`），被 **21 个 manifest** 引用——§4A.4 讲的 `core_test_support::responses` 那一整套 `mount_sse*` / `ResponseMock` 就是架在它上面的。
 
 ---
 
@@ -270,28 +324,107 @@ slow-timeout = { period = "1m", terminate-after = 4 }
 
 | 领域 | 文件 |
 | ---- | ---- |
-| 上下文压缩 | `compact.rs`（5,440 行）、`compact_remote.rs`、`codex-rs/core/tests/suite/compact_remote_parity.rs`、`codex-rs/core/tests/suite/compact_resume_fork.rs` |
-| 审批与策略 | `approvals.rs`、`exec_policy.rs`、`codex-rs/core/tests/suite/catalog_permission_messages.rs`、`codex-rs/core/tests/suite/guardian_review.rs` |
-| 执行 | `exec.rs`、`codex-rs/core/tests/suite/apply_patch_cli.rs`、`codex-rs/core/tests/suite/extension_sandbox.rs` |
-| 会话 | `codex-rs/core/tests/suite/fork_thread.rs`、`codex-rs/core/tests/suite/abort_tasks.rs`、`codex_delegate.rs` |
+| 上下文压缩 | `codex-rs/core/tests/suite/compact.rs`（5,440 行）、`codex-rs/core/tests/suite/compact_remote.rs`、`codex-rs/core/tests/suite/compact_remote_parity.rs`、`codex-rs/core/tests/suite/compact_resume_fork.rs` |
+| 审批与策略 | `codex-rs/core/tests/suite/approvals.rs`、`codex-rs/core/tests/suite/exec_policy.rs`、`codex-rs/core/tests/suite/catalog_permission_messages.rs`、`codex-rs/core/tests/suite/guardian_review.rs` |
+| 执行 | `codex-rs/core/tests/suite/exec.rs`、`codex-rs/core/tests/suite/apply_patch_cli.rs`、`codex-rs/core/tests/suite/extension_sandbox.rs` |
+| 会话 | `codex-rs/core/tests/suite/fork_thread.rs`、`codex-rs/core/tests/suite/abort_tasks.rs`、`codex-rs/core/tests/suite/codex_delegate.rs` |
 | 智能体 | `codex-rs/core/tests/suite/agent_execution.rs`、`codex-rs/core/tests/suite/agent_websocket.rs` |
-| 客户端 | `client.rs`、`codex-rs/core/tests/suite/client_websockets.rs`、`codex-rs/core/tests/suite/cli_stream.rs` |
-| 规范注入 | `agents_md.rs`、`additional_context.rs`、`codex-rs/core/tests/suite/collaboration_instructions.rs` |
-| 其他 | `codex-rs/core/tests/suite/auto_review.rs`、`code_mode.rs`、`external_auth.rs`、`codex-rs/core/tests/suite/git_enrichment.rs`、`current_time_reminder.rs` |
+| 客户端 | `codex-rs/core/tests/suite/client.rs`、`codex-rs/core/tests/suite/client_websockets.rs`、`codex-rs/core/tests/suite/cli_stream.rs` |
+| 规范注入 | `codex-rs/core/tests/suite/agents_md.rs`、`codex-rs/core/tests/suite/additional_context.rs`、`codex-rs/core/tests/suite/collaboration_instructions.rs` |
+| 其他 | `codex-rs/core/tests/suite/auto_review.rs`、`codex-rs/core/tests/suite/code_mode.rs`、`codex-rs/core/tests/suite/external_auth.rs`、`codex-rs/core/tests/suite/git_enrichment.rs`、`codex-rs/core/tests/suite/current_time_reminder.rs` |
+
+> 表中一律写全路径，因为裸文件名有真实歧义：测试侧的 `codex-rs/core/tests/suite/compact.rs` 与实现侧的 `codex-rs/core/src/compact.rs` **同名且同 crate**，而本节的核心论点恰恰是二者的 parity；`codex-rs/core/tests/suite/agents_md.rs` 在 `codex-rs/exec/tests/suite/agents_md.rs` 下也有同名文件。
 
 > `codex-rs/core/tests/suite/compact_remote_parity.rs` 的存在说明**本地与远程压缩之间有一致性（parity）测试**——这是理解压缩机制的好入口。
 
+`codex-rs/core/tests/` 下除 `suite/` 与 `common/` 外还有两项本文未展开：`codex-rs/core/tests/responses_headers.rs`（独立文件）与 `codex-rs/core/tests/remote_env_windows/`（目录）。
+
 ### 6.2 `app-server/tests/suite/`
 
-顶层：`auth.rs`、`codex-rs/app-server/tests/suite/conversation_summary.rs`、`fuzzy_file_search.rs`、`logging.rs`、`strict_config.rs`、`zsh/`，以及 **`v2/`（97 个文件）**。
+顶层共 8 项：`codex-rs/app-server/tests/suite/auth.rs`、`codex-rs/app-server/tests/suite/conversation_summary.rs`、`codex-rs/app-server/tests/suite/fuzzy_file_search.rs`、`codex-rs/app-server/tests/suite/logging.rs`、**`codex-rs/app-server/tests/suite/mod.rs`（挂载入口）**、`codex-rs/app-server/tests/suite/strict_config.rs`、`codex-rs/app-server/tests/suite/v2/`（97 个文件），以及 `codex-rs/app-server/tests/suite/zsh`。
 
-`codex-rs/app-server/tests/suite/v2/plugin_list.rs` 有 5,478 行，是仓库第 8 大文件。
+> [!IMPORTANT]
+> **`zsh` 不是测试子目录，是一个 DotSlash 清单文件。** 它是 2,661 字节、带可执行位的普通文件（`file` 报 `a /usr/bin/env dotslash script text executable`），同级的 `v2` 才是目录。它也**不是测试模块**——`codex-rs/app-server/tests/suite/mod.rs` 只声明了 `mod auth; mod conversation_summary; mod fuzzy_file_search; mod logging; mod strict_config; mod v2;`，**没有 `mod zsh;`**。
+>
+> 文件头注释自述用途：*"This is the patched zsh fork corresponding to `codex-rs/shell-escalation/patches/zsh-exec-wrapper.patch`. Fetching the prebuilt version via DotSlash makes it easier to write integration tests that exercise the zsh fork behavior in app-server tests."* —— 即通过 DotSlash 拉取预构建的 zsh fork 二进制，供集成测试验证 zsh fork 行为。消费方是 `codex-rs/app-server/tests/suite/v2/turn_start_zsh_fork.rs:793` 与 `codex-rs/core/tests/common/zsh_fork.rs:133`。
+
+#### 挂载链（也是 §2.1 里 `--test all` 的出处）
+
+这两个 crate 都只有**一个集成测试 target，名为 `all`**，所以 `--test all` 才是标准形式：
+
+| crate | target 入口 | 聚合模块 |
+| ---- | ---- | ---- |
+| `codex-app-server` | `codex-rs/app-server/tests/all.rs`（一行 `mod suite;`） | `codex-rs/app-server/tests/suite/mod.rs`（6 条 `mod` 声明） |
+| `codex-core` | `codex-rs/core/tests/all.rs`（`mod suite;`） | `codex-rs/core/tests/suite/mod.rs`（163 行） |
+
+两个 target 入口文件里的注释都写着 *"Single integration test binary that aggregates all test modules."*（`codex-rs/core/tests/all.rs:3-7`）——**把所有集成测试编进同一个二进制**，这既是 `--test all` 的由来，也是下面 §6.3 那套 arg0 分派机制成立的前提。
+
+**这不是 core / app-server 两家的特例，而是全仓 9 个 crate 共用的组织形态**（`git ls-files '*/tests/all.rs'`）：
+
+```
+codex-rs/core        codex-rs/app-server    codex-rs/mcp-server
+codex-rs/login       codex-rs/tui           codex-rs/linux-sandbox
+codex-rs/apply-patch codex-rs/exec          codex-rs/chatgpt
+```
+
+> 对上 §1 的规模数据：全仓 91 个集成测试 target 分布在 29 个包里，而这 9 个 crate 每个只贡献 **1** 个 target——**测试代码量最大的几个 crate 恰恰是 target 数最少的**。所以 `--test all` 在这 9 个 crate 里都适用，其余包才需要按具体 target 名指定。
+
+#### `v2/` 的组织方式
+
+`v2/` 的 97 个文件**不按领域分子目录，而是一个方法/特性一个文件**，命名基本对齐 app-server 的 JSON-RPC 方法名，可直接从方法名反查测试：
+
+下表所有文件的路径前缀统一为 `codex-rs/app-server/tests/suite/v2/`，为可读性只列文件名：
+
+| 类别 | 例子（前缀同上） |
+| ---- | ---- |
+| thread 生命周期 | thread_start / thread_resume / thread_fork / thread_archive / thread_rollback / thread_list / thread_read |
+| turn 生命周期 | turn_start / turn_steer / turn_interrupt / turn_start_zsh_fork |
+| 插件 / 市场 | plugin_list / plugin_install / plugin_search / plugin_share / marketplace_add / marketplace_upgrade |
+| 执行环境 | environment_add / environment_status / auto_env / exec_server_test_support / process_exec / command_exec |
+| MCP / 工具 | mcp_tool / mcp_resource / mcp_server_status / dynamic_tools / code_mode_host |
+| 协议与握手 | initialize / experimental_api / request_validation / client_metadata |
+
+> 注意：这些文件名里有不少与实现侧同名（例如 `codex-rs/app-server/tests/suite/v2/command_exec.rs` 对 `codex-rs/app-server/src/command_exec.rs`，`codex-rs/app-server/tests/suite/v2/dynamic_tools.rs` 对 `codex-rs/app-server/src/dynamic_tools.rs`），引用时务必带全路径。
+
+`codex-rs/app-server/tests/suite/v2/plugin_list.rs` 有 5,478 行，是仓库**第 8 大 Rust 源文件**（`git ls-files "*.rs"` 按行数排序）。放到**全部跟踪文件**里排序它只排第 16——比它大的 15 个多是非 `.rs` 生成物或数据文件（JSON schema 22,635 / 20,393 / 7,604 行、`codex-rs/Cargo.lock` 16,230 行、`sdk/python/src/openai_codex/generated/v2_all.py` 9,454 行、`codex-rs/tui/tests/fixtures/oss-story.jsonl` 8,041 行等）。
+
+### 6.3 `codex-rs/core/tests/suite/mod.rs` 的 `#[ctor]` 二进制分派（串起 §3 / §6 / §10）
+
+`codex-rs/core/tests/suite/mod.rs` 开头有一个 `#[ctor] pub static CODEX_ALIASES_TEMP_DIR`，在**任何测试运行之前**调用 `configure_test_binary_dispatch("codex-core-tests", ...)`。作用是：让**同一个测试二进制**根据 arg0 / argv1 伪装成不同的一方二进制，从而免去为测试单独构建 helper。
+
+| 触发条件 | 分派到 | 常量来源 |
+| ---- | ---- | ---- |
+| `argv1 == CODEX_CORE_APPLY_PATCH_ARG1` | `apply_patch` | `codex_apply_patch` |
+| `argv1 == CODEX_ARG0_EXEC_HELPER_ARG1`（仅 unix） | exec helper | `codex_exec_server` |
+| `argv1 == CODEX_FS_HELPER_ARG1` | fs helper | `codex_exec_server` |
+| `exe_name == CODEX_LINUX_SANDBOX_ARG0` | `codex-linux-sandbox` | `codex_sandboxing::landlock` |
+| 其余 | `InstallAliases`（在临时目录里铺一组别名） | — |
+
+文件里的原注释写得很直白：*"It allows the test binary to behave like codex and dispatch to apply_patch and codex-linux-sandbox based on the arg0."*，紧接着一句关键限制：**`NOTE: this doesn't work on ARM`**。
+
+> [!TIP]
+> **这条机制解释了本文另外两节的设计**：
+> - **§3.2**：`core_apply_patch_cli_integration` 之所以要 `max-threads = 1`，正是因为这些用例会通过上面的分派拉起完整 Codex turn + `apply_patch` 子进程。
+> - **§10**：分派在 ARM 上失效，所以 CI 必须**单独构建运行时 helper 并用环境变量注入**——`.github/workflows/rust-ci-full-nextest-platform.yml:386-404` 在 Linux 上注入 `CARGO_BIN_EXE_codex-linux-sandbox` / `CARGO_BIN_EXE_codex_linux_sandbox`，在 Windows 上注入 `CARGO_BIN_EXE_codex_windows_sandbox_setup` / `CARGO_BIN_EXE_codex_command_runner`。
 
 ---
 
 ## 7. insta 快照测试（`AGENTS.md` → `### Snapshot tests`）
 
-全仓 **681 个 `.snap`**，主要集中在 TUI（渲染输出）与协议层（序列化结果）。`codex-rs/core/src/session/snapshots/` 等目录存放快照。
+全仓 **681 个 `.snap`**（E1：`git ls-files "*.snap" | wc -l`），分布极不均衡：
+
+| crate | `.snap` 数 | 占比 |
+| ---- | ---: | ---: |
+| `codex-rs/tui` | **629** | 92.4% |
+| `codex-rs/core` | **51** | 7.5% |
+| `codex-rs/cli` | **1** | 0.1% |
+
+`codex-rs/core` 的 51 个快照又分布在四处：`codex-rs/core/tests/suite/snapshots/`（**38**）、`codex-rs/core/src/context/world_state/snapshots/`（**9**）、`codex-rs/core/src/guardian/snapshots/`（**3**）、`codex-rs/core/src/session/snapshots/`（**1**）。
+
+> [!NOTE]
+> **勘误：协议层一个 insta 快照都没有。** 第一版写"主要集中在 TUI 与协议层（序列化结果）"是未经计数的推断——`git ls-files '*.snap' | grep -i protocol` 结果为空。
+>
+> 协议层的一致性校验走的是**另一条路：schema fixture 对拍**，不是 insta。见 `codex-rs/.config/nextest.toml:44` 的 `typescript_schema_fixtures_match_generated` / `json_schema_fixtures_match_generated`（它们和另外三个 codegen 测试一起被归入 `app_server_protocol_codegen` 串行组），对拍的 fixture 落在 `codex-rs/app-server-protocol/schema/json/*.json`。
 
 > [!IMPORTANT]
 > **本节是对第一版的整体订正。** 第一版写"`AGENTS.md` 未提及快照更新流程 / 两者如何调和需要确认 / 不要贸然用 `cargo insta`"——**这是本文档的调研失误（漏读了 `AGENTS.md` 的 `### Snapshot tests` 一节），不是上游的规范缺口。** 上游规范完整且明确，下面照录。
@@ -302,7 +435,7 @@ slow-timeout = { period = "1m", terminate-after = 4 }
 
 > 任何影响**用户可见 UI**（包括新增 UI）的改动，**必须**包含相应的 `insta` 快照覆盖——没有就新增快照测试，有就更新既有快照。快照更新要作为 PR 的一部分被 review 并 accept，这样 UI 影响易于评审、后续 diff 保持可视化。
 
-**三份文档的第一版都漏了这条强制要求**，这里补上：它和"智能体逻辑变更必须写集成测试"是同一层级的硬约束。
+**本文档第一版漏了这条强制要求**，这里补上：它和"智能体逻辑变更必须写集成测试"是同一层级的硬约束。（第一版写"三份文档都漏了"，但本轮只核验了本篇，另两份不在核验范围内，故收窄表述。）
 
 ### 7.2 更新快照的标准流程
 
@@ -316,6 +449,21 @@ slow-timeout = { period = "1m", terminate-after = 4 }
 | 4. **确认要接受本 crate 全部新快照后**才执行 | `cargo insta accept -p codex-tui` |
 
 工具没装的话：`cargo install --locked cargo-insta`。（`AGENTS.md` 顶部规则列表也把 `cargo-insta` 与 `just`、`rg` 并列，要求"运行本文指令前先装好"。）
+
+### 7.3 依赖事实（为什么上面那条命令链是通的）
+
+| 事实 | 出处 |
+| ---- | ---- |
+| `insta = "1.46.3"`，声明在 `[workspace.dependencies]`，**不开任何 feature** | `codex-rs/Cargo.toml:339` |
+| 消费者共 **4 个，全部在 `[dev-dependencies]`** | `codex-rs/core/Cargo.toml:150`、`codex-rs/tui/Cargo.toml:159`、`codex-rs/cli/Cargo.toml:114`、`codex-rs/cloud-tasks/Cargo.toml:44` |
+| `cargo-insta` **不在 `codex-rs/Cargo.lock` 中** | 符合"全局 `cargo install`"的设计，不作为 crate 依赖 |
+| `justfile` 里**没有**任何快照相关 recipe | `grep insta justfile` 只命中 `install` 段与注释 |
+| 全仓**没有 `expect-test`** | `grep -rn expect-test --include=Cargo.toml codex-rs` 零命中——快照方案是单一的 |
+
+> [!NOTE]
+> 这几条合起来回答了一个自然的疑问：**既然 `insta` 没开 `cli` feature、`justfile` 也没有快照 recipe，`AGENTS.md` 给的那条 `cargo insta pending-snapshots / show / accept` 命令链靠什么成立？** 答案是 insta 1.x 的库与 CLI 本就分离——`cargo-insta` 是独立安装的**外部可执行文件**，不需要被依赖方开 feature。**所以规范里的命令链是通的，文档没有虚构**；`just` 里没有对应 recipe 也是有意为之，因为这三个子命令不跑测试（见 §7.2 末尾）。
+>
+> 同时也说明**为什么快照只可能出现在那 4 个 crate**——这正是 §7 开头实测分布（tui 629 / core 51 / cli 1）的直接解释；`cloud-tasks` 虽然声明了 `insta`，但目前一个 `.snap` 都没有。
 
 > **"禁止 `cargo test`"与 `cargo insta` 的关系（第一版认为是未解决的张力，其实规范已经给了答案）**：
 > **生成**快照走 `just test`（因此仍然遵循仓库默认的 nextest 配置），**审阅与接受**走 `cargo insta pending-snapshots` / `show` / `accept`——后面这三个子命令**不运行测试**，只是对已经落盘的 `.snap.new` 文件做查看和改名。两者不冲突。
@@ -354,10 +502,17 @@ slow-timeout = { period = "1m", terminate-after = 4 }
 | 场景 | 用法 |
 | ---- | ---- |
 | `codex_core` 集成测试 | `TestCodexBuilder::build_with_auto_env()`（除非该测试需要更精细地控制 executor） |
-| app-server 起服务 | `TestAppServer::new_with_auto_env()`（除非该测试自定义 `$CODEX_HOME/environments.toml` 或运行时定义环境） |
+| app-server 起服务 | 见下方警告：**用 `TestAppServer::builder().build()`**（除非该测试自定义 `$CODEX_HOME/environments.toml` 或运行时定义环境） |
 | app-server 起 thread | `TestAppServer::send_thread_start_request_with_auto_env()`，并把 `ThreadStartParams.environments` 留为 `None` |
 
-### 8.3 五个 skip 宏
+> [!WARNING]
+> **skill 文本已落后于代码。** `.codex/skills/remote-tests/SKILL.md:25` 原文写的是 `TestAppServer::new_with_auto_env()`，**但该 API 在当前代码基线中已不存在**——`rg new_with_auto_env` 扫全仓 5,788 个文件，除本文档自身外**零命中**。
+>
+> 实际构造入口是 `pub fn builder() -> TestAppServerBuilder`（`codex-rs/app-server/tests/common/test_app_server.rs:176`），终结于 `build()`（`codex-rs/app-server/tests/common/test_app_server.rs:1891`）或 `build_initialized()`（`codex-rs/app-server/tests/common/test_app_server.rs:1874`）；**auto-env 是默认开启的**（`build()` 的文档注释：*"Builds a server with a temporary CODEX_HOME and automatic environment by default."*），需要关掉时用 `TestAppServerBuilder::without_auto_env()`（`codex-rs/app-server/tests/common/test_app_server.rs:1812`）。
+>
+> 所以：**写新测试以 `AGENTS.md` 的 `## Tests` → `### Integration tests` → `#### app-server integration testing` 为准**（即 §4A.5 给出的 `TestAppServer::builder().build()`），skill 里的旧签名照抄会编译不过。
+
+### 8.3 skip 宏：skill 讲 5 个，`core_test_support` 实有 8 个
 
 某个远程执行器配置下跑不过时，**只在该配置下跳过**。宏支持理由字符串的就写上，方便后来人：
 
@@ -370,6 +525,17 @@ slow-timeout = { period = "1m", terminate-after = 4 }
 | `skip_if_no_remote_env!` | 仅远程有意义的测试行为 |
 
 > skill 明确：**优先写在所有 host/target 组合下都能跑的测试**；让测试兼容各配置最常见的改动见 `$path-types` skill。
+
+> [!NOTE]
+> **口径说明：上表 5 个是 `$remote-tests` skill 明文列出的（`.codex/skills/remote-tests/SKILL.md:40-44`），但 `core_test_support` 实际定义了 8 个 `skip_if_*` 宏**（全在 `codex-rs/core/tests/common/lib.rs`）。另外 3 个与远程执行无关，所以 skill 没提，但写测试时同样用得上：
+>
+> | 宏 | 位置 | 用于 |
+> | ---- | ---- | ---- |
+> | `skip_if_sandbox!` | `codex-rs/core/tests/common/lib.rs:537` | 沙箱环境下跑不了的行为 |
+> | `skip_if_no_network!` | `codex-rs/core/tests/common/lib.rs:563` | 需要真实网络的用例 |
+> | `skip_if_test_condition!` | `codex-rs/core/tests/common/lib.rs:585` | 通用条件跳过（前三者的底座） |
+>
+> 五个远程相关宏的定义位置依次是 `:601`（`skip_if_remote`）、`:620`（`skip_if_no_remote_env`）、`:636`（`skip_if_wine_exec`）、`:655`（`skip_if_target_windows`）、`:710`（`skip_if_host_windows`）。同一文件里还有一个 `codex_linux_sandbox_exe_or_skip!`（`:674`）——它也有跳过语义，但不是 `skip_if_` 前缀，按"`skip_if_*` 宏"口径不计入 8 个。
 
 ### 8.4 怎么跑
 
@@ -395,6 +561,47 @@ bazel test //codex-rs/app-server:app-server-all-wine-exec-test
 ```
 
 > macOS 开发机跑不了这些测试（需要 x86_64 Linux 宿主），skill 里给出的做法是连到远端开发机执行。
+
+### 8.5 全景：跨 OS / 远程执行实际有 **4 套**独立机制
+
+`$remote-tests` 只覆盖了其中一套（下表第 4 条）。四者的目标、载体、开关各不相同，混在一起读会很困惑：
+
+| # | 机制 | 解决什么 | 载体与开关 |
+| ---- | ---- | ---- | ---- |
+| 1 | **Bazel RBE（远程构建执行）** | 把**构建动作**扔到远端集群，拉高并发 | `rbe.bzl:39` 的 `rbe_platform_repository` 生成 platform，其 `exec_properties` 含 `"container-image": "docker://docker.io/mbolin491/codex-bazel@sha256:{image_sha}"`（`rbe.bzl:27`）；`.bazelrc:83-85` 配 `--strategy=remote`、`--extra_execution_platforms=//:rbe`、`--jobs=800`，endpoint 走 BuildBuddy 的 `grpcs://` |
+| 2 | **"构建远程 / 测试本地"的拆分** | 平台专属测试必须在**真实平台**上跑 | `.bazelrc:168-200`。原注释：*"We have platform-specific tests, so we want to execute the tests on all platforms using the strongest sandboxing available on each platform."* → macOS 用 `common:ci-macos --strategy=TestRunner=darwin-sandbox,local`；Windows 用 `common:ci-windows-cross --host_platform=//:rbe` + `--strategy=TestRunner=local` + `--platforms=//:windows_x86_64_gnullvm`（构建在 Linux RBE，测试留在 Windows runner） |
+| 3 | **Wine：在 Linux 上跑 Windows 二进制** | 免去真 Windows 机器，覆盖 Windows target 行为 | `defs.bzl:256-258` 的 `run_tests_with_wine_exec` 参数，实现在 `defs.bzl:579-584`。**全仓仅两个 crate 开启**：`codex-rs/core/BUILD.bazel:26` 与 `codex-rs/app-server/BUILD.bazel:15` |
+| 4 | **Docker remote-env**（即 `$remote-tests`） | 验证 app-server / exec-server **拆分部署** | `scripts/test-remote-env.sh` 导出 `CODEX_TEST_REMOTE_ENV`（`:91`）与 `CODEX_TEST_REMOTE_EXEC_SERVER_URL`（`:88`）；CI 侧是 `.github/workflows/rust-ci-full-nextest-platform.yml:323-333` 的 "Set up remote test env (Docker)" 步骤，条件 `if: runner.os == 'Linux' && inputs.remote_env` |
+
+> [!IMPORTANT]
+> **四套机制里只有第 4 套会在 CI 上被打开，而且只有一条通道开**：`.github/workflows/rust-ci-full.yml:481` 的 `remote_env: true` 是全仓**唯一**的开启点（即 §10.2 表里的 "Linux x64（remote-env）"）。其余四条平台通道跑的都是普通 nextest。
+>
+> 而机制 1-3 全在 **Bazel 侧**——也就是 §10.1 说的"PR 上的 Rust 测试信号来自 Bazel"那条通道。**Cargo 侧完全看不到它们**，这也引出了下面 §8.6。
+
+关于 Wine 这套（机制 3）还有两点值得知道：
+
+- 专用测试目录是 `codex-rs/core/tests/remote_env_windows/`，其 `codex-rs/core/tests/remote_env_windows/README.md:15` 写着：*"No system Wine is required. Every process gets a fresh `WINEPREFIX` and isolated wineserver."*——**不依赖系统装的 Wine，每个进程一份干净前缀**，所以本地不需要预装任何东西。
+- Wine 与 PowerShell 的版本由 `bazel/modules/wine.MODULE.bazel` 按 sha256 固定：**Wine 11.0**（`wine-11.0-amd64-wow64`）与 **PowerShell 7.2.24**。文件里的注释解释了为什么不升 PowerShell：*7.4.16 与 7.6.2 在固定的 Wine 11 运行时下 CLR 启动会失败，7.2.24 可以跑通*。
+
+### 8.6 两条"Bazel 绿 ≠ Cargo 绿"的机制
+
+> 这两条都是**单向漏检**：Bazel 通过不代表 Cargo 通过，反之亦然。因为 PR 的阻断信号来自 Bazel（§10.1），而本地 `just test` 走 Cargo，这个差异很容易咬人。
+
+**1. Bazel CI 有一份独立的测试跳过清单，Cargo 侧没有对应物。**
+
+`.bazelrc:166` 与 `.bazelrc:197` 通过 `--test_env=CODEX_BAZEL_TEST_SKIP_FILTERS=...` 在 Windows 通道上跳过若干用例（如 `suite::code_mode::code_mode_can_call_hidden_dynamic_tools`、`tests::windows_tests::conpty_ctrl_c_interrupts_powershell_foreground_child`、`command_safety::powershell_parser::tests::`）。**nextest 侧没有任何等价机制**——同样的用例在 Cargo 全量 CI（§10）的 Windows 通道上是照跑的。
+
+`.bazelrc:194-196` 还自带一句给改动者的警告：*"Native Windows CI still covers the PowerShell parser-process tests. The cross-built gnullvm binaries currently hang in those tests when run on the Windows runner. **This replaces the Windows skip list, so retain its exclusions.**"*——`ci-windows-cross` 的清单是**整体替换**而非追加，改它时必须把 `ci-windows` 的排除项一并抄进去。
+
+**2. Bazel 的 clippy 默认漏 lint 测试代码。**
+
+`defs.bzl:350` 与 `defs.bzl:410` 给**每一个**底层 `rust_test` 都打了 `tags = ["manual"]`，因此 `bazel build --config=clippy //...` 根本不会展开到它们。必须走 `scripts/list-bazel-clippy-targets.sh`，它用 `bazel query 'kind("rust_test rule", attr(tags, "manual", //codex-rs/...))'`（`scripts/list-bazel-clippy-targets.sh:25-28`）把这些 manual target 显式列出来。脚本 `:48-51` 的注释说得很清楚：
+
+> *"`--config=clippy` on the `workspace_root_test` wrappers does not lint the underlying `rust_test` binaries. Add the internal manual `*-unit-tests-bin` targets explicitly so inline `#[cfg(test)]` code is linted like `cargo clippy --tests`."*
+
+⇒ **`bazel build --config=clippy //...` 跑绿了，不等于测试代码没有 clippy 问题**（§1 数过，仓库里有 1,448 处 `#[cfg(test)]`，全靠这条路径才被 lint 到）。
+
+**附带：insta 快照路径在 Bazel 下是"伪造"出来的。** `defs.bzl:260-266` 给测试环境设 `INSTA_WORKSPACE_ROOT="."` 与 `INSTA_SNAPSHOT_PATH="src"`，`defs.bzl:340-347` 再用 `--remap-path-prefix=../codex-rs=` / `--remap-path-prefix=codex-rs=` 把 `file!()` 展开的路径改写成 Cargo 风格（如 `tui/src/...`）。这解释了**为什么同一批 `.snap` 文件在 Cargo 和 Bazel 两套系统下都能被找到**——不是 insta 自己适配的，是构建规则把路径对齐到了 Cargo 的形状。
 
 ---
 
@@ -431,7 +638,7 @@ bazel test //codex-rs/app-server:app-server-all-wine-exec-test
 
 | 通道 | 触发 | 内容 |
 | ---- | ---- | ---- |
-| `.github/workflows/bazel.yml`（经 `.github/workflows/blocking-ci.yml`） | 每个 PR + push main | **PR 上的 Rust 测试信号来自这里**；Windows gnullvm 按 4 片分 shard |
+| `.github/workflows/bazel.yml`（经 `.github/workflows/blocking-ci.yml`） | 每个 PR + push main | **PR 上的 Rust 测试信号来自这里**；Windows gnullvm 按 4 片分 shard。⚠️ 它跑的**不是** nextest，有独立的跳过清单与 clippy 覆盖缺口，见 §8.6 |
 | `.github/workflows/rust-ci-full.yml`（经 `.github/workflows/postmerge-ci.yml`，或**分支名含 `full-ci` 时自触发**） | push main（经 postmerge-ci）+ `push: branches: ["**full-ci**"]` + `workflow_dispatch` | 完整 Cargo nextest 矩阵——**不阻断 PR** |
 
 > [!NOTE]
@@ -442,8 +649,8 @@ bazel test //codex-rs/app-server:app-server-all-wine-exec-test
 >   workflow_call:
 >   push:
 >     branches:
->       # Main pushes enter through postmerge-ci. Keep this opt-in branch
->       # trigger for developers who want the full suite before merging.
+>       # Main pushes enter through postmerge-ci. Keep this opt-in branch trigger
+>       # for developers who want the full suite before merging.
 >       - "**full-ci**"
 >   workflow_dispatch:
 > ```
@@ -451,12 +658,34 @@ bazel test //codex-rs/app-server:app-server-all-wine-exec-test
 > **这是一个很有用的能力，值得记住**：把分支名起成包含 `full-ci` 的形式（例如 `<你的名字>/full-ci-sandbox-refactor`），**推上去就会在合并前跑完整矩阵**，不必等 postmerge 才发现平台相关的失败。yml 里的注释明说这就是它的设计意图。另外 `workflow_dispatch` 也允许手动对任意分支触发。
 | `.github/workflows/rust-ci.yml`（经 `.github/workflows/blocking-ci.yml`） | 每个 PR | **不跑 codex-rs workspace 的测试**，只有 fmt / bench-smoke / cargo-shear / argument-comment-lint |
 
+> [!NOTE]
+> **一个容易让人自查时困惑的细节**：`.github/workflows/rust-ci.yml` 里的 `argument_comment_lint_package` job **内部确实跑了 `cargo test`**（`.github/workflows/rust-ci.yml:160`），旁边还有 `python3 -m py_compile`（`:155`）与 `python3 -m unittest discover`（`:157`）。但它的作用域是 `tools/argument-comment-lint` 这个**独立于 codex-rs workspace 的 package**（触发条件也只看 `tools/argument-comment-lint/*` 与两个 workflow 文件的改动，见 `:47`）。所以"PR 上不跑 codex-rs 测试"的结论**成立**。
+
 ### 10.2 archive + partition 的两段式
 
 `.github/workflows/rust-ci-full.yml` 调用 `.github/workflows/rust-ci-full-nextest-platform.yml` **5 次**，每次一个平台通道。这个 reusable workflow 分两段：
 
-1. **`archive` job**：`cargo nextest archive --cargo-profile <profile> --archive-file nextest-<artifact_id>.tar.zst`，把编译好的测试二进制打包上传（Linux/Windows 还额外构建 sandbox / command-runner 等运行时 helper）。
-2. **`shard` job**：`shard: [1, 2, 3, 4]` 矩阵，下载归档后用 **`--partition "hash:<shard>/4"`** 回放。
+1. **`archive` job**（`.github/workflows/rust-ci-full-nextest-platform.yml:180-184`）：
+
+   ```bash
+   cargo nextest archive \
+     --target <target> \
+     --cargo-profile <profile> \
+     --timings \
+     --archive-file "nextest-<artifact_id>.tar.zst"
+   ```
+
+   把编译好的测试二进制打包上传（Linux/Windows 还额外构建 sandbox / command-runner 等运行时 helper）。**`--target` 不能省**——Windows arm64 通道正是靠它在 windows-x64 上交叉编译出 `aarch64-pc-windows-msvc` 的归档。
+2. **`shard` job**（`:373-381`）：`shard: [1, 2, 3, 4]` 矩阵，下载归档后回放：
+
+   ```bash
+   cargo nextest run --no-fail-fast \
+     --archive-file "${archive_file}" \
+     --workspace-remap "${workspace_root}" \
+     --partition "hash:<shard>/4"
+   ```
+
+   **`--workspace-remap` 是归档回放能成立的另一半**：归档里记录的是 archive job 的源码路径，shard job 在另一台机器上解包后必须把 workspace 根重定位到本机路径。
 
 固定参数：
 
@@ -466,13 +695,34 @@ bazel test //codex-rs/app-server:app-server-all-wine-exec-test
 
 五个平台通道：
 
-| 通道 | runner | target | 备注 |
+| 通道 | runner 归属 | target | 备注 |
 | ---- | ---- | ---- | ---- |
-| macOS aarch64 | `macos-15-xlarge` | `aarch64-apple-darwin` | |
-| Linux x64（remote-env） | `ubuntu-24.04` | `x86_64-unknown-linux-gnu` | `remote_env: true`——即 §8 的远程执行器测试 |
-| Linux arm64 | `ubuntu-24.04-arm` | `aarch64-unknown-linux-gnu` | |
+| macOS aarch64 | **GitHub 托管** `macos-15-xlarge` | `aarch64-apple-darwin` | 五条通道里唯一的 GitHub 托管 runner |
+| Linux x64（remote-env） | **自托管 runner group** `<repo>-runners` / label `<repo>-linux-x64` | `x86_64-unknown-linux-gnu` | `remote_env: true`——即 §8 的远程执行器测试 |
+| Linux arm64 | **自托管 runner group** `<repo>-runners` / label `<repo>-linux-arm64` | `aarch64-unknown-linux-gnu` | |
 | Windows x64 | 自托管 windows-x64 | `x86_64-pc-windows-msvc` | `test_threads: 8` |
 | Windows arm64 | 自托管 windows-arm64 | `aarch64-pc-windows-msvc` | **归档在 windows-x64 上交叉编译**，再到原生 arm64 上回放；`test_threads: 8` |
+
+> **总结：五条通道里只有 macOS 用 GitHub 托管 runner，其余四条全部跑在自托管 runner group 上。**
+
+> [!NOTE]
+> **勘误：两条 Linux 通道不是 GitHub 托管的 `ubuntu-24.04` / `ubuntu-24.04-arm`。** 关键在 reusable workflow 的 `runs-on` 表达式（`.github/workflows/rust-ci-full-nextest-platform.yml:277`）——它**优先取 `runner_group`**，只在其为空时才回落到 `runner`：
+>
+> ```yaml
+> runs-on: ${{ inputs.runner_group != '' && fromJSON(format('{{"group":"{0}","labels":"{1}"}}', inputs.runner_group, inputs.runner_labels)) || inputs.runner }}
+> ```
+>
+> 而 `.github/workflows/rust-ci-full.yml:472-480`（`tests_linux_x64_remote`）与 `:486-495`（`tests_linux_arm64`）都传了 `runner_group: ${{ github.event.repository.name }}-runners` 加上对应的 `runner_labels`，所以 `runner: ubuntu-24.04` 在这两条通道里**从不生效为实际 runner**，仅用作缓存 key（`ARCHIVE_CACHE_RUNNER`）与回落值。
+>
+> 教训：读了 yml 不等于读懂了 `runs-on` 表达式——本节整体证据等级是 E2/E3（确实读了工作流），但**等级正确不代表解析正确**。
+
+固定环境（archive 与 shard 两段共用）还有一条值得注意：
+
+- **`RUST_MIN_STACK: "8388608" # 8 MiB`**（`.github/workflows/rust-ci-full-nextest-platform.yml:409`）——与本地 `justfile:7` 的 `rust_min_stack := "8388608"` **完全一致**。栈大小这一项本地与 CI 没有差异。
+- **Cargo** profile **`ci-test`**（注意：不是 nextest profile，见 §3.1 的辨析）定义在 `codex-rs/Cargo.toml:566-570`：`inherits = "test"`、`opt-level = 0`、`debug = "limited"`，注释写着 *"Reduce binary size to reduce disk pressure."*——与 §2.1 那条"不要用 `--all-features` 做常规运行、会撑爆 `target/`"是同一个主题：**测试构建产物的磁盘压力是这个仓库的实际约束**。
+
+> [!WARNING]
+> **别把上面这条推广成"本地与 CI 完全一致"**：栈大小一致、超时与重试一致，但 **nextest profile 不同**（本地 `local` / CI `default`），app-server 集成测试的并发度是 4 vs 1；**Cargo profile 也不同**（本地默认 `test` / CI `ci-test`）；CI 还额外设了 `RUST_BACKTRACE=1` 与 `NEXTEST_STATUS_LEVEL=leak`。完整对照见 §3.4 与 §3.5。
 
 > **含义**：单个平台通道的测试是 4 路并行的，所以 §3 里那句"30s slow-timeout 要与分片 CI 的超时预算对齐"是有出处的——分片压缩了单片墙钟时间，但没有放宽单测超时。
 
@@ -483,12 +733,13 @@ bazel test //codex-rs/app-server:app-server-all-wine-exec-test
 | 未覆盖项 | 当前证据 | 建议入口 |
 | ---- | ---- | ---- |
 | `TestCodexBuilder` 的完整 builder 方法 | E1 | `codex-rs/core/tests/common/test_codex.rs`（分段读） |
-| `zsh/` 测试子目录的用途 | E1 | `app-server/tests/suite/zsh/` |
-| 基准测试（bench）的组织与基线 | E1 | `just bench`（divan）、`just bench-smoke`、`//codex-rs:e2e-benchmarks` |
+| 基准测试的**历史基线数值与回归判据** | E1 | 组织方式已有明文（见下），基线数值本身未见于仓库 |
 | `scripts/test-remote-env.sh` 的实现细节 | E1 | 该脚本 |
 | `.codex/skills/` 下其余 skill 的内容 | E1 | 见 `development_workflow.md` §2.6 |
 
-> 第一版列在这里的三项——insta 快照更新流程、`$remote-tests` 内容、CI 分片策略——**都不是真正的空白**，本次已分别在 §7、§8、§10 补齐。
+> **本轮从本表移除两项**：
+> - **`zsh` 的用途**——它不是"测试子目录"而是一个 DotSlash 清单文件，用途由文件头注释明确自述，已写入 §6.2，不属未覆盖。
+> - **基准测试的组织方式（降级为 E2，不再是空白）**——覆盖面已在 §1 实测：**全仓只有 1 个 Cargo bench target**（`codex-utils-image` 的 `prompt_images`）。`AGENTS.md` 的 `### Benchmarks` 已明文："*cargo benchmarks can be run with `just bench`, use the divan crate to write new ones. Use `just bench-smoke` to dry-run the benchmark for a single iteration to ensure it works.*"；`justfile:95-113` 进一步给出四个 recipe 的完整语义：`bench`（`cargo bench --workspace --bench '*'`）、`bench-smoke`（`just bench -- --test`）、`bench-e2e`（`bazel test --compilation_mode=opt ... //codex-rs:e2e-benchmarks`）、`bench-e2e-smoke`（fastbuild + `--test_arg=--test`）。**真正未覆盖的只剩基线数值与回归判据**，故收窄为上表那一行（E1）。
 
 ---
 

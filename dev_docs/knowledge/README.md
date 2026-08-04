@@ -46,7 +46,7 @@ verified_at: 2026-08-03
 <主题-kebab-case>.md
 ```
 
-例：`codex-home-resolution.md`、`bazel-compile-data-pitfall.md`
+例：`codex-home-resolution.md`、`bazel-compile-data-pitfall.md` <!-- ref-exempt: 命名规范示例，这两个文件尚未创建 -->
 
 ---
 

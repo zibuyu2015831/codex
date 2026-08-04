@@ -34,7 +34,7 @@ verified_at: 2026-08-03
 YYYY-MM-DD-<简短英文-kebab-case>.md
 ```
 
-例：`2026-08-03-split-chat-composer.md`
+例：`2026-08-03-split-chat-composer.md` <!-- ref-exempt: 命名规范示例，该文件尚未创建 -->
 
 ---
 

@@ -118,6 +118,15 @@ FRAMEWORK_REFS = {
     "core/project_types/library.md",
     "core/project_types/web_app.md",
     "AI_Coding_Context.md.template",
+    "config/user_config.md",
+    "path_a_first_generation.md",
+    "main_doc_contract.yaml",
+    "project_scanner.py",
+    "configuration.md",
+    "cli_tool.md",
+    "templates/plans_README_TEMPLATE.md",
+    "templates/knowledge_README_TEMPLATE.md",
+    "templates/AI_RULES_TEMPLATE.md",
 }
 
 # 环境变量展开后的运行时路径前缀
