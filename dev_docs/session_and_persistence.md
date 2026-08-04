@@ -281,7 +281,7 @@ pub const ARCHIVED_SESSIONS_SUBDIR: &str = "archived_sessions";
 | 实时写入 | `codex-rs/thread-store/src/local/live_writer.rs` |
 | 模型上下文 | `codex-rs/thread-store/src/local/model_context.rs` |
 
-这套操作面覆盖了 app-server 协议 `thread/*`（共 57 个方法）中的**持久化子集**，并非一一对应：协议侧的 `thread/realtime/*`（11 个）、`thread/goal/*`（5 个）、`thread/backgroundTerminals/*`（3 个）等运行时方法族在 thread-store 没有对应文件；反向地，`codex-rs/thread-store/src/local/thread_history_materialization.rs`、`codex-rs/thread-store/src/local/rollout_lineage.rs`、`codex-rs/thread-store/src/local/writer_lock.rs`、`codex-rs/thread-store/src/local/live_writer.rs` 也没有对应的协议方法。部分映射见 §6，完整方法表见 [`app_server_protocol.md`](./app_server_protocol.md) §3。
+这套操作面覆盖了 app-server 协议 `thread/*`（共 60 个方法）中的**持久化子集**，并非一一对应：协议侧的 `thread/realtime/*`（11 个）、`thread/goal/*`（5 个）、`thread/backgroundTerminals/*`（3 个）等运行时方法族在 thread-store 没有对应文件；反向地，`codex-rs/thread-store/src/local/thread_history_materialization.rs`、`codex-rs/thread-store/src/local/rollout_lineage.rs`、`codex-rs/thread-store/src/local/writer_lock.rs`、`codex-rs/thread-store/src/local/live_writer.rs` 也没有对应的协议方法。部分映射见 §6，完整方法表见 [`app_server_protocol.md`](./app_server_protocol.md) §3。
 
 ### 3.2 两个值得注意的机制
 
@@ -454,9 +454,9 @@ pub(crate) enum ForkPersistence {
 
 ## 6. 与协议层的对应
 
-下表是**部分映射**（E3），不是全集——协议侧 57 个 `thread/*` 方法中的运行时族在 thread-store 没有对应实现，见 §3.1 的说明。
+下表是**部分映射**（E3），不是全集——协议侧 60 个 `thread/*` 方法中的运行时族在 thread-store 没有对应实现，见 §3.1 的说明。
 
-| 存储侧 | 协议侧（`thread/*`，共 57 个方法） |
+| 存储侧 | 协议侧（`thread/*`，共 60 个方法） |
 | ---- | ---- |
 | `create_thread` / `read_thread` / `list_threads` | `thread/list`、`thread/loaded/list`、`thread/items/list` |
 | `archive_thread` | `thread/archive`（请求）、`thread/archived`（完成通知） |

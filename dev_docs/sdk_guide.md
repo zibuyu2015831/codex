@@ -1,11 +1,11 @@
 ---
 title: Codex TypeScript 与 Python SDK
-summary: 描述两套 SDK 的包名版本与运行时要求、两者走完全不同传输通道这一关键事实（TS 走 codex exec --experimental-json，Python 走 codex app-server JSON-RPC）、TypeScript 侧的二进制定位链路与 thread/turn 抽象、Python 侧的同步异步双层结构，以及类型生成流水线的真实起点——不是仓库内的 schema 文件而是被 pin 住的运行时二进制（因此改仓库 schema 不会触发漂移测试，且 Rust 发布只走 stage-runtime、不重生成 SDK 类型），另含 python-runtime 的 wheel-only 构建钩子与捆绑 CLI 二进制的依赖锁定策略。
+summary: 描述两套 SDK 的包名版本与运行时要求、两者走完全不同传输通道这一关键事实（TS 走 codex exec --experimental-json，Python 走 codex app-server JSON-RPC）、TypeScript 侧的二进制定位链路与 thread/turn 抽象、Python 侧的同步异步双层结构，以及类型生成流水线的真实起点——不是仓库内的 schema 文件而是被 pin 住的运行时二进制（因此改仓库 schema 不会触发漂移测试，且 Rust 发布对 update_sdk_artifacts.py 只走 stage-runtime、不重生成 SDK 类型，但它仍在另一条支线上经 stage_npm_packages.py 发布 TS SDK 的 npm 包），另含 python-runtime 的 wheel-only 构建钩子（sdist target 注册同一 hook 以主动报错）与捆绑 CLI 二进制的依赖锁定策略、sdk.yml 两条流水线的实际内容与两侧发布版本号替换机制。
 keywords: codex | sdk | typescript | python | exec-json | app-server | thread | async-client | packaging | datamodel-codegen
 scope: sdk/typescript、sdk/python、sdk/python-runtime 三套 SDK
-related_files: sdk/typescript/package.json | sdk/typescript/src/exec.ts | sdk/typescript/src/events.ts | sdk/typescript/src/codex.ts | sdk/typescript/src/codexOptions.ts | sdk/typescript/src/index.ts | sdk/python/pyproject.toml | sdk/python/src/openai_codex/api.py | sdk/python/src/openai_codex/client.py | sdk/python/src/openai_codex/errors.py | sdk/python/src/openai_codex/generated/v2_all.py | sdk/python/src/openai_codex/generated/notification_registry.py | sdk/python/scripts/update_sdk_artifacts.py | sdk/python/tests/test_contract_generation.py | sdk/python-runtime/pyproject.toml | codex-rs/exec/src/exec_events.rs | AGENTS.md
+related_files: sdk/typescript/package.json | sdk/typescript/src/exec.ts | sdk/typescript/src/events.ts | sdk/typescript/src/codex.ts | sdk/typescript/src/codexOptions.ts | sdk/typescript/src/index.ts | sdk/python/pyproject.toml | sdk/python/src/openai_codex/api.py | sdk/python/src/openai_codex/client.py | sdk/python/src/openai_codex/errors.py | sdk/python/src/openai_codex/generated/v2_all.py | sdk/python/src/openai_codex/generated/notification_registry.py | sdk/python/scripts/update_sdk_artifacts.py | sdk/python/tests/test_contract_generation.py | sdk/python-runtime/pyproject.toml | sdk/python-runtime/hatch_build.py | sdk/python/src/openai_codex/_goal.py | sdk/typescript/tests/testCodex.ts | scripts/stage_npm_packages.py | .github/workflows/sdk.yml | .github/workflows/rust-release.yml | codex-rs/exec/src/exec_events.rs | AGENTS.md
 dependencies: dev_docs/app_server_protocol.md | dev_docs/architecture_overview.md
-verified_at: 2026-08-03
+verified_at: 2026-08-05
 ---
 
 # TypeScript 与 Python SDK
@@ -23,7 +23,9 @@ verified_at: 2026-08-03
 > 错误的根源是：第一版看到 `sdk/typescript/src/thread.ts` / `sdk/typescript/src/turnOptions.ts` 与协议里的 `thread/*`、`turn/*` 命名空间同名，就直接假定了对应关系，**没有打开 `sdk/typescript/src/exec.ts` 看它到底 spawn 了什么**。同名不等于同源。
 
 > [!WARNING]
-> **本文的 Python 部分证据等级上限为 E2/E3。** 分析环境的 Python 是 3.9.6，低于 `sdk/python` 声明的 `requires-python = ">=3.10"`，**无法通过实际运行 pytest 取得 E4 验证**。相关结论基于配置文件与源码阅读，不能写成「已验证」。
+> **本文的 Python 部分证据等级上限为 E2/E3。** 分析环境 Python 为 3.14.6（满足 `sdk/python` 声明的 `requires-python = ">=3.10"`），但未安装 `pytest` / `pydantic` / `openai-codex-cli-bin`（`sdk/python` 下无 `.venv`），且核验期禁止联网安装依赖，**因此仍无法取得 E4 验证**。相关结论基于配置文件与源码阅读，不能写成「已验证」。
+>
+> 卡住的确切步骤：`cd sdk/python && python3 -m pytest --collect-only` → `No module named pytest`，连收集阶段都进不去。即使跨过这一步，`sdk/python/tests/test_contract_generation.py:43` 还硬断言 `importlib.metadata.version("openai-codex-cli-bin") == "0.144.4"`，而该包是**平台专属 wheel、只发 PyPI**——`sdk/python-runtime/hatch_build.py:17-20` 对 sdist 构建直接 `raise RuntimeError("openai-codex-cli-bin is wheel-only; ...")`，仓库内无法本地构建替代品，这是不可绕过的硬墙。官方 CI 的做法印证了这点：`.github/workflows/sdk.yml:36-39` 第一步就是 `uv sync --group dev --frozen`，必须联网。
 
 ---
 
@@ -36,7 +38,7 @@ verified_at: 2026-08-03
 | `sdk/python-runtime` | **`openai-codex-cli-bin`** | `0.0.0-dev` | `hatchling` | Python ≥ 3.10 |
 
 > [!NOTE]
-> **勘误（两轮）**：第一版把 `sdk/python-runtime` 的包名与版本写成「—」。它有完整的 `pyproject.toml`：`name = "openai-codex-cli-bin"`、`version = "0.0.0-dev"`、`description = "Pinned Codex CLI runtime for the Python SDK"`，构建后端是 **hatchling**（不是 uv_build）。
+> **勘误（两轮）**：第一版把 `sdk/python-runtime` 的包名与版本写成「—」。它有完整的 `sdk/python-runtime/pyproject.toml`：`name = "openai-codex-cli-bin"`、`version = "0.0.0-dev"`、`description = "Pinned Codex CLI runtime for the Python SDK"`，构建后端是 **hatchling**（不是 uv_build）。
 >
 > 上一稿又说是「自定义构建钩子把 `bin/`、`codex-resources/`、`codex-path/` 打进 wheel」——**这三项其实来自静态配置，不是钩子干的**。`sdk/python-runtime/pyproject.toml:36-43`（E2）：
 >
@@ -53,7 +55,15 @@ verified_at: 2026-08-03
 >
 > 钩子（`sdk/python-runtime/hatch_build.py` 的 `RuntimeBuildHook.initialize`）做的是**另外三件事**（E3，本次一并把 §9「钩子做了什么」这一 E1 未知项结掉）：
 >
-> 1. `target_name == "sdist"` 时直接 `raise RuntimeError`——**该包只允许构建 wheel**，不发源码包；
+> 1. `target_name == "sdist"` 时直接 `raise RuntimeError`——**该包只允许构建 wheel**，不发源码包。这个 raise 之所以有机会执行，是因为 `sdk/python-runtime/pyproject.toml:47-48` 除了 wheel target 之外还注册了 sdist target 与**同一个** custom hook：
+>
+>    ```toml
+>    [tool.hatch.build.targets.sdist]
+>
+>    [tool.hatch.build.targets.sdist.hooks.custom]
+>    ```
+>
+>    也就是说 wheel-only 策略不是靠「不配置 sdist」被动实现的，而是靠「配置了 sdist 但让 hook 主动炸掉」——任何人尝试 `hatch build --target sdist` 都会立刻拿到明确报错，而不是一个静默产出的残缺源码包；
 > 2. 解析平台标签：优先取 hatch 配置里的 `platform-tag`，其次取对应环境变量，再退回 `packaging.tags.sys_tags()` 的第一个；
 > 3. 设置 `build_data`：`pure_python = False`、`infer_tag = False`、`tag = f"py3-none-{platform_tag}"`——即**强制产出平台相关 wheel 并自己指定 tag**，这正是"每个平台一个 wheel"的实现方式。
 >
@@ -86,6 +96,7 @@ verified_at: 2026-08-03
   const commandArgs: string[] = ["exec", "--experimental-json"];
   ```
   后续按需追加 `--config`、`--model`、`--sandbox`、`--cd`、`--add-dir`、`--skip-git-repo-check`、`--output-schema` 等 CLI 标志（`:89-130`），然后 `spawn` 并把 stdout 按行 yield 出去（`run()` 是 `AsyncGenerator<string>`）。
+- **想看完整的「SDK 选项 → CLI 标志」映射，直接读 `sdk/typescript/src/exec.ts:17-39`**：该文件顶部的选项类型定义里，逐字段用注释标注了对应标志，是 TS 侧「契约面 = CLI 标志」最直接的文档。除上面列出的几个之外还包括 `--config model_reasoning_effort`、`--config sandbox_workspace_write.network_access`、`--config web_search`、legacy `--config features.web_search_request`、`--config approval_policy`。
 - `sdk/typescript/src/events.ts:1` 的第一行注释坐实了事件来源：
   ```ts
   // based on event types from codex-rs/exec/src/exec_events.rs
@@ -113,7 +124,7 @@ verified_at: 2026-08-03
 | 有无漂移检测 | 无（注释靠人维护） | 有（`sdk/python/tests/test_contract_generation.py`） |
 
 > [!IMPORTANT]
-> **`schema/typescript/v2/` 下那 550 个 ts-rs 生成的 `.ts` 文件不是给 `@openai/codex-sdk` 用的。** 它们是 app-server 协议的对外类型产物，服务于直接对接 app-server 的客户端（例如 VS Code 扩展）。TypeScript SDK 不引用它们。
+> **`codex-rs/app-server-protocol/schema/typescript/v2/` 下那 550 个 ts-rs 生成的 `.ts` 文件不是给 `@openai/codex-sdk` 用的。**（注意仓库根下没有 `schema/` 目录，完整路径在 `codex-rs/app-server-protocol/` 下；每个文件首行都是 `// GENERATED CODE! DO NOT MODIFY BY HAND!`。） 它们是 app-server 协议的对外类型产物，服务于直接对接 app-server 的客户端（例如 VS Code 扩展）。TypeScript SDK 不引用它们。
 
 ---
 
@@ -135,13 +146,13 @@ verified_at: 2026-08-03
 **纯 ESM**（`"type": "module"`），产物在 `dist/`，带类型声明。
 
 > [!NOTE]
-> **勘误**：第一版在 §5 对照表里写「构建 = tsc → `dist/`」。实际的构建脚本是 **`tsup`**（`"build": "tsup"`，配置在 `sdk/typescript/tsup.config.ts`，devDependency `tsup@^8.5.0`）。`typescript` 只作为 devDependency 存在，用于类型检查与 ts-jest。测试跑 **jest**（`ts-jest`），格式化用 prettier，lint 用 eslint。
+> **勘误**：第一版在 §5 对照表里写「构建 = tsc → `dist/`」。实际的构建脚本是 **`tsup`**（`"build": "tsup"`，配置在 `sdk/typescript/tsup.config.ts`，devDependency `tsup@^8.5.0`）。`typescript` 只作为 devDependency 存在，用于类型检查与 ts-jest。测试跑 **jest**（`ts-jest`），格式化用 prettier，lint 用 eslint。 <!-- ref-exempt: 此处 `typescript` 是 npm 包名（devDependency），不是前一处文件引用里的符号 -->
 
 ### 3.2 源码模块（`sdk/typescript/src/`，E1）
 
 | 文件 | 职责 |
 | ---- | ---- |
-| `index.ts` | 入口，重导出类型 |
+| `sdk/typescript/src/index.ts` | 入口：值导出 `Codex`（`:29`）/ `Thread`（`:26`），其余全部为 `export type` 重导出。这两行是整个包**唯一的值导出面**，也正是用户拿到的入口 API |
 | `sdk/typescript/src/codex.ts` | 主客户端 `class Codex`，提供 `startThread()` / `resumeThread()` |
 | `sdk/typescript/src/codexOptions.ts` | 客户端选项：`codexPathOverride`、`baseUrl`、`apiKey`、`config`、`env` |
 | `sdk/typescript/src/thread.ts` / `sdk/typescript/src/threadOptions.ts` | 线程抽象 |
@@ -152,7 +163,7 @@ verified_at: 2026-08-03
 | `sdk/typescript/src/outputSchemaFile.ts` | 结构化输出的 schema 文件处理 |
 
 > [!NOTE]
-> **勘误**：第一版说「核心抽象是 thread 与 turn，与 app-server 协议的 `thread/*`（57 个方法）、`turn/*`（8 个）、`item/*`（19 个）严格对应……SDK 是协议的薄封装」。**不对应，也不是薄封装。** thread/turn/item 是 codex 全栈通用的领域概念，exec 事件流里同样有 `ThreadStartedEvent` / `TurnCompletedEvent` / `ItemCompletedEvent`（见 `index.ts` 的重导出列表）。TS SDK 对接的是**那一套**。
+> **勘误**：第一版说「核心抽象是 thread 与 turn，与 app-server 协议的 `thread/*`（57 个方法）、`turn/*`（8 个）、`item/*`（19 个）严格对应……SDK 是协议的薄封装」。**不对应，也不是薄封装。** thread/turn/item 是 codex 全栈通用的领域概念，exec 事件流里同样有 `ThreadStartedEvent` / `TurnCompletedEvent` / `ItemCompletedEvent`（见 `sdk/typescript/src/index.ts` 的重导出列表）。TS SDK 对接的是**那一套**。
 
 ### 3.3 codex 二进制怎么找到（E3）
 
@@ -178,20 +189,25 @@ verified_at: 2026-08-03
    | `aarch64-pc-windows-msvc` | `@openai/codex-win32-arm64` |
 
 3. **在 vendor 目录里定位可执行文件**（`resolveNativePackage`，`sdk/typescript/src/exec.ts:412-435`）：
-   - 首选 `vendor/<triple>/bin/codex`（Windows 为 `codex.exe`），且要求同目录存在 `codex-package.json`；`PATH` 补充目录取自 `vendor/<triple>/codex-path/`。
+   - 首选 `vendor/<triple>/bin/codex`（Windows 为 `codex.exe`），且要求同目录存在 `codex-package.json`（运行时由打包流水线写入 vendor 目录，仓库内不存在该文件）；`PATH` 补充目录取自 `vendor/<triple>/codex-path/`。 <!-- ref-exempt: codex-package.json 是 npm 平台包 vendor 目录内的运行时元数据文件名，仓库内不存在；见 sdk/typescript/src/exec.ts:419 与 sdk/python/scripts/update_sdk_artifacts.py:29 -->
    - 回退到**遗留布局** `vendor/<triple>/codex/codex[.exe]`，`PATH` 补充目录取自 `vendor/<triple>/path/`。
 4. 都找不到就抛错：`Unable to locate Codex CLI binaries. Ensure @openai/codex is installed with optional dependencies.`
 
-> **结论**：TS SDK **不在 `package.json` 里声明对 `@openai/codex` 的依赖**，而是在运行时 `require.resolve` 它。使用者必须自己装 `@openai/codex`（并保留 optionalDependencies），或者用 `codexPathOverride` 指一个现成的二进制。这与 Python 侧「硬锁一个二进制包版本」是两种截然不同的策略。
+> **结论**：TS SDK **不在 `package.json` 里声明对 `@openai/codex` 的依赖**——穷举锚点：`sdk/typescript/package.json` 根本没有 `dependencies` 键，只有 `devDependencies`——而是在运行时 `require.resolve` 它。使用者必须自己装 `@openai/codex`（并保留 optionalDependencies），或者用 `codexPathOverride` 指一个现成的二进制。这与 Python 侧「硬锁一个二进制包版本」是两种截然不同的策略。
 
-### 3.4 示例与测试（E1）
+### 3.4 示例与测试（E1 + E3）
 
 第一版把「SDK 的实际用法示例」标成 E1 未知并指向 README。实际上仓库里就有：
 
 - `sdk/typescript/samples/`（4 个）：`sdk/typescript/samples/basic_streaming.ts`、`sdk/typescript/samples/structured_output.ts`、`sdk/typescript/samples/structured_output_zod.ts`、`sdk/typescript/samples/helpers.ts`
 - `sdk/typescript/tests/`（8 个）：`sdk/typescript/tests/run.test.ts`、`sdk/typescript/tests/runStreamed.test.ts`、`sdk/typescript/tests/exec.test.ts`、`sdk/typescript/tests/abort.test.ts`，以及夹具 `sdk/typescript/tests/codexExecSpy.ts`、`sdk/typescript/tests/responsesProxy.ts`、`sdk/typescript/tests/setupCodexHome.ts`、`sdk/typescript/tests/testCodex.ts`
 
-`sdk/typescript/tests/responsesProxy.ts` + `sdk/typescript/tests/setupCodexHome.ts` 说明测试是**起一个假的 Responses 代理并搭一个临时 `CODEX_HOME`**，端到端跑真二进制，而不是纯 mock。
+测试是**起一个假的 Responses 代理并搭一个临时 `CODEX_HOME`**，端到端跑真二进制，而不是纯 mock（E3）：
+
+- `sdk/typescript/tests/testCodex.ts:6-9` 决定用哪个二进制——`process.env.CODEX_EXEC_PATH ?? path.join(process.cwd(), "..", "..", "codex-rs", "target", "debug", "codex")`，即默认直接指向工作区里 `cargo build` 出来的 debug 二进制。
+- `sdk/typescript/tests/responsesProxy.ts` 起一个 `node:http` 服务冒充 Responses API，`sdk/typescript/tests/setupCodexHome.ts` 造临时 `CODEX_HOME`。
+
+CI 侧闭环印证了这一点：`.github/workflows/sdk.yml:85-142` 先用 Bazel 构建 `//codex-rs/cli:codex`、把产物 install 到 `.tmp/sdk-ci/codex`、写进 `CODEX_EXEC_PATH` 并跑一次 `--version` 预热，之后才 `pnpm install --frozen-lockfile` → build → lint → test（`:146-156`）。**如果 TS 测试是纯 mock，就不需要先构建一个真二进制。**
 
 ---
 
@@ -251,7 +267,7 @@ index-strategy = "first-index"
 
 | 文件 / 目录 | 职责 | 层 |
 | ---- | ---- | ---- |
-| `__init__.py` | 公开导出面 | 公开 |
+| `sdk/python/src/openai_codex/__init__.py` | 公开导出面 | 公开 |
 | `sdk/python/src/openai_codex/api.py` | 公开 API 的**主体**：`Codex` / `AsyncCodex` / `Thread` / `AsyncThread` / `TurnHandle` / `AsyncTurnHandle`。**注意它不是"全部公开 API"**——见下方勘误 | 公开 |
 | `sdk/python/src/openai_codex/models.py` | 公开数据模型（103 行） | 公开 |
 | `sdk/python/src/openai_codex/types.py` | 公开类型别名（81 行） | 公开 |
@@ -261,10 +277,10 @@ index-strategy = "first-index"
 | **`sdk/python/src/openai_codex/async_client.py`** | **`AsyncCodexClient`：异步对偶** | 传输 |
 | `sdk/python/src/openai_codex/_message_router.py` | 帧路由 | 传输 |
 | `sdk/python/src/openai_codex/retry.py` | 过载重试 | 传输 |
-| `generated/` | **生成的类型**：`sdk/python/src/openai_codex/generated/v2_all.py`（9,454 行 pydantic 模型）、`sdk/python/src/openai_codex/generated/notification_registry.py`、`__init__.py` | 生成 |
+| `generated/` | **生成的类型**：`sdk/python/src/openai_codex/generated/v2_all.py`（9,454 行 pydantic 模型）、`sdk/python/src/openai_codex/generated/notification_registry.py`、`sdk/python/src/openai_codex/generated/__init__.py` | 生成 |
 | `sdk/python/src/openai_codex/_run.py` | turn 结果收集（`TurnResult`） | 内部 |
 | `sdk/python/src/openai_codex/_inputs.py` | 输入构造与 wire 转换 | 内部 |
-| `sdk/python/src/openai_codex/_goal.py` | 目标（对应 `thread/goal/*` 协议方法） | 内部 |
+| `sdk/python/src/openai_codex/_goal.py` | **goal 生命周期状态机与通知路由**（448 行，包内第三大文件）：`observe()`（`:55`）、`activate_turn_routing()`（`:89`）、`wait_for_start()`（`:94`）、`begin_interrupt()`/`confirm_interrupt()`/`cancel_interrupt()`（`:130`/`:137`/`:143`）、`active_turn()`（`:154`），并与 `sdk/python/src/openai_codex/_message_router.py:197` 的 `notification.method.startswith("thread/goal/")` 路由联动。**协议调用本身不在这里**——`thread/goal/clear` / `thread/goal/set` 发在 `sdk/python/src/openai_codex/client.py:496` / `:515` | 内部 |
 | `sdk/python/src/openai_codex/_login.py` | 登录（ChatGPT / device code，同步与异步各一套 handle） | 内部 |
 | `sdk/python/src/openai_codex/_approval_mode.py` | 审批模式（对应 `AskForApproval`） | 内部 |
 | `sdk/python/src/openai_codex/_sandbox.py` | 沙箱（对应 `SandboxPolicy`） | 内部 |
@@ -274,7 +290,7 @@ index-strategy = "first-index"
 **下划线前缀是 Python 的私有约定**——但注意：`sdk/python/src/openai_codex/client.py` / `sdk/python/src/openai_codex/async_client.py` / `sdk/python/src/openai_codex/retry.py` **没有**下划线前缀，却也不是主要面向用户的入口，它们是传输层。
 
 > [!NOTE]
-> **勘误：`sdk/python/src/openai_codex/api.py` 不是"全部公开 API"。** 包的公开面由 `__init__.py:56` 的 `__all__` 定义，共 **36 项**；其中只有 6 项（`Codex` / `AsyncCodex` / `Thread` / `AsyncThread` / `TurnHandle` / `AsyncTurnHandle`）定义在 `sdk/python/src/openai_codex/api.py`，其余分散在 `sdk/python/src/openai_codex/errors.py`（11 项，异常层级与 `is_retryable_error`）、`sdk/python/src/openai_codex/_inputs.py`（8 项）、`sdk/python/src/openai_codex/_login.py`（4 项）、`sdk/python/src/openai_codex/client.py`（`CodexConfig`）、`sdk/python/src/openai_codex/retry.py`（`retry_on_overload`）、`sdk/python/src/openai_codex/_run.py`（`TurnResult`）、`sdk/python/src/openai_codex/_approval_mode.py`、`sdk/python/src/openai_codex/_sandbox.py`、`sdk/python/src/openai_codex/_version.py`。
+> **勘误：`sdk/python/src/openai_codex/api.py` 不是"全部公开 API"。** 包的公开面由 `sdk/python/src/openai_codex/__init__.py:56` 的 `__all__` 定义，共 **36 项**；其中只有 6 项（`Codex` / `AsyncCodex` / `Thread` / `AsyncThread` / `TurnHandle` / `AsyncTurnHandle`）定义在 `sdk/python/src/openai_codex/api.py`，其余分散在 `sdk/python/src/openai_codex/errors.py`（**12 项** = 11 个异常类 + `is_retryable_error`）、`sdk/python/src/openai_codex/_inputs.py`（8 项）、`sdk/python/src/openai_codex/_login.py`（4 项）、`sdk/python/src/openai_codex/client.py`（`CodexConfig`）、`sdk/python/src/openai_codex/retry.py`（`retry_on_overload`）、`sdk/python/src/openai_codex/_run.py`（`TurnResult`）、`sdk/python/src/openai_codex/_approval_mode.py`、`sdk/python/src/openai_codex/_sandbox.py`、`sdk/python/src/openai_codex/_version.py`。
 >
 > 复核方式：读 `sdk/python/src/openai_codex/__init__.py` 的 `__all__`，再对每个名字在包内 grep 其 `class` / `def` / 赋值定义位置。
 
@@ -288,7 +304,9 @@ index-strategy = "first-index"
 | **公开 API**（都在 `sdk/python/src/openai_codex/api.py`） | `Codex`（`:75`）、`Thread`（`:534`）、`TurnHandle`（`:718`） | `AsyncCodex`（`:287`）、`AsyncThread`（`:622`）、`AsyncTurnHandle`（`:763`） |
 | **传输客户端** | `sdk/python/src/openai_codex/client.py:212` `CodexClient` | `sdk/python/src/openai_codex/async_client.py:52` `AsyncCodexClient` |
 
-`sdk/python/src/openai_codex/api.py:41-42` 直接 import 了两者，并在 `Codex.__init__`（`:83`）里 `self._client = CodexClient(config=config)`、在 `AsyncCodex.__init__`（`:296`）里 `self._client = AsyncCodexClient(config=config)`。**公开层是薄的，传输层才是重的。**
+`sdk/python/src/openai_codex/api.py:41-42` 直接 import 了两者，并在 `Codex.__init__`（`:83`）里 `self._client = CodexClient(config=config)`、在 `AsyncCodex.__init__`（`:296`）里 `self._client = AsyncCodexClient(config=config)`。
+
+体量上，**传输层合计约为公开层的两倍**：`sdk/python/src/openai_codex/client.py` 864 行 + `sdk/python/src/openai_codex/async_client.py` 378 行 + `sdk/python/src/openai_codex/_message_router.py` 278 行 = **1,520 行**，而公开层 `sdk/python/src/openai_codex/api.py` 是 **807 行**。不过要注意 `sdk/python/src/openai_codex/api.py` 仍是包内**单文件最大者**，且其中相当一部分是生成出来的扁平方法（见 §5），并非全部手写的胶水代码——所以这里说的是「传输层承担了更多真实复杂度」，不是「公开层没有代码量」。
 
 ---
 
@@ -308,7 +326,7 @@ index-strategy = "first-index"
   # Auto-generated by scripts/update_sdk_artifacts.py
   # DO NOT EDIT MANUALLY.
   ```
-- 生成器版本被**精确锁定**：`pyproject.toml` 的 `test` 依赖组里 `datamodel-code-generator==0.31.2`（`uv.lock` 同步锁定）。生成器版本漂移会导致产物漂移，所以必须锁死。
+- 生成器版本被**精确锁定**：`sdk/python/pyproject.toml` 的 `test` 依赖组里 `datamodel-code-generator==0.31.2`（`sdk/python/uv.lock:96-98` 同步锁定）。生成器版本漂移会导致产物漂移，所以必须锁死。
 - `[tool.ruff] extend-exclude` 里排除了 `src/openai_codex/generated/**`——生成物不受 lint 约束。
 
 ### 5.2 链路：输入不是仓库里的 schema 文件，而是**被锁定的运行时二进制**
@@ -365,7 +383,7 @@ env.pop("CODEX_EXEC_PATH", None)  # 注释明说：不用 checkout 或 CI 环境
 
 ### 5.3 谁在跑这个脚本，以及跑的是哪个子命令
 
-`sdk/python/scripts/update_sdk_artifacts.py` 确实在四个工作流里被调用（E1，`grep -rln`），但**子命令不同，后果完全不同**（E3，`:1435-1450` 的 `run_command`）：
+`sdk/python/scripts/update_sdk_artifacts.py` 确实在四个工作流里被调用（E2——计的是 YAML 文件**内容**匹配，不是目录/文件名清点），但**子命令不同，后果完全不同**（E3，`:1435-1450` 的 `run_command`）：
 
 | 子命令 | 是否调用 `ops.generate_types()` |
 | ---- | ---- |
@@ -416,7 +434,7 @@ env.pop("CODEX_EXEC_PATH", None)  # 注释明说：不用 checkout 或 CI 环境
 
 > **两个最重要的差异**：
 > 1. **传输通道不同**——这决定了「改哪一层会影响哪个 SDK」。
-> 2. **类型策略不同**——Python 侧有生成器 + 漂移测试兜底；TS 侧靠人工与注释，**改 `codex-rs/exec/src/exec_events.rs` 时没有任何机器保障会提醒你去同步 `sdk/typescript/src/events.ts`**。这是一个真实的风险点。
+> 2. **类型策略不同**——Python 侧有生成器 + 漂移测试兜底；TS 侧靠人工与注释，**改 `codex-rs/exec/src/exec_events.rs` 时没有任何「类型级」的机器保障会提醒你去同步 `sdk/typescript/src/events.ts`**（TS 侧既无生成器也无漂移测试）。唯一的间接兜底是 §3.4 那套端到端 jest：它跑的是真二进制，所以事件形状不兼容**可能**让 `sdk/typescript/tests/run.test.ts` / `sdk/typescript/tests/runStreamed.test.ts` 失败——但那是运行时症状，不是类型检查，纯新增字段之类的漂移照样静默通过。这仍是一个真实的风险点。
 
 ---
 
@@ -424,11 +442,42 @@ env.pop("CODEX_EXEC_PATH", None)  # 注释明说：不用 checkout 或 CI 环境
 
 | 工作流 | 用途 |
 | ---- | ---- |
-| `.github/workflows/sdk.yml` | SDK 通用 CI |
+| `.github/workflows/sdk.yml` | SDK 通用 CI，两套 SDK 各一条流水线（详见下方） |
 | `.github/workflows/python-sdk-release.yml` | Python SDK 发布；`update_sdk_artifacts.py stage-sdk` —— **唯一会重新生成 SDK 类型的工作流** |
 | `.github/workflows/python-runtime-build.yml` | `openai-codex-cli-bin` 构建；`update_sdk_artifacts.py stage-runtime`（不生成类型） |
 | `.github/workflows/python-runtime-release.yml` | `openai-codex-cli-bin` 发布 |
-| `.github/workflows/rust-release.yml` / `.github/workflows/rust-release-windows.yml` | Rust 发布；同样只调 `stage-runtime`，**不重跑类型生成**（见 §5.3 的 CAUTION） |
+| `.github/workflows/rust-release.yml` / `.github/workflows/rust-release-windows.yml` | Rust 发布；对 `sdk/python/scripts/update_sdk_artifacts.py` 同样只调 `stage-runtime`，**不重跑类型生成**（见 §5.3 的 CAUTION）。**但 `.github/workflows/rust-release.yml` 另外还发布 TS SDK 的 npm 包**——见 §7.2 |
+
+### 7.1 `.github/workflows/sdk.yml` 实际跑了什么（E2）
+
+- **Python SDK**（`.github/workflows/sdk.yml:36-39`）：在 `python:3.12-slim` 容器里 `uv sync --group dev --frozen` → `ruff check` → `ruff format --check` → `pytest`。第一步就必须联网拉依赖（含 `openai-codex-cli-bin` wheel），这正是本文顶部「本地拿不到 E4」的原因。
+- **TypeScript SDK**（`.github/workflows/sdk.yml:85-156`）：先用 Bazel 构建 `//codex-rs/cli:codex`、把二进制 install 到 `.tmp/sdk-ci/codex` 并写入 `CODEX_EXEC_PATH`、跑 `--version` 预热，然后 `pnpm install --frozen-lockfile` → `run build` → `run lint` → `run test`。
+
+### 7.2 `.github/workflows/rust-release.yml` 也发布 `@openai/codex-sdk`（E2）
+
+**§7 的表格容易让人以为 Rust 发布流程与 TS SDK 无关——不对。** 它与 `sdk/python/scripts/update_sdk_artifacts.py` 的关系确实只有 `stage-runtime`，但它在另一条支线上打包并发布 TypeScript SDK 的 npm tarball：
+
+- `.github/workflows/rust-release.yml:1333-1339`：
+  ```bash
+  ./scripts/stage_npm_packages.py \
+    --release-version "$RELEASE_VERSION" \
+    ... \
+    --package codex \
+    --package codex-responses-api-proxy \
+    --package codex-sdk
+  ```
+- 随后 `:1440` 把 `codex-sdk-npm-${version}.tgz` 一并从 release 下载，`:1462`、`:1527` 走 npm 发布与打 tag。
+
+所以准确的分工是：**TS SDK 的 npm 发布挂在 Rust 发布流程上（与 CLI 同版本同批次），Python SDK 的发布走自己的 `.github/workflows/python-sdk-release.yml`。** 这也解释了为什么 TS SDK 不用锁二进制版本——它和 `@openai/codex` 本来就是同一次发布出去的。
+
+**版本号替换机制**（E3，本次把 §9 的这条 E1 未知项结掉）：
+
+| 侧 | 替换者 |
+| ---- | ---- |
+| TypeScript | `scripts/stage_npm_packages.py` 的 `--release-version` 参数（由 `.github/workflows/rust-release.yml:1333-1339` 传入） |
+| Python | `sdk/python/scripts/update_sdk_artifacts.py:213-225` 的 `stage_python_sdk_package()`，内部先 `normalize_codex_version(sdk_version)` 再 `_rewrite_project_version(pyproject_text, package_version)` 改写 staging 目录里那份 `sdk/python/pyproject.toml` 的副本 |
+
+两侧都是**在 staging 副本上改写**，仓库工作区里的 `0.0.0-dev` 始终不动。
 
 见 [`build_and_release.md`](./build_and_release.md) §4。
 
@@ -444,10 +493,10 @@ env.pop("CODEX_EXEC_PATH", None)  # 注释明说：不用 checkout 或 CI 环境
 | **先确认你改的是哪条通道**：exec 事件流影响 TS SDK，app-server 协议影响 Python SDK | §2 |
 | 改 `codex-rs/exec/src/exec_events.rs` 或 `codex exec` 的 CLI 标志 → **手工同步** `sdk/typescript/src/events.ts` / `sdk/typescript/src/items.ts` / `sdk/typescript/src/exec.ts` | 无生成器、无漂移测试，只有 `sdk/typescript/src/events.ts:1` 的一行注释 |
 | 改 app-server v2 schema **不会**让 `sdk/python/tests/test_contract_generation.py` 变红（它比对的是被 pin 的运行时 wheel）。Python SDK 类型的更新时机是**运行时 pin 升版**，届时跑 `update_sdk_artifacts.py generate-types` | §5.2 / §5.3 |
-| 不要手改 `sdk/python/src/openai_codex/generated/**`，也不要随手改 `sdk/python/src/openai_codex/api.py` | 两者都是 `GENERATED_TARGETS` |
-| 升 `datamodel-code-generator` 版本会改变生成产物，必须连带重生成并核对 diff | `pyproject.toml` 锁 `==0.31.2` |
+| 不要手改 `sdk/python/src/openai_codex/generated/**`，也不要随手改 `sdk/python/src/openai_codex/api.py` | 两者都在 `sdk/python/tests/test_contract_generation.py:10-14` 的 `GENERATED_TARGETS` 里 |
+| 升 `datamodel-code-generator` 版本会改变生成产物，必须连带重生成并核对 diff | `sdk/python/pyproject.toml` 锁 `==0.31.2` |
 | 换捆绑二进制版本时，`==` 版本号与 `exclude-newer-package` 时间戳**要一起改** | `sdk/python/pyproject.toml` `[tool.uv]` / `[tool.uv.pip]` |
-| Python 侧的最低版本以最近的 `pyproject.toml` 的 `requires-python` 为准；**不要用 `__future__` 做 Python 2 兼容** | `AGENTS.md` `## Python Development Best Practices` → `### Ignore Python 2 compatibility` |
+| Python 侧的最低版本以最近的 `pyproject.toml` 的 `requires-python` 为准；**不要用 `__future__` 做 Python 2 兼容** | `AGENTS.md` `## Python Development Best Practices` → `### Ignore Python 2 compatibility` <!-- ref-exempt: 原文 "check the closest pyproject.toml's requires-python field"，「最近的」是泛指，不绑定单一文件 --> |
 | 三套包必须同时支持 Linux / macOS / Windows | AGENTS.md `## Platform Support` |
 | 格式化走 `just fmt`（覆盖 Python SDK 代码）；Python 侧另有 ruff（`required-version = ">=0.15.8"`，`line-length = 100`，`target-version = "py310"`） | 仓库根 `justfile`、`sdk/python/pyproject.toml` |
 
@@ -460,8 +509,7 @@ env.pop("CODEX_EXEC_PATH", None)  # 注释明说：不用 checkout 或 CI 环境
 | 两套 SDK 的公开 API 逐个签名 | E1（仅类名与文件清单） | `sdk/typescript/src/index.ts`、`sdk/python/src/openai_codex/api.py` |
 | `codex exec --experimental-json` 事件流的完整事件表 | E1 | `codex-rs/exec/src/exec_events.rs` |
 | `sdk/python/scripts/update_sdk_artifacts.py` 对 schema 的预处理规则（它有大量 normalize 逻辑，如 `:351`、`:558`） | E1 | 该脚本 |
-| SDK 测试的实际通过情况 | **E2 上限**（本机 Python 3.9.6，跑不了） | `.github/workflows/sdk.yml` 工作流 |
-| 版本号在发布时的替换机制 | E1（只确认了 `release_version.normalize_codex_version` 的存在） | `sdk/python/release_version.py`、`.github/workflows/python-sdk-release.yml`、`.github/workflows/sdk.yml` |
+| SDK 测试的实际通过情况 | **E2/E3 上限**（缺 `pytest` / `pydantic` / `openai-codex-cli-bin` 依赖，需 `uv sync --group dev` 联网；见本文顶部 WARNING） | `.github/workflows/sdk.yml` 工作流（见 §7.1） |
 
 ---
 
