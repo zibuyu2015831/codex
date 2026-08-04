@@ -81,8 +81,8 @@ codex-rs/app-server-protocol/src/
 **关键观察**：
 
 - **v1 是单个文件，v2 是 28 个模块的目录** —— v2 是当前主力版本，v1 处于维持状态
-- `mappers.rs` 的存在说明**两版之间有显式映射**，而非各自独立
-- `thread_history_projection.rs` 说明线程历史对外暴露的是**投影**而非原始结构
+- `codex-rs/app-server-protocol/src/protocol/mappers.rs` 的存在说明**两版之间有显式映射**，而非各自独立
+- `codex-rs/app-server-protocol/src/protocol/thread_history_projection.rs` 说明线程历史对外暴露的是**投影**而非原始结构
 
 ### 「它不是真正的 JSON-RPC 2.0」
 
@@ -98,10 +98,10 @@ codex-rs/app-server-protocol/src/
 ## 3. 方法注册表在哪里（E3）
 
 > [!IMPORTANT]
-> **协议方法的权威清单不在 `protocol/v2/` 下，而在 `protocol/common.rs` 的四个宏调用里。**
+> **协议方法的权威清单不在 `protocol/v2/` 下，而在 `codex-rs/app-server-protocol/src/protocol/common.rs` 的四个宏调用里。**
 > 第一版把 `common.rs` 只标成「版本共用类型」，导致读者无从下手找方法表。
 
-| 宏调用 | 位置（`protocol/common.rs`） | 生成 | 条目数 |
+| 宏调用 | 位置（`codex-rs/app-server-protocol/src/protocol/common.rs`） | 生成 | 条目数 |
 | ---- | ---- | ---- | ---: |
 | `client_request_definitions!` | `:474-1259` | `enum ClientRequest` | 136 |
 | `server_request_definitions!` | `:1529-1600` | `enum ServerRequest` | 9 |
@@ -237,16 +237,16 @@ error        warning         configWarning            guardianWarning   deprecat
 
 ## 5. v2 模块版图（E1）
 
-`protocol/v2/` 下共 31 个 `.rs` 文件，其中 **28 个是非测试模块**（`mod.rs` 的 `mod shared;` + 27 条 `mod ...;`，对应 28 条 `pub use`；另有 `tests.rs`、`remote_control_tests.rs` 与 `mod.rs` 本身）：
+`protocol/v2/` 下共 31 个 `.rs` 文件，其中 **28 个是非测试模块**（`mod.rs` 的 `mod shared;` + 27 条 `mod ...;`，对应 28 条 `pub use`；另有 `tests.rs`、`codex-rs/app-server-protocol/src/protocol/v2/remote_control_tests.rs` 与 `mod.rs` 本身）：
 
 | 领域 | 模块 |
 | ---- | ---- |
-| 会话 | `thread.rs`、`thread_data.rs`、`turn.rs`、`item.rs`、`review.rs` |
+| 会话 | `thread.rs`、`codex-rs/app-server-protocol/src/protocol/v2/thread_data.rs`、`turn.rs`、`codex-rs/app-server-protocol/src/protocol/v2/item.rs`、`review.rs` |
 | 账号与权限 | `account.rs`、`permissions.rs`、`attestation.rs` |
 | 执行与沙箱 | `command_exec.rs`、`process.rs`、`environment.rs`、`windows_sandbox.rs` |
-| 扩展生态 | `plugin.rs`、`plugin_search.rs`、`apps.rs`、`mcp.rs`、`hook.rs` |
-| 配置与能力 | `config.rs`、`model.rs`、`experimental_feature.rs`、`collaboration_mode.rs` |
-| 系统 | `fs.rs`、`notification.rs`、`realtime.rs`、`current_time.rs`、`feedback.rs` |
+| 扩展生态 | `plugin.rs`、`plugin_search.rs`、`codex-rs/app-server-protocol/src/protocol/v2/apps.rs`、`mcp.rs`、`codex-rs/app-server-protocol/src/protocol/v2/hook.rs` |
+| 配置与能力 | `config.rs`、`model.rs`、`codex-rs/app-server-protocol/src/protocol/v2/experimental_feature.rs`、`collaboration_mode.rs` |
+| 系统 | `fs.rs`、`codex-rs/app-server-protocol/src/protocol/v2/notification.rs`、`realtime.rs`、`current_time.rs`、`codex-rs/app-server-protocol/src/protocol/v2/feedback.rs` |
 | 实验性 | `remote_control.rs` |
 | 共用 | `shared.rs` |
 
@@ -255,12 +255,12 @@ error        warning         configWarning            guardianWarning   deprecat
 
 ### 两个 `SandboxPolicy` 不是重复定义（E3）
 
-`v2/permissions.rs:529` 有一份 `SandboxPolicy`，`codex-protocol/src/protocol.rs:1004` 有一份同名类型。
+`codex-rs/app-server-protocol/src/protocol/v2/permissions.rs:529` 有一份 `SandboxPolicy`，`codex-protocol/src/protocol.rs:1004` 有一份同名类型。
 
 > [!NOTE]
-> **勘误**：第一版把两者关系标成「未验证（E1），可能是重复定义」，并让读者去查 `protocol/mappers.rs`——但 `mappers.rs` 里 `SandboxPolicy` 出现 **0 次**，那是个死胡同。
+> **勘误**：第一版把两者关系标成「未验证（E1），可能是重复定义」，并让读者去查 `codex-rs/app-server-protocol/src/protocol/mappers.rs`——但 `codex-rs/app-server-protocol/src/protocol/mappers.rs` 里 `SandboxPolicy` 出现 **0 次**，那是个死胡同。
 
-真实关系（`v2/permissions.rs:639-640`）：
+真实关系（`codex-rs/app-server-protocol/src/protocol/v2/permissions.rs:639-640`）：
 
 ```rust
 impl SandboxPolicy {
@@ -273,7 +273,7 @@ impl SandboxPolicy {
 - `to_core()` 做 wire→core 转换（`NetworkAccess` 也在此处映射到 `CoreNetworkAccess`）。
 
 > [!NOTE]
-> **勘误：转换不是单向的。** 上一稿称 `to_core()` 是"单向的 wire→core 转换点"。同一个文件里还有反向实现（`v2/permissions.rs:673-674`）：
+> **勘误：转换不是单向的。** 上一稿称 `to_core()` 是"单向的 wire→core 转换点"。同一个文件里还有反向实现（`codex-rs/app-server-protocol/src/protocol/v2/permissions.rs:673-674`）：
 >
 > ```rust
 > impl From<codex_protocol::protocol::SandboxPolicy> for SandboxPolicy {
@@ -293,9 +293,9 @@ impl SandboxPolicy {
 
 | 环节 | 文件 / 命令 |
 | ---- | ---- |
-| 导出入口 | `src/export.rs` |
-| 预计算导出 | `src/precomputed_exports.rs`（+ 测试） |
-| schema 夹具 | `src/schema_fixtures.rs`（+ 测试） |
+| 导出入口 | `codex-rs/app-server-protocol/src/export.rs` |
+| 预计算导出 | `codex-rs/app-server-protocol/src/precomputed_exports.rs`（+ 测试） |
+| schema 夹具 | `codex-rs/app-server-protocol/src/schema_fixtures.rs`（+ 测试） |
 | **真实再生成入口** | `codex-rs/app-server-protocol/scripts/write_schema_fixtures.py` |
 | 验证命令 | `just test -p codex-app-server-protocol` |
 
@@ -313,7 +313,7 @@ impl SandboxPolicy {
 >
 > `AGENTS.md` 的 `### Development Workflow` 小节仍然写着 `just write-app-server-schema`（以及 `--experimental` 变体），同样已经陈旧。
 >
-> **实际能用的入口是 Python 脚本** `app-server-protocol/scripts/write_schema_fixtures.py`：它设置 `CODEX_APP_SERVER_SCHEMA_ROOT`（以及 `CODEX_APP_SERVER_SCHEMA_EXPERIMENTAL`、可选的 `CODEX_APP_SERVER_SCHEMA_PRETTIER`）后运行
+> **实际能用的入口是 Python 脚本** `codex-rs/app-server-protocol/scripts/write_schema_fixtures.py`：它设置 `CODEX_APP_SERVER_SCHEMA_ROOT`（以及 `CODEX_APP_SERVER_SCHEMA_EXPERIMENTAL`、可选的 `CODEX_APP_SERVER_SCHEMA_PRETTIER`）后运行
 >
 > ```
 > cargo test -p codex-app-server-protocol --lib \
@@ -325,14 +325,14 @@ impl SandboxPolicy {
 > [!WARNING]
 > **勘误**：第一版把 `just write-app-server-schema` 写进 §0 的强制流程当作必做步骤，却没有验证它是否可执行。改协议前请先确认当前 justfile 是否已修好；没修好就直接跑上面的 Python 脚本。
 
-**`schema_fixtures_tests.rs` 与 `precomputed_exports_tests.rs` 的存在意味着**：如果你改了 Rust 类型却没重新生成夹具，**测试会失败**。这是防漂移的机器保障，不要试图绕过。
+**`codex-rs/app-server-protocol/src/schema_fixtures_tests.rs` 与 `codex-rs/app-server-protocol/src/precomputed_exports_tests.rs` 的存在意味着**：如果你改了 Rust 类型却没重新生成夹具，**测试会失败**。这是防漂移的机器保障，不要试图绕过。
 
 ### schema 产物的三个目录（E1）
 
 | 目录 | 文件数 | 内容 |
 | ---- | ---: | ---- |
 | `schema/typescript/` | 642（其中 `v2/` 550） | ts-rs 导出的 `.ts` 类型 |
-| `schema/json/` | 285（递归） | JSON Schema。含两个巨型汇总文件：`codex_app_server_protocol.schemas.json`（22,635 行，全仓最大文件）与 `codex_app_server_protocol.v2.schemas.json`（20,393 行），以及 `ClientRequest.json`、`ServerNotification.json` 等按类型拆分的文件 |
+| `schema/json/` | 285（递归） | JSON Schema。含两个巨型汇总文件：`codex-rs/app-server-protocol/schema/json/codex_app_server_protocol.schemas.json`（22,635 行，全仓最大文件）与 `codex-rs/app-server-protocol/schema/json/codex_app_server_protocol.v2.schemas.json`（20,393 行），以及 `codex-rs/app-server-protocol/schema/json/ClientRequest.json`、`codex-rs/app-server-protocol/schema/json/ServerNotification.json` 等按类型拆分的文件 |
 
 > **口径说明**：285 是**递归计数**，包含 `v1/` 与 `v2/` 两个子目录里的文件。只看顶层是 39 项：
 >
@@ -344,7 +344,7 @@ impl SandboxPolicy {
 > 两个数字都对，但**必须写明是哪一种**——否则读者按 `ls` 复核会以为差了一个数量级。
 | `schema/precomputed/` | 2 | 预计算导出 |
 
-> `codex_app_server_protocol.v2.schemas.json` 同时是 **Python SDK 类型生成的输入**，见 [`sdk_guide.md`](./sdk_guide.md) §5。
+> `codex-rs/app-server-protocol/schema/json/codex_app_server_protocol.v2.schemas.json` 同时是 **Python SDK 类型生成的输入**，见 [`sdk_guide.md`](./sdk_guide.md) §5。
 
 ### 其他相关生成命令
 
@@ -352,7 +352,7 @@ impl SandboxPolicy {
 | ---- | ---- |
 | `just write-config-schema` | `codex-rs/core/config.schema.json` |
 | `just write-hooks-schema` | hooks schema fixtures |
-| `codex app-server generate-ts` | TS 类型（CLI 路径，`cli/src/main.rs:1223`） |
+| `codex app-server generate-ts` | TS 类型（CLI 路径，`codex-rs/cli/src/main.rs:1223`） |
 | `codex app-server generate-json-schema` | JSON Schema（`main.rs:1234`） |
 | `codex app-server generate-internal-json-schema` | 内部 JSON Schema（`main.rs:1240`） |
 
@@ -402,7 +402,7 @@ impl SandboxPolicy {
 just app-server-test-client    # 构建 CLI 并连上测试客户端
 ```
 
-服务端的集成测试在 `codex-rs/app-server/tests/suite/v2/`，其中 `plugin_list.rs` 有 5,478 行。
+服务端的集成测试在 `codex-rs/app-server/tests/suite/v2/`，其中 `codex-rs/app-server/tests/suite/v2/plugin_list.rs` 有 5,478 行。
 
 ---
 
@@ -429,7 +429,7 @@ just app-server-test-client    # 构建 CLI 并连上测试客户端
 | 新 API 一律做在 v2，不得扩大 v1 表面积 | `## App-server API Development Best Practices` → `### Core Rules`，关键词 `Do not add new API surface area to v1` |
 | v2 类型必须标注 `#[ts(export_to = "v2/")]` | 同上，关键词 `Always set #[ts(export_to = "v2/")]` |
 | API 形状变更后必须重新生成夹具并验证 | `### Development Workflow`，关键词 `Regenerate schema fixtures` / `just test -p codex-app-server-protocol`；**但生成命令本身已陈旧，见 §6** |
-| 至少要同步更新 `app-server/README.md` | `### Development Workflow`，关键词 `Update app-server docs/examples` |
+| 至少要同步更新 `codex-rs/app-server/README.md` | `### Development Workflow`，关键词 `Update app-server docs/examples` |
 | **例外**：app-server API 文档**可以**放进 `docs/` | `AGENTS.md` 顶部规则列表，关键词 `Do not add general product or user-facing documentation to the docs/ folder` 那一条的后半句 |
 | 别为「某个字段是否带实验标记」写样板测试 | `### Development Workflow`，关键词 `Avoid boilerplate tests that only assert experimental field markers` |
 
@@ -445,8 +445,8 @@ just app-server-test-client    # 构建 CLI 并连上测试客户端
 
 | 未覆盖项 | 当前证据 | 建议入口 |
 | ---- | ---- | ---- |
-| 217 个方法的逐个签名与语义 | E3（仅方法名） | `protocol/common.rs` 的四个宏 + `protocol/v2/` 各模块 |
-| v1 与 v2 的映射规则 | E1 | `protocol/mappers.rs`、`protocol/event_mapping.rs` |
+| 217 个方法的逐个签名与语义 | E3（仅方法名） | `codex-rs/app-server-protocol/src/protocol/common.rs` 的四个宏 + `protocol/v2/` 各模块 |
+| v1 与 v2 的映射规则 | E1 | `codex-rs/app-server-protocol/src/protocol/mappers.rs`、`codex-rs/app-server-protocol/src/protocol/event_mapping.rs` |
 | JSON-RPC 载体的完整帧格式与错误码 | E1（只确认了「非标准 2.0」） | `src/rpc.rs` |
 | 服务端请求处理器结构 | E1 | `codex-rs/app-server/src/request_processors/` |
 | 游标分页在既有 list 方法上的落实程度 | E1 | 各 `*ListParams` / `*ListResponse` |
@@ -459,7 +459,7 @@ just app-server-test-client    # 构建 CLI 并连上测试客户端
 
 - [架构总览](./architecture_overview.md) — 协议先行的类型单一事实源
 - [Crate 地图](./crate_map.md) §3.3、§3.5 — 协议与传输 crate
-- [配置体系](./config_system.md) §1 — `ConfigLayerSource` 在 `protocol/v2/config.rs` 的 wire 副本
+- [配置体系](./config_system.md) §1 — `ConfigLayerSource` 在 `codex-rs/app-server-protocol/src/protocol/v2/config.rs` 的 wire 副本
 - [SDK 指南](./sdk_guide.md) — 只有 Python SDK 用本协议；TypeScript SDK 走 `codex exec --experimental-json`
 - [智能体核心循环](./core_agent_loop.md) — 会话与 turn 的内部结构
 - [会话与持久化](./session_and_persistence.md) — thread 的存储侧

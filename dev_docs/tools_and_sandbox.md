@@ -125,16 +125,16 @@ pub enum PermissionProfile {
 >
 > | 类型 | 定义位置 | 角色 |
 > | ---- | ---- | ---- |
-> | `ManagedFileSystemPermissions` | `protocol/src/models.rs:258` | **`PermissionProfile::Managed` 的字段类型**。是个两变体枚举：`Restricted { entries, glob_scan_max_depth }` / `Unrestricted` |
+> | `ManagedFileSystemPermissions` | `codex-rs/protocol/src/models.rs:258` | **`PermissionProfile::Managed` 的字段类型**。是个两变体枚举：`Restricted { entries, glob_scan_max_depth }` / `Unrestricted` |
 > | `FileSystemSandboxPolicy` | `crate::permissions`（在 `models.rs:19` 被 `use` 进来） | **运行时的展开形态**，结构体，带 `kind` / `glob_scan_max_depth` / `entries` |
 >
 > 两者由 `ManagedFileSystemPermissions::to_sandbox_policy()`（`models.rs:288`）与 `::from_sandbox_policy()`（`:273`）互转。
 >
 > 换言之：**`PermissionProfile::Managed` 的字段签名是 `file_system: ManagedFileSystemPermissions, network: NetworkSandboxPolicy`**（`models.rs:320-322`）——只有 `network` 这一维是直接用 `*SandboxPolicy` 类型的，文件系统那一维隔了一层。上面代码块里的枚举定义是对的，是这张表的措辞把它抹平了。
 | `SandboxManager` 的三个主方法都收 `&PermissionProfile`，不收 `SandboxPolicy` | `transform` / `select_initial` / `should_sandbox`（`manager.rs:272-311`） |
-| `SandboxPolicy` 退化为**线上/兼容层类型** | `sandboxing/src/lib.rs:27` 导出 `compatibility_sandbox_policy_for_permission_profile`，被 `core/src/config/mod.rs:479`、`core/src/codex_thread.rs:139` 调用 |
+| `SandboxPolicy` 退化为**线上/兼容层类型** | `codex-rs/sandboxing/src/lib.rs:27` 导出 `compatibility_sandbox_policy_for_permission_profile`，被 `codex-rs/core/src/config/mod.rs:479`、`codex-rs/core/src/codex_thread.rs:139` 调用 |
 
-### 策略的合成：`sandboxing/src/policy_transforms.rs`
+### 策略的合成：`codex-rs/sandboxing/src/policy_transforms.rs`
 
 这个模块负责把多来源的权限声明合成为一个 profile，公开函数（E3）：
 
@@ -148,7 +148,7 @@ pub enum PermissionProfile {
 | `effective_permission_profile` | `:507` | 求有效 profile |
 | `should_require_platform_sandbox` | `:523` | `Auto` 偏好下是否需要平台沙箱 |
 
-`core/src/tools/handlers/mod.rs:38-40`（上一稿误记为 `:52-54`，那三行其实是 `use crate::sandboxing::SandboxPermissions;` 等）同时导入了 `intersect_permission_profiles`、`merge_permission_profiles`、`normalize_additional_permissions`——说明工具侧的「附加权限」请求既有放宽也有收紧路径。
+`codex-rs/core/src/tools/handlers/mod.rs:38-40`（上一稿误记为 `:52-54`，那三行其实是 `use crate::sandboxing::SandboxPermissions;` 等）同时导入了 `intersect_permission_profiles`、`merge_permission_profiles`、`normalize_additional_permissions`——说明工具侧的「附加权限」请求既有放宽也有收紧路径。
 
 `SandboxPolicy` 四个变体的字段语义见 [`core_agent_loop.md`](./core_agent_loop.md) §5.2。
 
@@ -162,9 +162,9 @@ pub enum PermissionProfile {
 
 | 常量 | 文件 |
 | ---- | ---- |
-| `MACOS_SEATBELT_BASE_POLICY` | `seatbelt_base_policy.sbpl` |
-| `MACOS_SEATBELT_NETWORK_POLICY` | `seatbelt_network_policy.sbpl` |
-| （受限只读平台默认） | `restricted_read_only_platform_defaults.sbpl` |
+| `MACOS_SEATBELT_BASE_POLICY` | `codex-rs/sandboxing/src/seatbelt_base_policy.sbpl` |
+| `MACOS_SEATBELT_NETWORK_POLICY` | `codex-rs/sandboxing/src/seatbelt_network_policy.sbpl` |
+| （受限只读平台默认） | `codex-rs/sandboxing/src/restricted_read_only_platform_defaults.sbpl` |
 
 > [!IMPORTANT]
 > 这三份 `.sbpl` 是通过 `include_str!` 在**编译期**读入的。按 AGENTS.md 顶部规则列表（grep `Bazel does not automatically make source-tree files available`），这类编译期文件读取必须在 `BUILD.bazel` 中配置 `compile_data`（或 `build_script_data` / test data），否则 **Cargo 能过而 Bazel 会失败**。改动这些文件或新增同类文件时务必注意。
@@ -203,7 +203,7 @@ pub fn create_seatbelt_command_args(...);
 
 | 机制 | 作用面 | 状态 | 依赖 |
 | ---- | ---- | ---- | ---- |
-| **bubblewrap（bwrap）** | 文件系统隔离（mount namespace） | **默认** | `bwrap.rs` / `bundled_bwrap.rs` / `bazel_bwrap.rs`、`codex-rs/bwrap/` crate |
+| **bubblewrap（bwrap）** | 文件系统隔离（mount namespace） | **默认** | `bwrap.rs` / `codex-rs/linux-sandbox/src/bundled_bwrap.rs` / `codex-rs/linux-sandbox/src/bazel_bwrap.rs`、`codex-rs/bwrap/` crate |
 | **seccomp** | 系统调用过滤（`BpfProgram`、`SeccompAction`） | **默认**，在 bwrap 内层生效 | `seccompiler` |
 | **`no_new_privs`** | 阻止提权 | **默认** | 内核原语 |
 | **Landlock（`AccessFs`、`Ruleset`）** | 文件系统访问控制 | **遗留/备份**，默认不启用 | `landlock` crate（仍在 `Cargo.toml` 中） |
@@ -211,18 +211,18 @@ pub fn create_seatbelt_command_args(...);
 ### 3.1 主/备切换的真正开关（E3）
 
 > [!NOTE]
-> 本文第一版把这条标为「未验证（E1）」并让读者去看 `launcher.rs`——**指错了文件**。`launcher.rs` 只在「系统 bwrap」与「随产品分发的 bwrap」之间选（`preferred_bwrap_launcher()`，`launcher.rs:51`，被 `:37` 与 `:102` 调用），跟 Landlock 毫无关系。
+> 本文第一版把这条标为「未验证（E1）」并让读者去看 `codex-rs/linux-sandbox/src/launcher.rs`——**指错了文件**。`codex-rs/linux-sandbox/src/launcher.rs` 只在「系统 bwrap」与「随产品分发的 bwrap」之间选（`preferred_bwrap_launcher()`，`codex-rs/linux-sandbox/src/launcher.rs:51`，被 `:37` 与 `:102` 调用），跟 Landlock 毫无关系。
 
 真正的开关是 **`use_legacy_landlock`**：
 
 | 层 | 形态 | 位置 |
 | ---- | ---- | ---- |
 | 配置 | `[features].use_legacy_landlock` | `codex-rs/features/src/lib.rs:404`（读取器）、`:1040`（键定义） |
-| CLI | `--use-legacy-landlock`，`hide = true`，`default_value_t = false` | `linux-sandbox/src/linux_run_main.rs:110-111` |
-| 分支 | `if !use_legacy_landlock { ... }` | `linux_run_main.rs:217` |
-| 传递 | `turn_ctx.config.features.use_legacy_landlock()` | `core/src/tools/orchestrator.rs:254` |
+| CLI | `--use-legacy-landlock`，`hide = true`，`default_value_t = false` | `codex-rs/linux-sandbox/src/linux_run_main.rs:110-111` |
+| 分支 | `if !use_legacy_landlock { ... }` | `codex-rs/linux-sandbox/src/linux_run_main.rs:217` |
+| 传递 | `turn_ctx.config.features.use_legacy_landlock()` | `codex-rs/core/src/tools/orchestrator.rs:254` |
 
-`linux_run_main.rs:217-219` 的注释把语义写死了：
+`codex-rs/linux-sandbox/src/linux_run_main.rs:217-219` 的注释把语义写死了：
 
 > "Outer stage: bubblewrap first, then re-enter this binary in the sandboxed environment to apply seccomp. **This path never falls back to legacy Landlock on failure.**"
 
@@ -230,22 +230,22 @@ pub fn create_seatbelt_command_args(...);
 
 > "**Legacy path**: Landlock enforcement only, when bwrap sandboxing is not enabled."
 
-**该开关已被标记废弃**：`features/src/lib.rs` 中它属于 `Stage::Deprecated`，`core/tests/suite/deprecation_notice.rs:104-135` 有专门的断言，期望的提示文案是
+**该开关已被标记废弃**：`codex-rs/features/src/lib.rs` 中它属于 `Stage::Deprecated`，`codex-rs/core/tests/suite/deprecation_notice.rs:104-135` 有专门的断言，期望的提示文案是
 
 ```
 `[features].use_legacy_landlock` is deprecated and will be removed soon.
 ```
 
-另外 `linux_run_main.rs:302-320` 有两条互斥校验：`--apply-seccomp-then-exec` 不能与 `--use-legacy-landlock` 同用；需要「直接运行时强制」的 permission profile 也与 legacy 分支不兼容。
+另外 `codex-rs/linux-sandbox/src/linux_run_main.rs:302-320` 有两条互斥校验：`--apply-seccomp-then-exec` 不能与 `--use-legacy-landlock` 同用；需要「直接运行时强制」的 permission profile 也与 legacy 分支不兼容。
 
 ### 3.2 bwrap 的三个文件与查找逻辑
 
 | 文件 | 说明 |
 | ---- | ---- |
 | `bwrap.rs` | bubblewrap 封装 |
-| `bundled_bwrap.rs` | 随产品分发的 bwrap |
-| `bazel_bwrap.rs` | Bazel 构建下的 bwrap |
-| `launcher.rs` | `preferred_bwrap_launcher()`：**系统 bwrap vs 随产品分发的 bwrap** 二选一 |
+| `codex-rs/linux-sandbox/src/bundled_bwrap.rs` | 随产品分发的 bwrap |
+| `codex-rs/linux-sandbox/src/bazel_bwrap.rs` | Bazel 构建下的 bwrap |
+| `codex-rs/linux-sandbox/src/launcher.rs` | `preferred_bwrap_launcher()`：**系统 bwrap vs 随产品分发的 bwrap** 二选一 |
 
 `sandboxing/src/lib.rs:14,16` 导出了 `find_system_bwrap_in_path` 与 `system_bwrap_warning`，说明**会尝试查找系统 bwrap 并在有问题时给出警告**。仓库内另有独立 crate `codex-rs/bwrap/`（含 `build.rs` 与 `config.h`），即随产品分发的那一份。
 
@@ -263,9 +263,9 @@ pub fn create_seatbelt_command_args(...);
 
 ### 3.4 其他 Linux 特有文件
 
-- `proxy_routing.rs` — 代理路由；`linux_run_main.rs:220-230` 在启用代理时会 `prepare_host_proxy_route_spec()` 并把 socket 目录追加进可读根
+- `codex-rs/linux-sandbox/src/proxy_routing.rs` — 代理路由；`codex-rs/linux-sandbox/src/linux_run_main.rs:220-230` 在启用代理时会 `prepare_host_proxy_route_spec()` 并把 socket 目录追加进可读根
 - `allow_network_for_proxy(enforce_managed_network: bool) -> bool`（在 `sandboxing` crate 中）——网络代理场景下的放行判定
-- `linux_run_main_tests.rs` 对 `use_legacy_landlock` 的 true/false 两条路径都有覆盖（`:611-659`）
+- `codex-rs/linux-sandbox/src/linux_run_main_tests.rs` 对 `use_legacy_landlock` 的 true/false 两条路径都有覆盖（`:611-659`）
 
 ---
 
@@ -292,7 +292,7 @@ pub fn create_seatbelt_command_args(...);
 
 ## 5. 沙箱管理器与执行请求（E3）
 
-`sandboxing/src/manager.rs` 提供的类型：
+`codex-rs/sandboxing/src/manager.rs` 提供的类型：
 
 | 类型 | 位置 | 用途 |
 | ---- | ---- | ---- |
@@ -329,7 +329,7 @@ pub fn create_seatbelt_command_args(...);
 
 ## 6. 违规检测与记录（E3）
 
-`sandboxing/src/violation.rs` 导出了一整套违规记录机制：
+`codex-rs/sandboxing/src/violation.rs` 导出了一整套违规记录机制：
 
 | 类型 / 函数 | 用途 |
 | ---- | ---- |
@@ -341,14 +341,14 @@ pub fn create_seatbelt_command_args(...);
 | `record_filesystem_sandbox_violation` | 文件系统违规记录 |
 | `record_network_sandbox_violation` | 网络违规记录 |
 
-另有 `denial.rs` 的 `is_likely_sandbox_denied`——**启发式判断某次失败是否由沙箱拒绝导致**。这对错误信息的可读性很重要：命令失败时能区分"业务错误"与"被沙箱挡了"。
+另有 `codex-rs/sandboxing/src/denial.rs` 的 `is_likely_sandbox_denied`——**启发式判断某次失败是否由沙箱拒绝导致**。这对错误信息的可读性很重要：命令失败时能区分"业务错误"与"被沙箱挡了"。
 
 ---
 
 ## 7. 策略与审批的关系（E3，次序已确认）
 
 > [!NOTE]
-> 本文第一版把这条次序标为「未验证（E1）、根据类型职责推断」。**其实源码里直接写了。** `core/src/tools/orchestrator.rs:1-8` 的模块头注释：
+> 本文第一版把这条次序标为「未验证（E1）、根据类型职责推断」。**其实源码里直接写了。** `codex-rs/core/src/tools/orchestrator.rs:1-8` 的模块头注释：
 >
 > > "Central place for approvals + sandbox selection + retry semantics. Drives a simple sequence for any ToolRuntime: **approval → select sandbox → attempt → retry with an escalated sandbox strategy on denial (no re-approval thanks to caching)**."
 
@@ -387,13 +387,13 @@ record_*_sandbox_violation 记录（violation.rs）
 
 | 位置 | 内容 |
 | ---- | ---- |
-| `core/src/tools/approvals.rs:133-135` | `enum ApprovalReviewer { Guardian, User }` |
+| `codex-rs/core/src/tools/approvals.rs:133-135` | `enum ApprovalReviewer { Guardian, User }` |
 | `orchestrator.rs:150` | `strict_auto_review_enabled_for_turn().await` 决定用哪个 reviewer |
 | `orchestrator.rs:183`、`:215`、`:412` | **三处** `ApprovalReviewer::Guardian` 的选取（上一稿写作 `:172`、`:214-217`；`:172` 那一行其实是 `ApprovalCtx { turn: &tool_ctx.turn, .. }`，与 reviewer 无关。`:215` 与 `:412` 是同一形状的 `if strict_auto_review { Guardian } else { ApprovalReviewer::for_turn(turn_ctx) }`，分别位于首次审批与权限升级请求两条路径上） |
-| `core/src/tools/approvals.rs:233`、`:264` | 消费侧：`ApprovalReviewer::Guardian` 分支与 `ApprovalResolutionSource::Guardian` 的映射 |
-| `core/src/guardian/` 目录 | `review.rs`、`review_session.rs`、`approval_request.rs`、`prompt.rs`、`metrics.rs`、`policy.md`、`policy_template.md`、`snapshots/`（E1） |
+| `codex-rs/core/src/tools/approvals.rs:233`、`:264` | 消费侧：`ApprovalReviewer::Guardian` 分支与 `ApprovalResolutionSource::Guardian` 的映射 |
+| `core/src/guardian/` 目录 | `review.rs`、`codex-rs/core/src/guardian/review_session.rs`、`codex-rs/core/src/guardian/approval_request.rs`、`prompt.rs`、`metrics.rs`、`codex-rs/core/src/guardian/policy.md`、`codex-rs/core/src/guardian/policy_template.md`、`snapshots/`（E1） |
 
-`guardian/mod.rs:31-37` 导出 `GuardianReviewOptions`、`review_approval_request`、`guardian_timeout_message`、`new_guardian_review_id` 等——**有超时消息**这一点与 `ReviewDecision::TimedOut` 变体对应（见 [`core_agent_loop.md`](./core_agent_loop.md) §5.3）。
+`codex-rs/core/src/guardian/mod.rs:31-37` 导出 `GuardianReviewOptions`、`review_approval_request`、`guardian_timeout_message`、`new_guardian_review_id` 等——**有超时消息**这一点与 `ReviewDecision::TimedOut` 变体对应（见 [`core_agent_loop.md`](./core_agent_loop.md) §5.3）。
 
 `SandboxPolicy` 的四个变体与字段语义见 [`core_agent_loop.md`](./core_agent_loop.md) §5.2；运行时的 `PermissionProfile` 见本文 §1.5。
 
@@ -423,7 +423,7 @@ record_*_sandbox_violation 记录（violation.rs）
 >
 > 需要注意的是，**上游源码注释里也还留着这个过时名字**——`codex-rs/protocol/src/protocol.rs:919`（`AskForApproval::UnlessTrusted` 的文档注释）与 `codex-rs/core/src/tools/runtimes/shell/unix_escalation.rs:362` 都写作 `is_safe_command()`。所以按这个名字 grep 会命中注释而找不到定义，容易误以为函数被删了。
 
-`core/src/` 侧的对应文件：`exec.rs`、`exec_env.rs`、`exec_policy.rs`、`exec_policy_windows_tests.rs`（Windows 有独立测试文件，说明平台差异显著）。
+`core/src/` 侧的对应文件：`exec.rs`、`codex-rs/core/src/exec_env.rs`、`exec_policy.rs`、`codex-rs/core/src/exec_policy_windows_tests.rs`（Windows 有独立测试文件，说明平台差异显著）。
 
 ---
 
@@ -449,7 +449,7 @@ record_*_sandbox_violation 记录（violation.rs）
 | Windows 两条后端路径的切换条件 | E1 | `codex-rs/windows-sandbox-rs/`（19,173 行） |
 | `is_known_safe_command()` 的完整判定规则 | E1 | `codex-rs/shell-command/src/command_safety/` |
 | execpolicy 的策略语言与规则格式 | E1 | `codex-rs/execpolicy/` |
-| `policy_transforms.rs` 中 merge/intersect 的具体合成规则 | E1 | `codex-rs/sandboxing/src/policy_transforms.rs` |
+| `codex-rs/sandboxing/src/policy_transforms.rs` 中 merge/intersect 的具体合成规则 | E1 | `codex-rs/sandboxing/src/policy_transforms.rs` |
 | Guardian 评审的提示词与判定策略 | E1 | `codex-rs/core/src/guardian/policy.md`、`prompt.rs` |
 | exec-server 协议的完整方法面 | E1 | `codex-rs/exec-server-protocol/src/` |
 | MITM CA 与网络代理的完整链路 | E1 | `codex-rs/network-proxy/`（17,064 行） |

@@ -28,30 +28,30 @@ verified_at: 2026-08-03
 
 | 子系统 | 位置 | 说明 |
 | ---- | ---- | ---- |
-| **提交循环** | `session/handlers.rs`、`session/mod.rs` | `submission_loop`：消费 `Submission`、按 `Op` 分派，见 §2.1 |
+| **提交循环** | `codex-rs/core/src/session/handlers.rs`、`codex-rs/core/src/session/mod.rs` | `submission_loop`：消费 `Submission`、按 `Op` 分派，见 §2.1 |
 | **任务层** | `tasks/` | `SessionTask` 抽象与 4 种实现（regular / compact / review / user_shell），见 §2.2 |
 | **会话与 turn** | `session/`（29 个文件 + `snapshots/`、`tests/`） | 会话生命周期、turn 组织、上下文窗口、token 预算 |
-| **线程编排** | `thread_manager.rs`、`codex_thread.rs` | 线程管理与线程实例 |
+| **线程编排** | `codex-rs/core/src/thread_manager.rs`、`codex-rs/core/src/codex_thread.rs` | 线程管理与线程实例 |
 | **工具调用** | `tools/`（26 个文件 + `code_mode/`、`handlers/`、`runtimes/`） | 路由、注册表、编排、审批、沙箱决策 |
 | **审批评审** | `guardian/` | Guardian 自动评审后端，见 [`tools_and_sandbox.md`](./tools_and_sandbox.md) §7 |
-| **安全判定** | `safety.rs` | 命令安全性判定的 core 侧入口 |
+| **安全判定** | `codex-rs/core/src/safety.rs` | 命令安全性判定的 core 侧入口 |
 | **沙箱接入** | `sandboxing/` | core 侧对 `codex-sandboxing` 的封装 |
 | **统一执行** | `unified_exec/` | 长驻进程式命令执行（对应 `ExecCommandHandler` / `WriteStdinHandler`） |
 | **上下文管理** | `context_manager/`、`context/` | 历史、归一化、增量更新 |
 | **上下文压缩** | `compact*.rs`（8 个文件） | 本地压缩、远程压缩 v1/v2、token 预算、模型回退 |
-| **模型客户端** | `client.rs`、`client_common.rs` | 与模型服务通信 |
+| **模型客户端** | `client.rs`、`codex-rs/core/src/client_common.rs` | 与模型服务通信 |
 | **状态持久化** | `state/` | core 侧对 `codex-state` 的接入 |
 | **配置** | `config/` | 配置加载与校验（详见 [`config_system.md`](./config_system.md)） |
-| **执行** | `exec.rs`、`exec_env.rs`、`exec_policy.rs` | 命令执行与策略 |
-| **规范注入** | `agents_md.rs`、`agents_md_manager.rs` | 读取并注入仓库规范文件 |
+| **执行** | `exec.rs`、`codex-rs/core/src/exec_env.rs`、`exec_policy.rs` | 命令执行与策略 |
+| **规范注入** | `agents_md.rs`、`codex-rs/core/src/agents_md_manager.rs` | 读取并注入仓库规范文件 |
 | **补丁应用** | `apply_patch.rs` | 结构化补丁 |
-| **技能与钩子** | `skills.rs`、`hook_runtime.rs` | 技能定义、钩子运行时 |
+| **技能与钩子** | `skills.rs`、`codex-rs/core/src/hook_runtime.rs` | 技能定义、钩子运行时 |
 | **插件** | `plugins/` | 插件装载（对应 `request_plugin_install` 等工具） |
 | **扩展接入** | `apps/`、`agent/`、`connectors.rs` | 扩展与连接器 |
 | **其他子目录** | `bin/`、`mcp_tool_call/`、`realtime_conversation/`、`utils/` | 二进制入口、MCP 调用、实时会话、工具函数 |
 
 > [!NOTE]
-> **更正说明**：第一版此表把 `session/` 记为 28 个文件、`tools/` 记为 28 个文件，且完全遗漏了 `tasks/`、`guardian/`、`safety.rs`、`thread_manager.rs`、`codex_thread.rs`、`sandboxing/`、`state/`、`context/`、`plugins/`、`skills.rs`、`hook_runtime.rs`、`unified_exec/`。计数与清单已按下述命令重新核对（E1）：
+> **更正说明**：第一版此表把 `session/` 记为 28 个文件、`tools/` 记为 28 个文件，且完全遗漏了 `tasks/`、`guardian/`、`codex-rs/core/src/safety.rs`、`codex-rs/core/src/thread_manager.rs`、`codex-rs/core/src/codex_thread.rs`、`sandboxing/`、`state/`、`context/`、`plugins/`、`skills.rs`、`codex-rs/core/src/hook_runtime.rs`、`unified_exec/`。计数与清单已按下述命令重新核对（E1）：
 >
 > ```bash
 > # 在 codex-rs/core/src 下
@@ -143,11 +143,11 @@ pub(super) async fn submission_loop(
 
 | 事实 | 证据 |
 | ---- | ---- |
-| 循环体是 `while let Ok(sub) = rx_sub.recv().await`，从一个 channel 消费 `Submission` | `handlers.rs:721` |
-| 分派方式是 `match sub.op.clone()`，即**按 `Op` 变体分支** | `handlers.rs:725` |
-| **正常**退出方式是 `Op::Shutdown` | `handlers.rs:719` 注释：「To break out of this loop, send `Op::Shutdown`」 |
-| 每次提交都开一个 tracing span | `submission_dispatch_span(&sub)`，`handlers.rs:723` |
-| 循环在会话创建时 `tokio::spawn` 起来 | `session/mod.rs:769`，span 名 `session_loop`，带 `thread_id` |
+| 循环体是 `while let Ok(sub) = rx_sub.recv().await`，从一个 channel 消费 `Submission` | `codex-rs/core/src/session/handlers.rs:721` |
+| 分派方式是 `match sub.op.clone()`，即**按 `Op` 变体分支** | `codex-rs/core/src/session/handlers.rs:725` |
+| **正常**退出方式是 `Op::Shutdown` | `codex-rs/core/src/session/handlers.rs:719` 注释：「To break out of this loop, send `Op::Shutdown`」 |
+| 每次提交都开一个 tracing span | `submission_dispatch_span(&sub)`，`codex-rs/core/src/session/handlers.rs:723` |
+| 循环在会话创建时 `tokio::spawn` 起来 | `codex-rs/core/src/session/mod.rs:769`，span 名 `session_loop`，带 `thread_id` |
 
 > [!NOTE]
 > **勘误（行号）**：上表前四行的行号上一稿分别写作 `:720` / `:724` / `:718` / `:722`，**各差一行**，已按 `sed -n '714,726p'` 的实际内容改为 `:721` / `:725` / `:719` / `:723`。`submission_loop` 函数签名本身在 `:714`，这一处是对的。
@@ -155,7 +155,7 @@ pub(super) async fn submission_loop(
 > [!CAUTION]
 > **勘误（结论）：「唯一的退出方式是 `Op::Shutdown`」不成立。**
 >
-> `handlers.rs:719` 那句注释确实这么写，但**注释描述的是意图，不是全部实现**。同一函数在循环之后还有一段（`handlers.rs:872-875`）：
+> `codex-rs/core/src/session/handlers.rs:719` 那句注释确实这么写，但**注释描述的是意图，不是全部实现**。同一函数在循环之后还有一段（`codex-rs/core/src/session/handlers.rs:872-875`）：
 >
 > ```rust
 > // If the submission loop exits because the channel closed without an
@@ -173,7 +173,7 @@ pub(super) async fn submission_loop(
 >
 > 教训：**源码注释是作者意图的证据（E3 的弱形式），但穷尽性结论必须从控制流本身读出来。**
 
-`session/mod.rs:766-778` 还把这个 join handle 包成了 `SessionIo { tx_sub, rx_event, agent_status, session_loop_termination }`——**提交进 `tx_sub`、事件出 `rx_event`**，这就是会话的全部对外接口形状。
+`codex-rs/core/src/session/mod.rs:766-778` 还把这个 join handle 包成了 `SessionIo { tx_sub, rx_event, agent_status, session_loop_termination }`——**提交进 `tx_sub`、事件出 `rx_event`**，这就是会话的全部对外接口形状。
 
 ### 2.2 提交-事件协议：`Submission` / `Op` / `Event` / `EventMsg`
 
@@ -188,7 +188,7 @@ pub(super) async fn submission_loop(
 | `Event` | `:1270` | core → 客户端 | 一次事件，含 `id` 与 `msg` |
 | `EventMsg` | `:1288` | core → 客户端 | 事件负载枚举（`Error` / `Warning` / …） |
 
-这是一个**非对称的请求-流式响应模型**：一次 `Submission` 可能产生任意多个 `Event`，两者靠 `id` 关联。`handlers.rs` 中大量出现的 `sess.send_event(&turn_context, event.msg)` 与 `sess.send_event_raw(Event { id, msg })` 就是这条出向通道。
+这是一个**非对称的请求-流式响应模型**：一次 `Submission` 可能产生任意多个 `Event`，两者靠 `id` 关联。`codex-rs/core/src/session/handlers.rs` 中大量出现的 `sess.send_event(&turn_context, event.msg)` 与 `sess.send_event_raw(Event { id, msg })` 就是这条出向通道。
 
 ### 2.3 第二层：任务层 `core/src/tasks/`
 
@@ -223,13 +223,13 @@ pub(crate) trait SessionTask: Send + Sync + 'static {
 
 | 文件 | 角色 |
 | ---- | ---- |
-| `mod.rs` | `SessionTask` trait。**注意 `enum TaskKind` 并不定义在这里**——它的定义在 `core/src/state/turn.rs:67`，`tasks/mod.rs:35` 只是 `use crate::state::TaskKind;` 把它引进来 |
-| `regular.rs` | 常规智能体任务（默认路径，含 turn 循环） |
+| `mod.rs` | `SessionTask` trait。**注意 `enum TaskKind` 并不定义在这里**——它的定义在 `codex-rs/core/src/state/turn.rs:67`，`codex-rs/core/src/tasks/mod.rs:35` 只是 `use crate::state::TaskKind;` 把它引进来 |
+| `codex-rs/core/src/tasks/regular.rs` | 常规智能体任务（默认路径，含 turn 循环） |
 | `compact.rs` | 上下文压缩任务 |
 | `review.rs` | 评审任务 |
-| `user_shell.rs` | 用户 shell 任务 |
+| `codex-rs/core/src/tasks/user_shell.rs` | 用户 shell 任务 |
 | `lifecycle.rs` | 任务生命周期 |
-| `mod_tests.rs` / `user_shell_tests.rs` | 测试 |
+| `mod_tests.rs` / `codex-rs/core/src/tasks/user_shell_tests.rs` | 测试 |
 
 `mod.rs:180-200` 的 trait 文档写明：任务由 `Session` 在**后台 Tokio task** 上执行；实现者通过 `cancellation_token` 感知中止请求并**尽快终止**；`run` 返回 `Some(msg)` 时该消息会由 `Session::on_task_finished` 发给客户端；返回 `CodexErr::TurnAborted` 则走「已中止 turn」的完成路径。
 
@@ -256,10 +256,10 @@ loop {
 
 这段代码解释了两件第一版没讲清楚的事：
 
-1. **`session/input_queue.rs` 为什么存在**——用户可以在模型还在跑的时候继续输入；一个 turn 结束后如果队列里还有排队输入，**不返回、直接再跑一个 turn**。
+1. **`codex-rs/core/src/session/input_queue.rs` 为什么存在**——用户可以在模型还在跑的时候继续输入；一个 turn 结束后如果队列里还有排队输入，**不返回、直接再跑一个 turn**。
 2. **`next_input = Vec::new()` 的含义**——后续 turn 的输入不是从这里传的，而是由 `run_turn` 内部从 `input_queue` 取。
 
-> **未验证**（E1）：`run_turn` 内部的完整流程（构造请求 → 流式解析 → 工具调用 → 写回历史）本文未逐段追踪。入口见 `tasks/regular.rs` 与 `session/turn.rs`。
+> **未验证**（E1）：`run_turn` 内部的完整流程（构造请求 → 流式解析 → 工具调用 → 写回历史）本文未逐段追踪。入口见 `codex-rs/core/src/tasks/regular.rs` 与 `codex-rs/core/src/session/turn.rs`。
 
 ---
 
@@ -271,24 +271,24 @@ loop {
 | ---- | ---- |
 | `session.rs` | 会话主体 |
 | `turn.rs` | 单轮交互 |
-| `turn_context.rs` | turn 级上下文 |
-| `step_context.rs` | 步级上下文 |
-| `context_window.rs` | 上下文窗口 |
+| `codex-rs/core/src/session/turn_context.rs` | turn 级上下文 |
+| `codex-rs/core/src/session/step_context.rs` | 步级上下文 |
+| `codex-rs/core/src/session/context_window.rs` | 上下文窗口 |
 | `token_budget.rs` / `rollout_budget.rs` | token 与 rollout 预算 |
 | `input_queue.rs` | 输入队列 |
-| `handlers.rs` | 事件处理 |
-| `inject.rs` | 注入 |
+| `codex-rs/core/src/session/handlers.rs` | 事件处理 |
+| `codex-rs/core/src/session/inject.rs` | 注入 |
 | `review.rs` | 评审模式 |
 | `multi_agents.rs` | 多智能体 |
 | `mcp*.rs`（5 个） | MCP 接入：运行时、预热、刷新 |
-| `rollout_reconstruction.rs` | 从既有 rollout 恢复会话 |
-| `time_reminder.rs` | 时间提醒 |
-| `extension_metrics.rs` | 扩展指标 |
-| `code_mode_warning.rs` | code-mode 警告 |
+| `codex-rs/core/src/session/rollout_reconstruction.rs` | 从既有 rollout 恢复会话 |
+| `codex-rs/core/src/session/time_reminder.rs` | 时间提醒 |
+| `codex-rs/core/src/session/extension_metrics.rs` | 扩展指标 |
+| `codex-rs/core/src/session/code_mode_warning.rs` | code-mode 警告 |
 
 ### 3.2 turn 的内部状态（E3）
 
-`session/turn.rs` 中可见的状态类型。**用 grep 定位，不要依赖行号**（这些类型在文件后半段，行号随改动漂移很快）：
+`codex-rs/core/src/session/turn.rs` 中可见的状态类型。**用 grep 定位，不要依赖行号**（这些类型在文件后半段，行号随改动漂移很快）：
 
 | 类型 | 定位方式 | 用途 |
 | ---- | ---- | ---- |
@@ -302,7 +302,7 @@ loop {
 这三个类型都带 `impl` 块，说明 turn 内部至少存在**计划模式**与**流式消息解析**两条状态机。`PlanModeStreamState` 在 `turn.rs` 后半段被十几个函数以 `&mut` 形式穿透传递（`:1716` 起），`AssistantMessageStreamParsers::new(plan_mode)` 在 `:2212` 被构造——说明**计划模式是流式解析的一个输入参数**，两条状态机并非完全独立。完整的 turn 状态流转**未追踪**（E1）。
 
 > [!CAUTION]
-> **从既有 rollout 恢复会话是 `AGENTS.md` 点名的高风险改动面之一**（`### Breaking changes` 一节，grep `resuming sessions from existing rollouts`）。涉及 `rollout_reconstruction.rs` 的改动请格外谨慎。
+> **从既有 rollout 恢复会话是 `AGENTS.md` 点名的高风险改动面之一**（`### Breaking changes` 一节，grep `resuming sessions from existing rollouts`）。涉及 `codex-rs/core/src/session/rollout_reconstruction.rs` 的改动请格外谨慎。
 
 ---
 
@@ -314,9 +314,9 @@ loop {
 
 | 类型 | 位置 | 角色 |
 | ---- | ---- | ---- |
-| `ToolCall` | `tools/router.rs:32` | 一次工具调用的载体 |
-| `ToolRouter` | `tools/router.rs:68` | 路由与分发 |
-| `ToolRegistry` | `tools/registry.rs:252` | 工具注册表 |
+| `ToolCall` | `codex-rs/core/src/tools/router.rs:32` | 一次工具调用的载体 |
+| `ToolRouter` | `codex-rs/core/src/tools/router.rs:68` | 路由与分发 |
+| `ToolRegistry` | `codex-rs/core/src/tools/registry.rs:252` | 工具注册表 |
 
 ### 4.2 `ToolRouter` 的公开 API（E3）
 
@@ -338,41 +338,41 @@ pub fn tool_waits_for_runtime_cancellation(&self, call: &ToolCall) -> bool;
 **由此可确认的三件事**（E3）：
 
 1. 工具调用是从模型的 `ResponseItem` **解析**出来的，而不是模型直接调用函数
-2. 存在**并行执行**能力（`tool_supports_parallel` + `tools/parallel.rs`）
+2. 存在**并行执行**能力（`tool_supports_parallel` + `codex-rs/core/src/tools/parallel.rs`）
 3. 存在**取消语义**，且不同工具的取消等待行为不同
 
 ### 4.3 调用链路上的其他环节
 
 | 文件 | 职责 |
 | ---- | ---- |
-| `tools/orchestrator.rs` | 编排：**审批 → 选沙箱 → 尝试 → 升级重试**，见下 |
-| `tools/lifecycle.rs` | 生命周期 |
-| `tools/parallel.rs` | 并行执行 |
-| `tools/approvals.rs` | 审批 |
-| `tools/sandboxing.rs` | 沙箱决策 |
-| `tools/network_approval.rs` | 网络访问审批 |
-| `tools/executed_tool_calls.rs` | 已执行调用的记录 |
-| `tools/tool_dispatch_trace.rs` | 分发追踪 |
-| `tools/spec_plan.rs` | 工具规格计划 |
-| `tools/hosted_spec.rs` | 托管工具规格 |
-| `tools/events.rs` | 工具事件 |
-| `tools/context.rs` | 工具上下文 |
-| `tools/hook_names.rs` | 钩子名 |
+| `codex-rs/core/src/tools/orchestrator.rs` | 编排：**审批 → 选沙箱 → 尝试 → 升级重试**，见下 |
+| `codex-rs/core/src/tools/lifecycle.rs` | 生命周期 |
+| `codex-rs/core/src/tools/parallel.rs` | 并行执行 |
+| `codex-rs/core/src/tools/approvals.rs` | 审批 |
+| `codex-rs/core/src/tools/sandboxing.rs` | 沙箱决策 |
+| `codex-rs/core/src/tools/network_approval.rs` | 网络访问审批 |
+| `codex-rs/core/src/tools/executed_tool_calls.rs` | 已执行调用的记录 |
+| `codex-rs/core/src/tools/tool_dispatch_trace.rs` | 分发追踪 |
+| `codex-rs/core/src/tools/spec_plan.rs` | 工具规格计划 |
+| `codex-rs/core/src/tools/hosted_spec.rs` | 托管工具规格 |
+| `codex-rs/core/src/tools/events.rs` | 工具事件 |
+| `codex-rs/core/src/tools/context.rs` | 工具上下文 |
+| `codex-rs/core/src/tools/hook_names.rs` | 钩子名 |
 
 > [!NOTE]
-> **更正说明**：第一版把「审批发生在沙箱决策之前还是之后」标为未验证。**源码注释里就写着**。`tools/orchestrator.rs:1-8` 模块头：
+> **更正说明**：第一版把「审批发生在沙箱决策之前还是之后」标为未验证。**源码注释里就写着**。`codex-rs/core/src/tools/orchestrator.rs:1-8` 模块头：
 >
 > > "Central place for approvals + sandbox selection + retry semantics. Drives a simple sequence for any ToolRuntime: **approval → select sandbox → attempt → retry with an escalated sandbox strategy on denial (no re-approval thanks to caching)**."
 >
 > 代码里也有对应的编号注释：**`:151`** `// 1) Approval`（上一稿写作 `:148`，那一行其实是 `let otel_tn = ...`）、`:226` `// 2) First attempt under the selected sandbox.`，失败后在 `:299` 匹配 `SandboxErr::Denied` 并在 `:333` 起按 `tool.escalate_on_failure()` 决定是否升级重试。完整流程图见 [`tools_and_sandbox.md`](./tools_and_sandbox.md) §7。
 
-### 4.4 内置工具处理器（E1，来自 `tools/handlers/mod.rs` 的 `mod` 声明与 `pub use`）
+### 4.4 内置工具处理器（E1，来自 `codex-rs/core/src/tools/handlers/mod.rs` 的 `mod` 声明与 `pub use`）
 
 | 模块 | 工具用途 |
 | ---- | ---- |
 | `shell` | shell 命令执行 |
 | `apply_patch` | 应用结构化补丁 |
-| `unified_exec` | **长驻进程式执行**：导出 `ExecCommandHandler`（`mod.rs:76`）与 `WriteStdinHandler`（`:78`），另有 `ExecCommandHandlerOptions`（`:77`）。对应 `core/src/unified_exec/` 与 `tools/runtimes/unified_exec.rs` |
+| `unified_exec` | **长驻进程式执行**：导出 `ExecCommandHandler`（`mod.rs:76`）与 `WriteStdinHandler`（`:78`），另有 `ExecCommandHandlerOptions`（`:77`）。对应 `core/src/unified_exec/` 与 `codex-rs/core/src/tools/runtimes/unified_exec.rs` |
 | `view_image` | 查看图片 |
 | `plan` | 计划 |
 | `current_time` | 当前时间 |
@@ -394,14 +394,14 @@ pub fn tool_waits_for_runtime_cancellation(&self, call: &ToolCall) -> bool;
 
 > **第一版遗漏**：`unified_exec` 与 `multi_agents_common` 两个模块。
 
-`handlers/mod.rs` 还从**外部目录**重导出两个 handler（`:52-53`）：
+`codex-rs/core/src/tools/handlers/mod.rs` 还从**外部目录**重导出两个 handler（`:52-53`）：
 
 ```rust
 pub(crate) use crate::tools::code_mode::CodeModeExecuteHandler;
 pub(crate) use crate::tools::code_mode::CodeModeWaitHandler;
 ```
 
-它们的实现在 `core/src/tools/code_mode/`（`execute_handler.rs` / `wait_handler.rs` / `execute_spec.rs` / `wait_spec.rs` / `delegate.rs` / `response_adapter.rs`，E1）。注册处见 `tools/spec_plan.rs:13-14`。
+它们的实现在 `core/src/tools/code_mode/`（`codex-rs/core/src/tools/code_mode/execute_handler.rs` / `codex-rs/core/src/tools/code_mode/wait_handler.rs` / `codex-rs/core/src/tools/code_mode/execute_spec.rs` / `codex-rs/core/src/tools/code_mode/wait_spec.rs` / `delegate.rs` / `codex-rs/core/src/tools/code_mode/response_adapter.rs`，E1）。注册处见 `codex-rs/core/src/tools/spec_plan.rs:13-14`。
 
 **模式**：多数 handler 有配套的 `*_spec.rs`（工具规格）与 `*_tests.rs`（单元测试）。新增工具时应遵循这个三件套结构。
 
@@ -426,13 +426,13 @@ pub enum ToolSpec {
 
 | 环节 | 位置 |
 | ---- | ---- |
-| 按配置决定是否下发该规格 | `tools/spec_plan.rs:373` `create_web_search_tool(WebSearchToolOptions { .. })`、`:1036` 检查 `web_search_mode != Disabled` |
-| 规格构造选项 | `tools/hosted_spec.rs`（`WebSearchToolOptions`，`spec_plan.rs:56` 导入） |
-| 结果回读 | 模型返回 `ResponseItem::WebSearchCall`（`protocol/src/models.rs:984`），在历史中标记为 `"ws"`（`:1111`） |
+| 按配置决定是否下发该规格 | `codex-rs/core/src/tools/spec_plan.rs:373` `create_web_search_tool(WebSearchToolOptions { .. })`、`:1036` 检查 `web_search_mode != Disabled` |
+| 规格构造选项 | `codex-rs/core/src/tools/hosted_spec.rs`（`WebSearchToolOptions`，`codex-rs/core/src/tools/spec_plan.rs:56` 导入） |
+| 结果回读 | 模型返回 `ResponseItem::WebSearchCall`（`codex-rs/protocol/src/models.rs:984`），在历史中标记为 `"ws"`（`:1111`） |
 
-**图片生成走的是另一条路**：它不是 `ToolSpec` 的变体，而是通过**扩展**注入的——`codex-image-generation-extension` crate 的 `install` 函数（见 `core/tests/suite/extension_sandbox.rs:10`、`thread-manager-sample/src/main.rs:138`），响应项类型为 `image_generation_call`（`rollout-trace/src/reducer/conversation/normalize.rs:121`）。
+**图片生成走的是另一条路**：它不是 `ToolSpec` 的变体，而是通过**扩展**注入的——`codex-image-generation-extension` crate 的 `install` 函数（见 `codex-rs/core/tests/suite/extension_sandbox.rs:10`、`codex-rs/thread-manager-sample/src/main.rs:138`），响应项类型为 `image_generation_call`（`codex-rs/rollout-trace/src/reducer/conversation/normalize.rs:121`）。
 
-**三类工具的判别方法**：在 `tools/handlers/mod.rs` 里 grep 得到的 → 本地 handler；在 `tool_spec.rs` 里但 handlers 里没有的 → 托管工具；两处都没有却出现在响应项里的 → 扩展或 MCP 提供。
+**三类工具的判别方法**：在 `codex-rs/core/src/tools/handlers/mod.rs` 里 grep 得到的 → 本地 handler；在 `codex-rs/tools/src/tool_spec.rs` 里但 handlers 里没有的 → 托管工具；两处都没有却出现在响应项里的 → 扩展或 MCP 提供。
 
 ### 4.6 工具运行时（`tools/runtimes/`）
 
@@ -464,7 +464,7 @@ pub enum ToolSpec {
 > `pub fn is_known_safe_command(command: &[String]) -> bool`，位于
 > `codex-rs/shell-command/src/command_safety/is_safe_command.rs:12`——**模块**叫 `is_safe_command`，**函数**叫 `is_known_safe_command`。
 >
-> 上游源码注释里也还留着旧名：`protocol.rs:919`（正是 `UnlessTrusted` 上方那段文档注释）与 `core/src/tools/runtimes/shell/unix_escalation.rs:362`。按旧名 grep 只会命中注释。
+> 上游源码注释里也还留着旧名：`protocol.rs:919`（正是 `UnlessTrusted` 上方那段文档注释）与 `codex-rs/core/src/tools/runtimes/shell/unix_escalation.rs:362`。按旧名 grep 只会命中注释。
 
 `GranularApprovalConfig` 的 5 个字段（`protocol.rs:943-955`，E3）：
 
@@ -482,7 +482,7 @@ pub enum ToolSpec {
 ### 5.2 `SandboxPolicy`（`codex-rs/protocol/src/protocol.rs:1004`）
 
 > [!IMPORTANT]
-> **`SandboxPolicy` 已不是运行时策略类型。** 运行时流转的是 `PermissionProfile`（`protocol/src/models.rs:316`），拆成**文件系统**与**网络**两个正交维度；`SandboxPolicy` 退化为**线上/兼容层**类型（`compatibility_sandbox_policy_for_permission_profile`）。详见 [`tools_and_sandbox.md`](./tools_and_sandbox.md) §1.5。下表描述的是这个兼容层类型。
+> **`SandboxPolicy` 已不是运行时策略类型。** 运行时流转的是 `PermissionProfile`（`codex-rs/protocol/src/models.rs:316`），拆成**文件系统**与**网络**两个正交维度；`SandboxPolicy` 退化为**线上/兼容层**类型（`compatibility_sandbox_policy_for_permission_profile`）。详见 [`tools_and_sandbox.md`](./tools_and_sandbox.md) §1.5。下表描述的是这个兼容层类型。
 >
 > **勘误**：上一稿把这两个维度写成"`FileSystemSandboxPolicy` + `NetworkSandboxPolicy`"，**文件系统那一半是错的**。`PermissionProfile::Managed` 的字段类型是 `file_system: ManagedFileSystemPermissions`（`models.rs:258` 定义的枚举）与 `network: NetworkSandboxPolicy`（`models.rs:320-322`）；`FileSystemSandboxPolicy` 是**另一个类型**，要经 `ManagedFileSystemPermissions::to_sandbox_policy()`（`models.rs:288`）转换后才出现。只有网络那一维是直接用 `*SandboxPolicy` 的。
 
@@ -574,22 +574,22 @@ pub enum ReviewDecision { .. }
 | 文件 | 说明 |
 | ---- | ---- |
 | `compact.rs` | 压缩主体 |
-| `compact_token_budget.rs` | token 预算 |
-| `compact_model_fallback.rs` | 模型回退 |
+| `codex-rs/core/src/compact_token_budget.rs` | token 预算 |
+| `codex-rs/core/src/compact_model_fallback.rs` | 模型回退 |
 | `compact_remote.rs` | 远程压缩 |
-| `compact_remote_v2.rs` / `compact_remote_v2_attempt.rs` | 远程压缩 v2 |
-| `compact_remote_request.rs` | 远程压缩请求 |
-| `compact_tests.rs` | 测试 |
+| `codex-rs/core/src/compact_remote_v2.rs` / `codex-rs/core/src/compact_remote_v2_attempt.rs` | 远程压缩 v2 |
+| `codex-rs/core/src/compact_remote_request.rs` | 远程压缩请求 |
+| `codex-rs/core/src/compact_tests.rs` | 测试 |
 
 **可确认的事实**（E2/E3）：压缩存在**本地**与**远程**两条路径，远程路径有 v1/v2 两代，且带**模型回退**机制。
 
-> **未验证**（E1）：v1 与 v2 的选择条件、回退触发条件、本地与远程的分工。这需要完整读取上述 8 个文件。集成测试在 `codex-rs/core/tests/suite/compact.rs`（5,440 行），是理解压缩行为的最佳入口。压缩本身是一种 `SessionTask`（`tasks/compact.rs`，见 §2.3）。
+> **未验证**（E1）：v1 与 v2 的选择条件、回退触发条件、本地与远程的分工。这需要完整读取上述 8 个文件。集成测试在 `codex-rs/core/tests/suite/compact.rs`（5,440 行），是理解压缩行为的最佳入口。压缩本身是一种 `SessionTask`（`codex-rs/core/src/tasks/compact.rs`，见 §2.3）。
 
 ---
 
 ## 7. 仓库规范的注入
 
-`core/src/agents_md.rs` 与 `agents_md_manager.rs` 负责读取仓库中的规范文件并注入模型上下文。
+`codex-rs/core/src/agents_md.rs` 与 `codex-rs/core/src/agents_md_manager.rs` 负责读取仓库中的规范文件并注入模型上下文。
 
 > 这解释了为什么仓库根的 `AGENTS.md` 对 Codex 自身有约束力——它不只是给人看的文档，也是运行时注入的内容。
 
@@ -618,16 +618,16 @@ pub enum ReviewDecision { .. }
 
 | 未覆盖项 | 当前证据 | 建议入口 |
 | ---- | ---- | ---- |
-| `run_turn` 内部的完整流程 | E1 | `tasks/regular.rs`、`session/turn.rs`（分段读）、`session/turn_tests.rs` |
-| `Op` / `EventMsg` 的完整变体清单 | E1 | `protocol/src/protocol.rs:531`、`:1288` |
-| `SessionTask` 四种实现的差异 | E1 | `tasks/regular.rs`、`compact.rs`、`review.rs`、`user_shell.rs` |
-| 压缩的 v1/v2 选择与回退条件 | E1 | `core/tests/suite/compact.rs`（5,440 行） |
-| 模型客户端的请求构造与流式解析 | E1 | `client.rs`、`client_common.rs` |
-| 多智能体协作机制 | E1 | `session/multi_agents.rs`、`tools/handlers/multi_agents_common`、`multi_agents_v2/` |
-| token 预算的具体算法 | E1 | `session/token_budget.rs`、`compact_token_budget.rs` |
+| `run_turn` 内部的完整流程 | E1 | `codex-rs/core/src/tasks/regular.rs`、`codex-rs/core/src/session/turn.rs`（分段读）、`codex-rs/core/src/session/turn_tests.rs` |
+| `Op` / `EventMsg` 的完整变体清单 | E1 | `codex-rs/protocol/src/protocol.rs:531`、`:1288` |
+| `SessionTask` 四种实现的差异 | E1 | `codex-rs/core/src/tasks/regular.rs`、`compact.rs`、`review.rs`、`codex-rs/core/src/tasks/user_shell.rs` |
+| 压缩的 v1/v2 选择与回退条件 | E1 | `codex-rs/core/tests/suite/compact.rs`（5,440 行） |
+| 模型客户端的请求构造与流式解析 | E1 | `client.rs`、`codex-rs/core/src/client_common.rs` |
+| 多智能体协作机制 | E1 | `codex-rs/core/src/session/multi_agents.rs`、`tools/handlers/multi_agents_common`、`multi_agents_v2/` |
+| token 预算的具体算法 | E1 | `codex-rs/core/src/session/token_budget.rs`、`codex-rs/core/src/compact_token_budget.rs` |
 | `is_known_safe_command()` 的判定规则 | E1 | `codex-rs/shell-command/src/command_safety/` |
-| Guardian 评审的具体策略 | E1 | `core/src/guardian/policy.md`、`prompt.rs` |
-| code_mode 的委派机制 | E1 | `core/src/tools/code_mode/delegate.rs`、`response_adapter.rs` |
+| Guardian 评审的具体策略 | E1 | `codex-rs/core/src/guardian/policy.md`、`prompt.rs` |
+| code_mode 的委派机制 | E1 | `codex-rs/core/src/tools/code_mode/delegate.rs`、`codex-rs/core/src/tools/code_mode/response_adapter.rs` |
 
 > **已从本表移除**：「工具调用各环节的次序」——见 §4.3，`orchestrator.rs` 模块头注释直接写明。
 

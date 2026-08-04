@@ -32,7 +32,7 @@ verified_at: 2026-08-03
 > [!NOTE]
 > **勘误（两轮）**：
 >
-> - `build_and_release.md` 第一版曾把 `close-stale-contributor-prs.yml` 说成"受邀制规则的自动执行"。**并非如此**——那个工作流是每天关闭 **14 天无更新**的陈旧 PR（`DAYS_INACTIVE = 14`，`.github/workflows/close-stale-contributor-prs.yml:24-25`）。受邀制规则是**人工执行**的，没有对应的自动化。
+> - `build_and_release.md` 第一版曾把 `.github/workflows/close-stale-contributor-prs.yml` 说成"受邀制规则的自动执行"。**并非如此**——那个工作流是每天关闭 **14 天无更新**的陈旧 PR（`DAYS_INACTIVE = 14`，`.github/workflows/close-stale-contributor-prs.yml:24-25`）。受邀制规则是**人工执行**的，没有对应的自动化。
 > - 本文与 `build_and_release.md` 的上一稿又把权限过滤**写反了**，称它"跳过具有 write/maintain/admin 权限作者的 PR"。**方向恰好相反。** `:69-73` 里 `hasContributorAccess = ["admin","maintain","write"].includes(permission)`，`if (!hasContributorAccess) { ...; continue; }`——**不具备**这三种权限的才被跳过，具备的会进入 `stalePrs` 被关闭；完全不是协作者的作者会在 `:62-64` 命中 404 分支，同样跳过。换句话说，它清理的是**有写权限的自己人**留下的、且已 14 天无更新的 PR。
 
 这条规则决定了本文的定位：
@@ -75,7 +75,7 @@ just install
 > cargo fetch
 > ```
 >
-> 也就是：**打印**当前激活的 toolchain（触发 rustup 按 `rust-toolchain.toml` 拉取），然后**预取 Cargo 依赖**。它不会装 `just` 本身（鸡生蛋问题）、不会装 `cargo-nextest`、`dotslash`、`uv`——而上面表格里标粗的这几项，正是"强制流程"里那几条命令（`just fmt`、`just test`）的硬前提。
+> 也就是：**打印**当前激活的 toolchain（触发 rustup 按 `codex-rs/rust-toolchain.toml` 拉取），然后**预取 Cargo 依赖**。它不会装 `just` 本身（鸡生蛋问题）、不会装 `cargo-nextest`、`dotslash`、`uv`——而上面表格里标粗的这几项，正是"强制流程"里那几条命令（`just fmt`、`just test`）的硬前提。
 >
 > `[windows]` 分支多一步：若找不到 `pwsh.exe`，先用 winget 装 PowerShell 7。
 >
@@ -111,7 +111,7 @@ just install
 | 命令 | 作用 |
 | ---- | ---- |
 | just fmt | 格式化 justfile / Rust / Bazel-Starlark / Python，底层是 `scripts/format.py`（**需要 dotslash + uv**） |
-| `just fmt-check` | 只检查不改文件（`repo-checks.yml` 在 CI 上跑的就是它） |
+| `just fmt-check` | 只检查不改文件（`.github/workflows/repo-checks.yml` 在 CI 上跑的就是它） |
 | `just fix -p <crate>` | `cargo clippy --fix --tests --allow-dirty`，**建议始终带 -p 限定范围** |
 | `just clippy` | `cargo clippy --tests` |
 | `just argument-comment-lint` | 自定义 Dylint 检查（`tools/argument-comment-lint`）——**`[unix]` 专属** |
@@ -156,7 +156,7 @@ just install
 
 > **pre-merge 校验工作流**的 job 末尾挂着 `.github/actions/check-clean-worktree`——**生成物没提交，CI 就红**。
 >
-> 需要限定口径：`grep -lr "check-clean-worktree" .github/workflows/*.yml | wc -l` 得 **8**，即 27 个工作流里只有 8 个引用它（`bazel`、`blob-size-policy`、`cargo-deny`、`codespell`、`repo-checks`、`rust-ci`、`sdk`、`v8-canary`——正好是 `blocking-ci.yml` 聚合的那批）。`rust-ci-full.yml` 与全部 `rust-release*` **不查**。本文与 `build_and_release.md` 早前写的"每个 job 末尾都查"是夸大表述，已更正；详见 [`build_and_release.md`](./build_and_release.md) §4.3。
+> 需要限定口径：`grep -lr "check-clean-worktree" .github/workflows/*.yml | wc -l` 得 **8**，即 27 个工作流里只有 8 个引用它（`bazel`、`blob-size-policy`、`cargo-deny`、`codespell`、`repo-checks`、`rust-ci`、`sdk`、`v8-canary`——正好是 `.github/workflows/blocking-ci.yml` 聚合的那批）。`.github/workflows/rust-ci-full.yml` 与全部 `rust-release*` **不查**。本文与 `build_and_release.md` 早前写的"每个 job 末尾都查"是夸大表述，已更正；详见 [`build_and_release.md`](./build_and_release.md) §4.3。
 
 ### 2.6 `.codex/skills/`：仓库自带的 14 个 skill（第一版完全未覆盖）
 
@@ -306,7 +306,7 @@ CI 校验锁文件漂移
 
 ### 4.5 `## App-server API Development Best Practices`（第一版只捕获了 1 条）
 
-第一版的 §4.3 只记了 `#[ts(export_to = "v2/")]` 一条。实际上 `AGENTS.md` 有整整一节（约 47 行）的硬规则，适用范围是 `app-server-protocol/src/protocol/common.rs`、`app-server-protocol/src/protocol/v2.rs`、`app-server/README.md`。
+第一版的 §4.3 只记了 `#[ts(export_to = "v2/")]` 一条。实际上 `AGENTS.md` 有整整一节（约 47 行）的硬规则，适用范围是 `codex-rs/app-server-protocol/src/protocol/common.rs`、`app-server-protocol/src/protocol/v2.rs`、`codex-rs/app-server/README.md`。
 
 **`### Core Rules`：**
 
@@ -334,7 +334,7 @@ CI 校验锁文件漂移
 
 **`### Development Workflow`：**
 
-- API 行为变了就更新 app-server 的文档/示例（**至少** `app-server/README.md`）
+- API 行为变了就更新 app-server 的文档/示例（**至少** `codex-rs/app-server/README.md`）
 - API 形状变了就跑 `just write-app-server-schema`（实验性 fixture 受影响时加 `--experimental`）
 - 用 `just test -p codex-app-server-protocol` 验证
 - **避免只断言实验性字段标记的样板测试**，靠 schema 生成/测试与行为覆盖即可

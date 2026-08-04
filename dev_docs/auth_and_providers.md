@@ -32,7 +32,7 @@ verified_at: 2026-08-03
 > **修订说明（原文方法有误）**：初版的表格是从 `codex-rs/login/src/auth/` **目录下的文件名**推导出来的。这导致两类问题：
 >
 > - **漏掉了两个变体**：`ChatgptAuthTokens` 与 `Headers`（它们没有同名实现文件）。
-> - **把实现文件当成了并列的认证模式**：例如 "External Bearer"（`external_bearer.rs`）是一个实现文件，不是 `AuthMode` 的一个变体。
+> - **把实现文件当成了并列的认证模式**：例如 "External Bearer"（`codex-rs/login/src/auth/external_bearer.rs`）是一个实现文件，不是 `AuthMode` 的一个变体。
 >
 > 权威定义是 **`codex-rs/protocol/src/auth.rs:9-34` 的 `pub enum AuthMode`**，共 **7 个变体**。以下表格按该枚举重建。
 
@@ -47,7 +47,7 @@ verified_at: 2026-08-03
 | `BedrockApiKey` | `bedrockApiKey` | `bedrockApiKey` | *"Amazon Bedrock bearer token managed by Codex."* | 配合 `codex-aws-auth` |
 
 > [!IMPORTANT]
-> **勘误：上一稿把 serde 与 strum 合并成一列"线格式（serde/strum）"，掩盖了两者不一致的两行。** 两套属性是**各自独立**的（`protocol/src/auth.rs:7-33`）：
+> **勘误：上一稿把 serde 与 strum 合并成一列"线格式（serde/strum）"，掩盖了两者不一致的两行。** 两套属性是**各自独立**的（`codex-rs/protocol/src/auth.rs:7-33`）：
 >
 > - 枚举级只有 `#[serde(rename_all = "lowercase")]`，**没有** strum 的 `serialize_all`；
 > - 变体级上，后 5 个变体**同时**带 `#[serde(rename = "...")]` 与 `#[strum(serialize = "...")]` 且取值相同；
@@ -66,16 +66,16 @@ verified_at: 2026-08-03
 
 | 文件 | 承载的能力 |
 | ---- | ---- |
-| `access_token.rs` | access token 处理（含从 stdin 读入） |
-| `personal_access_token.rs` | `PersonalAccessToken` |
-| `external_bearer.rs` | 外部 bearer token 的取用（由 provider 配置驱动，**不是独立的 `AuthMode`**） |
-| `bedrock_api_key.rs` | `BedrockApiKey` |
-| `agent_identity.rs` | `AgentIdentity` |
+| `codex-rs/login/src/auth/access_token.rs` | access token 处理（含从 stdin 读入） |
+| `codex-rs/login/src/auth/personal_access_token.rs` | `PersonalAccessToken` |
+| `codex-rs/login/src/auth/external_bearer.rs` | 外部 bearer token 的取用（由 provider 配置驱动，**不是独立的 `AuthMode`**） |
+| `codex-rs/login/src/auth/bedrock_api_key.rs` | `BedrockApiKey` |
+| `codex-rs/login/src/auth/agent_identity.rs` | `AgentIdentity` |
 | `storage.rs` | 凭证落盘，见 §2 |
-| `revoke.rs` | 撤销 |
+| `codex-rs/login/src/auth/revoke.rs` | 撤销 |
 | `manager.rs` | 认证管理器（`AuthManager`） |
 
-另有 `login/src/device_code_auth.rs`——**Device Code 是 OAuth 的一种授权流程，不是独立的 `AuthMode` 变体**（它最终仍落到 `Chatgpt`）。
+另有 `codex-rs/login/src/device_code_auth.rs`——**Device Code 是 OAuth 的一种授权流程，不是独立的 `AuthMode` 变体**（它最终仍落到 `Chatgpt`）。
 
 ### 1.2 CLI 侧入口函数
 
@@ -87,8 +87,8 @@ verified_at: 2026-08-03
 
 | 参数 | 位置 | 作用 |
 | ---- | ---- | ---- |
-| `--experimental_issuer <URL>` | `cli/src/main.rs:490-492` | *"EXPERIMENTAL: Use custom OAuth issuer base URL (advanced)"*——**覆盖 OAuth issuer 基址** |
-| `--experimental_client-id <CLIENT_ID>` | `cli/src/main.rs:494-496` | *"EXPERIMENTAL: Use custom OAuth client ID (advanced)"*——**覆盖 OAuth client ID** |
+| `--experimental_issuer <URL>` | `codex-rs/cli/src/main.rs:490-492` | *"EXPERIMENTAL: Use custom OAuth issuer base URL (advanced)"*——**覆盖 OAuth issuer 基址** |
+| `--experimental_client-id <CLIENT_ID>` | `codex-rs/cli/src/main.rs:494-496` | *"EXPERIMENTAL: Use custom OAuth client ID (advanced)"*——**覆盖 OAuth client ID** |
 
 > [!WARNING]
 > **这是本文覆盖范围内风险最高的一处能力面。** 这两个参数允许把整个 OAuth 授权流程指向**任意 issuer**——包括把用户引向非 OpenAI 的授权端点。它们既隐藏又带 `experimental_` 前缀，说明只面向高级/内部场景。
@@ -105,17 +105,17 @@ verified_at: 2026-08-03
 
 | 要素 | 文件 |
 | ---- | ---- |
-| PKCE | `login/src/pkce.rs` |
-| 本地回调服务器 | `login/src/server.rs` |
-| 回调参数解析 | `login/src/callback_params.rs` |
-| 成功页面 | `login/src/success_page.rs`、`login/src/assets/` |
-| 令牌数据 | `login/src/token_data.rs` |
-| 撤销 | `login/src/auth/revoke.rs` |
-| 出站代理 | `login/src/outbound_proxy.rs` |
+| PKCE | `codex-rs/login/src/pkce.rs` |
+| 本地回调服务器 | `codex-rs/login/src/server.rs` |
+| 回调参数解析 | `codex-rs/login/src/callback_params.rs` |
+| 成功页面 | `codex-rs/login/src/success_page.rs`、`login/src/assets/` |
+| 令牌数据 | `codex-rs/login/src/token_data.rs` |
+| 撤销 | `codex-rs/login/src/auth/revoke.rs` |
+| 出站代理 | `codex-rs/login/src/outbound_proxy.rs` |
 
 **PKCE + 本地回调服务器 + 成功页面**是标准的 CLI OAuth 形态：起本地 HTTP 服务、浏览器授权后回调、渲染成功页。
 
-> **未验证**（E1）：完整的时序与错误处理分支。入口是 `login/src/lib.rs` 与 `auth/manager.rs`。
+> **未验证**（E1）：完整的时序与错误处理分支。入口是 `codex-rs/login/src/lib.rs` 与 `codex-rs/login/src/auth/manager.rs`。
 
 ### 相关端点（E3，公开技术信息）
 
@@ -135,15 +135,15 @@ verified_at: 2026-08-03
 
 | 组件 | 位置 | 说明 |
 | ---- | ---- | ---- |
-| 存储抽象 | `login/src/auth/storage.rs` | 认证态落盘 |
+| 存储抽象 | `codex-rs/login/src/auth/storage.rs` | 认证态落盘 |
 | 系统钥匙串 | `codex-keyring-store`（226 行） | `DefaultKeyringStore`（`lib.rs:49`）、`CredentialStoreError`（`:9`） |
 | 密钥抽象 | `codex-secrets`（786 行） | — |
-| 配置侧 | `core/src/config/auth_keyring.rs` | 钥匙串后端的解析 |
-| 配置键 | `cli_auth_credentials_store` | `config.schema.json` 顶层键之一，取值见 §2.2 |
+| 配置侧 | `codex-rs/core/src/config/auth_keyring.rs` | 钥匙串后端的解析 |
+| 配置键 | `cli_auth_credentials_store` | `codex-rs/core/config.schema.json` 顶层键之一，取值见 §2.2 |
 
 **存储位置在 `CODEX_HOME`（默认 `~/.codex`）下**，以及系统钥匙串。
 
-`ModelProviderInfo` 的 **`requires_openai_auth`** 字段（`model-provider-info/src/lib.rs`，字段本身在 `:137`，注释在 `:132-135`）提到 `auth.json`：
+`ModelProviderInfo` 的 **`requires_openai_auth`** 字段（`codex-rs/model-provider-info/src/lib.rs`，字段本身在 `:137`，注释在 `:132-135`）提到 `auth.json`：
 
 > "Does this provider require an OpenAI API Key or ChatGPT login token? If true, user is presented with login screen on first run, and login preference and token/key are stored in `auth.json`."
 
@@ -182,7 +182,7 @@ pub struct AuthDotJson {
 - **大部分**字段带 `#[serde(default, skip_serializing_if = "Option::is_none")]`——未使用的模式不会在文件里留下空键。
 
 > [!CAUTION]
-> **勘误：上一稿写的"所有敏感字段都带 `skip_serializing_if`"不成立。** `login/src/auth/storage.rs` 里 **API key 那个字段是例外**——它只有一个 `#[serde(rename = ...)]` 属性，**既没有 `default` 也没有 `skip_serializing_if`**（`:44-45`）；相邻的 `auth_mode`（`:41-42`）才是带 `#[serde(default, skip_serializing_if = "Option::is_none")]` 的那种写法。
+> **勘误：上一稿写的"所有敏感字段都带 `skip_serializing_if`"不成立。** `codex-rs/login/src/auth/storage.rs` 里 **API key 那个字段是例外**——它只有一个 `#[serde(rename = ...)]` 属性，**既没有 `default` 也没有 `skip_serializing_if`**（`:44-45`）；相邻的 `auth_mode`（`:41-42`）才是带 `#[serde(default, skip_serializing_if = "Option::is_none")]` 的那种写法。
 >
 > 后果很具体：**即使没有配置 API key，序列化 `auth.json` 时也会写出一个值为 `null` 的该键**。所以"文件里出现这个键"并不代表"存了凭证"，排查时别据此下结论。
 >
@@ -203,7 +203,7 @@ pub(super) fn get_auth_file(codex_home: &Path) -> PathBuf {
 
 ### 2.2 `cli_auth_credentials_store` 的取值（E3，修订补入）
 
-初版只说它是"`config.schema.json` 顶层键之一"，未说明取值。类型是 `AuthCredentialsStoreMode`（`codex-rs/config/src/types.rs:107-117`），共 **4 个取值**：
+初版只说它是"`codex-rs/core/config.schema.json` 顶层键之一"，未说明取值。类型是 `AuthCredentialsStoreMode`（`codex-rs/config/src/types.rs:107-117`），共 **4 个取值**：
 
 | 取值 | 语义（文档注释原文） |
 | ---- | ---- |
@@ -232,13 +232,13 @@ impl Config {
 }
 ```
 
-`Feature::SecretAuthStorage`（`features/src/lib.rs:92`）的文档注释：
+`Feature::SecretAuthStorage`（`codex-rs/features/src/lib.rs:92`）的文档注释：
 
 > *"Store CLI auth in the encrypted local secrets backend when keyring storage is selected."*
 
 **含义**：`cli_auth_credentials_store = "keyring"`（或 `auto` 命中钥匙串）时，开启该 feature 会把凭证路由到**加密的本地 secrets 后端**（`codex-secrets`），而不是直接用系统钥匙串。
 
-它的注册项在 `features/src/lib.rs:853-857`：
+它的注册项在 `codex-rs/features/src/lib.rs:853-857`：
 
 ```rust
 FeatureSpec {
@@ -255,7 +255,7 @@ FeatureSpec {
 > 1. **`default_enabled: cfg!(windows)`——在 Windows 上它默认就是开的。** 不要把它当成纯粹的"选择性加固项"来描述；在 Windows 平台上，加密本地 secrets 后端是**默认路径**，反倒是关闭它需要显式配置。
 > 2. **上一稿说它"是 `Feature` 枚举 `// Stable.` 注释段仅有的 3 个之一，在这个以实验性为主的枚举里已属稳定"——依据用错了。** 判定成熟度的权威字段是 `stage:`，不是源码里的注释分段。按 `stage:` 统计，102 个 feature 中 `Stage::Stable` 有 **34** 个，`Stage::Experimental` 只有 1~2 个（随 target 而变）——**这个枚举根本不是"以实验性为主"**。详见 [`experimental_surfaces.md`](./experimental_surfaces.md) §7.4。（"`// Stable.` 注释段只有 3 个变体"这句本身是对的，只是它不能用来推断成熟度。）
 
-另有 `resolve_bootstrap_auth_keyring_backend_kind`（`auth_keyring.rs:22`），用于**在完整 `Config` 构建之前**就得读认证的启动路径。
+另有 `resolve_bootstrap_auth_keyring_backend_kind`（`codex-rs/core/src/config/auth_keyring.rs:22`），用于**在完整 `Config` 构建之前**就得读认证的启动路径。
 
 ---
 
@@ -305,7 +305,7 @@ FeatureSpec {
 | `stream_idle_timeout_ms` | 流空闲多久判定连接丢失 |
 | `websocket_connect_timeout_ms` | WebSocket 连接超时 |
 
-**存在 WebSocket 超时字段**，说明部分 provider 走 WebSocket 而非纯 HTTP 流（另见 `codex-websocket-client`、`core/tests/suite/client_websockets.rs`）。
+**存在 WebSocket 超时字段**，说明部分 provider 走 WebSocket 而非纯 HTTP 流（另见 `codex-websocket-client`、`codex-rs/core/tests/suite/client_websockets.rs`）。
 
 ---
 
@@ -357,9 +357,9 @@ pub enum WireApi {
 
 ---
 
-## 6. 相关配置键（**E2**：读生成的 `config.schema.json`；初版标 E4 已下调）
+## 6. 相关配置键（**E2**：读生成的 `codex-rs/core/config.schema.json`；初版标 E4 已下调）
 
-`config.schema.json` 中与本文相关的顶层键：`chatgpt_base_url`、`cli_auth_credentials_store`、`forced_chatgpt_workspace_id`、`forced_login_method`、`allow_login_shell`、`model_provider`、`oss_provider`（后两者见完整 schema）。
+`codex-rs/core/config.schema.json` 中与本文相关的顶层键：`chatgpt_base_url`、`cli_auth_credentials_store`、`forced_chatgpt_workspace_id`、`forced_login_method`、`allow_login_shell`、`model_provider`、`oss_provider`（后两者见完整 schema）。
 
 配置层级与优先级见 [`config_system.md`](./config_system.md) §1。
 
@@ -389,7 +389,7 @@ pub enum WireApi {
 | **不要向普通用户推荐 `--experimental_issuer` / `--experimental_client-id`** | §1.3——可把 OAuth 流程指向任意 issuer |
 | **`$CODEX_HOME/auth.json` 承载明文凭证**，不要整体粘贴到 issue 或日志 | §2.1 |
 | 需要更强的本地保护时用 `cli_auth_credentials_store = "keyring"` + `Feature::SecretAuthStorage` | §2.2 / §2.3 |
-| 遥测中的认证环境信息见 `login/src/auth_env_telemetry.rs` | 与 [`observability.md`](./observability.md) 相关 |
+| 遥测中的认证环境信息见 `codex-rs/login/src/auth_env_telemetry.rs` | 与 [`observability.md`](./observability.md) 相关 |
 
 ---
 
@@ -398,17 +398,17 @@ pub enum WireApi {
 | 未覆盖项 | 当前证据 | 建议入口 |
 | ---- | ---- | ---- |
 | ~~`auth.json` 的结构~~ | **已在 §2.1 解决**（`AuthDotJson`） | — |
-| OAuth 完整时序与错误分支 | E1 | `login/src/lib.rs`、`auth/manager.rs` |
-| 凭证在钥匙串中的具体命名与格式 | E1 | `keyring-store/src/lib.rs`、`auth/storage.rs` |
-| `TokenData` / `AgentIdentityStorage` / `BedrockApiKeyAuth` 的内部字段 | E1 | `login/src/token_data.rs`、`auth/storage.rs` |
-| `ChatgptAuthTokens` 与 `Headers` 两种模式的实际注入路径 | E1 | `auth/manager.rs`；`account/chatgptAuthTokens/refresh` |
-| `Feature::SecretAuthStorage` 开启后凭证的实际落点 | E1 | `codex-secrets`、`config/src/types.rs` 的 `AuthKeyringBackendKind` |
-| `--experimental_issuer` / `--experimental_client-id` 的校验与约束 | E1 | `cli/src/main.rs:490-496`、`login/src/lib.rs` |
-| Bedrock / AWS SigV4 的签名实现 | E1 | `codex-aws-auth`、`auth/bedrock_api_key.rs` |
-| 令牌刷新与过期处理 | E1 | `auth/manager.rs`、`account/chatgptAuthTokens/refresh` |
+| OAuth 完整时序与错误分支 | E1 | `codex-rs/login/src/lib.rs`、`codex-rs/login/src/auth/manager.rs` |
+| 凭证在钥匙串中的具体命名与格式 | E1 | `codex-rs/keyring-store/src/lib.rs`、`codex-rs/login/src/auth/storage.rs` |
+| `TokenData` / `AgentIdentityStorage` / `BedrockApiKeyAuth` 的内部字段 | E1 | `codex-rs/login/src/token_data.rs`、`codex-rs/login/src/auth/storage.rs` |
+| `ChatgptAuthTokens` 与 `Headers` 两种模式的实际注入路径 | E1 | `codex-rs/login/src/auth/manager.rs`；`account/chatgptAuthTokens/refresh` |
+| `Feature::SecretAuthStorage` 开启后凭证的实际落点 | E1 | `codex-secrets`、`codex-rs/config/src/types.rs` 的 `AuthKeyringBackendKind` |
+| `--experimental_issuer` / `--experimental_client-id` 的校验与约束 | E1 | `codex-rs/cli/src/main.rs:490-496`、`codex-rs/login/src/lib.rs` |
+| Bedrock / AWS SigV4 的签名实现 | E1 | `codex-aws-auth`、`codex-rs/login/src/auth/bedrock_api_key.rs` |
+| 令牌刷新与过期处理 | E1 | `codex-rs/login/src/auth/manager.rs`、`account/chatgptAuthTokens/refresh` |
 | Ollama / LM Studio 的发现与探测 | E1 | `codex-ollama`、`codex-lmstudio` |
-| `ModelProviderInfo` 剩余字段 | E3（部分） | `model-provider-info/src/lib.rs:89` 起 |
-| Agent Identity 的用途 | E1 | `codex-agent-identity`、`auth/agent_identity.rs` |
+| `ModelProviderInfo` 剩余字段 | E3（部分） | `codex-rs/model-provider-info/src/lib.rs:89` 起 |
+| Agent Identity 的用途 | E1 | `codex-agent-identity`、`codex-rs/login/src/auth/agent_identity.rs` |
 
 ---
 

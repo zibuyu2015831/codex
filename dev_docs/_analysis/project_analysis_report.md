@@ -78,7 +78,7 @@ verified_at: 2026-08-03
 - **证据等级**: E2（仓库规范文件明文）
 - **当前状态**: 已确认，已在方案中规避
 - **blocks_phase1**: false
-- **回写目标**: `generation_plan.md` 1.3B 表 + 3.4 节 + `rules/combined/AI_RULES.md`
+- **回写目标**: `generation_plan.md` 1.3B 表 + 3.4 节 + `dev_docs/rules/combined/AI_RULES.md`
 
 **问题描述**:
 
@@ -237,7 +237,7 @@ Rust 主体 1,270,789 行、134 个 crate。即便分 4 批生成 17 篇文档�
 - **证据等级**: E4（`gh repo view --json isPrivate` 实跑 + `git push` 结果确认）
 - **当前状态**: 已确认，已执行首次脱敏；对后续批次持续生效
 - **blocks_phase1**: false
-- **回写目标**: `generation_plan.md` 安全与脱敏章节、`rules/combined/AI_RULES.md`
+- **回写目标**: `generation_plan.md` 安全与脱敏章节、`dev_docs/rules/combined/AI_RULES.md`
 - **新增轮次**: 第 2 轮复查（第 1 轮时产物尚为本地文件，无此风险面）
 
 **问题描述**:
@@ -272,7 +272,7 @@ Rust 主体 1,270,789 行、134 个 crate。即便分 4 批生成 17 篇文档�
 - **证据等级**: E4（5 项 checker 实跑结果）+ E3（7 个独立代理逐条回源码复核）
 - **当前状态**: 已确认，修复计划见 `health_check_report.md`
 - **blocks_phase1**: false（Phase 1 已结束；本条约束的是验收阶段）
-- **回写目标**: `rules/combined/AI_RULES.md` §5.3 与 §6、`generation_plan.md` 的验证清单
+- **回写目标**: `dev_docs/rules/combined/AI_RULES.md` §5.3 与 §6、`generation_plan.md` 的验证清单
 - **新增轮次**: 第二轮独立审查
 
 **问题描述**:
@@ -292,7 +292,7 @@ Rust 主体 1,270,789 行、134 个 crate。即便分 4 批生成 17 篇文档�
 
 1. 事实类断言的验收改由**独立代理**执行，且不得读生成者的结论，只读源码；
 2. 新增跨文档数值对账 checker，纳入提交前门禁；
-3. 依赖类与机制类断言的取证方式写成硬规则（已落入 `rules/combined/AI_RULES.md` §5.3）；
+3. 依赖类与机制类断言的取证方式写成硬规则（已落入 `dev_docs/rules/combined/AI_RULES.md` §5.3）；
 4. 元文件（`_analysis` 四件套）与正式文档同等纳入事实核查范围——本轮的 H15 就出在元文件上。
 
 > [!WARNING]
@@ -519,8 +519,8 @@ Rust 主体 1,270,789 行、134 个 crate。即便分 4 批生成 17 篇文档�
 | 文档产物若落入 `docs/` 将违反仓库规范 | E2 | AGENTS.md 顶部规则列表（docs/ 条目） | 已确认 | 无需进一步验证（方案已规避） | P1（已落实） |
 | 高触碰大文件会持续吸引无关改动 | E2 + E4 | AGENTS.md 顶部规则列表（high-touch files 条目） 点名清单 + `wc -l` 实测 12,616 行 | 已确认 | 无需进一步验证 | 否（受维护者规则约束，仅记录） |
 | Python SDK 章节无法取得 E4 证据 | E2 + E4 | `pyproject.toml:10` `>=3.10` + 本机 `Python 3.9.6` | 已确认 | 用户升级 Python 后可补跑 pytest | 否 |
-| 四层扩展机制的关系可能被误述 | E1 | 仅目录存在性 | 待验证 | 第 3 批读取 `ext/extension-api/src/lib.rs`、`core-plugins/src/manager.rs`、`skills/src/lib.rs` 公开 API | P1 |
-| release 构建下遥测默认开启 | E3（部分） | `otel/src/config.rs:16,90,113` grep 命中 | 待验证 | 第 4 批完整读取 `otel/src/{config,provider,otlp}.rs` 与 `analytics/src/client.rs` 投递链路 | P1 |
+| 四层扩展机制的关系可能被误述 | E1 | 仅目录存在性 | 待验证 | 第 3 批读取 `codex-rs/ext/extension-api/src/lib.rs`、`codex-rs/core-plugins/src/manager.rs`、`skills/src/lib.rs` 公开 API | P1 |
+| release 构建下遥测默认开启 | E3（部分） | `otel/src/config.rs:16,90,113` grep 命中 | 待验证 | 第 4 批完整读取 `otel/src/{config,provider,otlp}.rs` 与 `codex-rs/analytics/src/client.rs` 投递链路 | P1 |
 | app-server ↔ exec-server 跨 OS 分离的传输实现 | E2 | AGENTS.md「## Platform Support」 + crate 存在性 | 待验证 | 第 2 批读取 `exec-server-protocol/src/`、`app-server-transport/src/`、`uds/src/` | P1 |
 | `find_codex_home` 存在两处同名实现可能造成描述冲突 | E3 | `codex-rs/core/src/config/mod.rs:4578` 与 `codex-rs/utils/home-dir/src/lib.rs:13` 均定义 `pub fn find_codex_home` | 待验证 | 第 2 批读取两处实现，确认调用关系（委托 or 重复） | P1 |
 | 上游高速迭代导致文档快速过期 | E4 | `git log -1` 基线 commit 与分析同日；近 5 次提交均为当日/近日 PR | 已确认 | 建立路径 C 增量更新节奏 | P1 |

@@ -37,7 +37,7 @@ verified_at: 2026-08-03
 > thread-store → codex-rollout, codex-state, sqlx  # 自己不发明存储，全部借下层
 > ```
 >
-> `rollout/src/state_db.rs` 直接 `use codex_state::SqliteConfig / ThreadMetadataBuilder / LogEntry`——**rollout 在写 jsonl 的同时也在往 SQLite 写线程元数据**。所以「rollout = 纯文件、state = 纯数据库」这个二分是错的。
+> `codex-rs/rollout/src/state_db.rs` 直接 `use codex_state::SqliteConfig / ThreadMetadataBuilder / LogEntry`——**rollout 在写 jsonl 的同时也在往 SQLite 写线程元数据**。所以「rollout = 纯文件、state = 纯数据库」这个二分是错的。
 
 另有 `codex-rollout-trace`（13,257 行）负责 rollout 的追踪与回放（`codex debug trace-reduce`），`codex-message-history`（1,437 行）负责消息历史。
 
@@ -50,7 +50,7 @@ verified_at: 2026-08-03
 > [!CAUTION]
 > **本文第一版把目录写成了 `$CODEX_HOME/sessions/`——少了三层日期目录。** 按第一版给的命令 `ls ~/.codex/sessions/rollout-*.jsonl` **一个文件都匹配不到**。
 >
-> 错误来源可以确认：第一版直接抄了 `recorder.rs:81-82` 的**文档注释示例**，而那段注释本身是过时的（它写的是 `~/.codex/sessions/rollout-2025-05-07T17-24-21-<uuid>.jsonl`）。**真实路径由代码决定，不由注释决定。**
+> 错误来源可以确认：第一版直接抄了 `codex-rs/rollout/src/recorder.rs:81-82` 的**文档注释示例**，而那段注释本身是过时的（它写的是 `~/.codex/sessions/rollout-2025-05-07T17-24-21-<uuid>.jsonl`）。**真实路径由代码决定，不由注释决定。**
 
 真正建目录的代码在 `codex-rs/rollout/src/recorder.rs:1553-1560`（E3）：
 
@@ -78,7 +78,7 @@ let filename = format!("rollout-{date_str}-{conversation_id}.jsonl");
 | 会话 ID | UUID |
 | 扩展名 | `.jsonl`（每行一个 JSON 事件）。**默认就是这个形态**；只有显式开启压缩特性后，超过 7 天的文件才会变成 `.jsonl.zst`，见 §2.2 |
 
-`SESSIONS_SUBDIR` 常量在 `rollout/src/lib.rs:25`。`rollout/src/recorder_tests.rs`、`tests.rs`、`compression_tests.rs`、`rollout_reference_index_tests.rs` 中的断言路径形如 `sessions/2025/01/03/rollout-<ts>-<uuid>.jsonl`，可作交叉验证。
+`SESSIONS_SUBDIR` 常量在 `codex-rs/rollout/src/lib.rs:25`。`codex-rs/rollout/src/recorder_tests.rs`、`tests.rs`、`codex-rs/rollout/src/compression_tests.rs`、`codex-rs/rollout/src/rollout_reference_index_tests.rs` 中的断言路径形如 `sessions/2025/01/03/rollout-<ts>-<uuid>.jsonl`，可作交叉验证。
 
 **能用的查找命令**：
 
@@ -93,7 +93,7 @@ find ~/.codex/sessions -name 'rollout-*.jsonl*' -type f | sort | tail -5
 > **这一节记录了一次矫枉过正。**
 >
 > - 第一版说 rollout「是纯文本、逐行 JSON，不需要任何工具支持」。
-> - 第二版看到 `rollout/src/compression.rs` 里那套完整的 zstd 工作器，就断言「压缩不是可选功能」、「7 天后必然变成 `.jsonl.zst`」。
+> - 第二版看到 `codex-rs/rollout/src/compression.rs` 里那套完整的 zstd 工作器，就断言「压缩不是可选功能」、「7 天后必然变成 `.jsonl.zst`」。
 > - **第二版错了。** 压缩工作器只有一个生产调用点，而那个调用点被特性开关包着，开关默认关闭。**在默认配置下，rollout 就是纯 `.jsonl`，第一版的结论在默认口径上是对的。**
 >
 > 教训：看到一个功能完整的模块，不等于它在默认路径上被启用了。**要顺着调用链找到唯一的生产调用点，再看它的门禁条件。**
@@ -140,12 +140,12 @@ grep -rn spawn_rollout_compression_worker codex-rs/ --include=*.rs
 
 | 事实 | 位置 |
 | ---- | ---- |
-| 压缩后缀 `.zst` | `compression.rs:18` `const COMPRESSED_SUFFIX: &str = ".zst"` |
+| 压缩后缀 `.zst` | `codex-rs/rollout/src/compression.rs:18` `const COMPRESSED_SUFFIX: &str = ".zst"` |
 | **超过 7 天的 rollout 才压缩** | `:258` `const MIN_ROLLOUT_AGE: Duration = Duration::from_secs(7 * 24 * 60 * 60)`，判定在 `:716` `if age < MIN_ROLLOUT_AGE { ... }` |
 | 压缩算法与级别 | `:732` `fn encode_zstd_to_writer(...)`，`:257` `const COMPRESSION_LEVEL: i32 = 3` |
 | 写入用临时文件再改名 | `:649` `encode_zstd_to_writer(path, temp_file.as_file_mut())`，`TEMP_SUFFIX = ".tmp"` |
 | 有跨进程运行锁与陈旧清理 | `RUN_MARKER_FILE_NAME = "rollout-compression.lock"`、`RUN_MARKER_STALE_AFTER = 6h`、`WORKER_MAX_RUNTIME = 5h` |
-| 依赖 | `rollout/Cargo.toml` 的 `zstd = { workspace = true }` |
+| 依赖 | `codex-rs/rollout/Cargo.toml` 的 `zstd = { workspace = true }` |
 
 所以调试命令应该这样用：
 
@@ -161,30 +161,30 @@ zstdcat ~/.codex/sessions/2026/07/01/rollout-....jsonl.zst | jq -C .
 > [!TIP]
 > **调试会话问题时 `jq` 是最快的路径，默认情况下也是够用的。** 只有在压缩开关被打开过的环境里才需要先确认扩展名。
 >
-> 代码侧不必自己判断形态，但**统一两种形态的不是反向扫描器**：`reverse_jsonl_scanner.rs` 里没有任何 `.zst` / `COMPRESSED_SUFFIX` 的引用，它的签名是 `ReverseJsonlScanner<R: Read + Seek>`（`:20`、`:30`），而 zstd 流本身不可 seek。真正屏蔽差异的入口是 `open_rollout_line_reader`（定义在 `rollout/src/compression.rs:47`，从 `rollout/src/lib.rs:37-41` 连同 `RolloutLineReader` / `existing_rollout_path` / `plain_rollout_path` 一起 re-export），它按路径选择 `RolloutLineReaderInner::Plain` 或阻塞式 zstd 解码分支。路径名层面的后缀剥离则在 `compression.rs:960` 的 `strip_suffix(COMPRESSED_SUFFIX)`。
+> 代码侧不必自己判断形态，但**统一两种形态的不是反向扫描器**：`codex-rs/rollout/src/reverse_jsonl_scanner.rs` 里没有任何 `.zst` / `COMPRESSED_SUFFIX` 的引用，它的签名是 `ReverseJsonlScanner<R: Read + Seek>`（`:20`、`:30`），而 zstd 流本身不可 seek。真正屏蔽差异的入口是 `open_rollout_line_reader`（定义在 `codex-rs/rollout/src/compression.rs:47`，从 `codex-rs/rollout/src/lib.rs:37-41` 连同 `RolloutLineReader` / `existing_rollout_path` / `plain_rollout_path` 一起 re-export），它按路径选择 `RolloutLineReaderInner::Plain` 或阻塞式 zstd 解码分支。路径名层面的后缀剥离则在 `codex-rs/rollout/src/compression.rs:960` 的 `strip_suffix(COMPRESSED_SUFFIX)`。
 
 ### 2.3 模块版图（E1）
 
 | 文件 | 职责 |
 | ---- | ---- |
-| `recorder.rs` | 写入 |
-| `reverse_jsonl_scanner.rs` | **反向扫描 jsonl**（`ReverseJsonlScanner<R: Read + Seek>`、`ScanOutcome`，`lib.rs:82-83`）。**只处理可 seek 的明文流，不认识 `.zst`** |
-| `compression.rs` | **zstd 压缩工作器**（7 天阈值、运行锁、原子改名）+ 统一读取入口 `open_rollout_line_reader`。压缩侧默认不启用，见 §2.2 |
+| `codex-rs/rollout/src/recorder.rs` | 写入 |
+| `codex-rs/rollout/src/reverse_jsonl_scanner.rs` | **反向扫描 jsonl**（`ReverseJsonlScanner<R: Read + Seek>`、`ScanOutcome`，`lib.rs:82-83`）。**只处理可 seek 的明文流，不认识 `.zst`** |
+| `codex-rs/rollout/src/compression.rs` | **zstd 压缩工作器**（7 天阈值、运行锁、原子改名）+ 统一读取入口 `open_rollout_line_reader`。压缩侧默认不启用，见 §2.2 |
 | `metadata.rs` | 元数据 |
 | `list.rs` / `search.rs` | 列举与搜索 |
-| `session_index.rs` | 会话索引 |
-| `rollout_reference_index.rs` | 引用索引 |
-| `state_db.rs` / `sqlite_metrics.rs` | **SQLite 侧**：`state_db.rs` 借 `codex-state` 写线程元数据（`ThreadMetadataBuilder`、`SqliteConfig`），并重导出 `LogEntry` |
-| `ordinal.rs` | 序号 |
+| `codex-rs/rollout/src/session_index.rs` | 会话索引 |
+| `codex-rs/rollout/src/rollout_reference_index.rs` | 引用索引 |
+| `codex-rs/rollout/src/state_db.rs` / `codex-rs/rollout/src/sqlite_metrics.rs` | **SQLite 侧**：`codex-rs/rollout/src/state_db.rs` 借 `codex-state` 写线程元数据（`ThreadMetadataBuilder`、`SqliteConfig`），并重导出 `LogEntry` |
+| `codex-rs/rollout/src/ordinal.rs` | 序号 |
 | `policy.rs` / `config.rs` | 策略与配置 |
 | `model_context.rs` | 模型上下文 |
-| `persistence_metrics.rs` | 持久化指标 |
+| `codex-rs/rollout/src/persistence_metrics.rs` | 持久化指标 |
 
 > **反向扫描器的存在很有信息量**：要"读最近 N 条"而不加载整个文件，就需要从文件尾部往前扫。这说明 rollout 文件可能很大，且常见需求是访问尾部。
 
 ### 2.4 两个目录常量（E3）
 
-`rollout/src/lib.rs:25-26`：
+`codex-rs/rollout/src/lib.rs:25-26`：
 
 ```rust
 pub const SESSIONS_SUBDIR: &str = "sessions";
@@ -205,20 +205,20 @@ pub const ARCHIVED_SESSIONS_SUBDIR: &str = "archived_sessions";
 
 | 操作 | 文件 |
 | ---- | ---- |
-| 创建 | `create_thread.rs` |
-| 读取 | `read_thread.rs` |
-| 列举 | `list_threads.rs` |
-| 搜索 | `search_threads.rs` |
-| 删除 | `delete_thread.rs` |
-| 归档 / 取消归档 | `archive_thread.rs` / `unarchive_thread.rs` |
-| 更新元数据 | `update_thread_metadata.rs` |
-| 分组移动 | `move_thread_to_section.rs` |
-| **分页 fork** | `paginated_fork.rs` |
-| 历史 | `thread_history.rs` + `thread_history/` + `thread_history_materialization.rs` |
+| 创建 | `codex-rs/thread-store/src/local/create_thread.rs` |
+| 读取 | `codex-rs/thread-store/src/local/read_thread.rs` |
+| 列举 | `codex-rs/thread-store/src/local/list_threads.rs` |
+| 搜索 | `codex-rs/thread-store/src/local/search_threads.rs` |
+| 删除 | `codex-rs/thread-store/src/local/delete_thread.rs` |
+| 归档 / 取消归档 | `codex-rs/thread-store/src/local/archive_thread.rs` / `codex-rs/thread-store/src/local/unarchive_thread.rs` |
+| 更新元数据 | `codex-rs/thread-store/src/local/update_thread_metadata.rs` |
+| 分组移动 | `codex-rs/thread-store/src/local/move_thread_to_section.rs` |
+| **分页 fork** | `codex-rs/thread-store/src/local/paginated_fork.rs` |
+| 历史 | `thread_history.rs` + `thread_history/` + `codex-rs/thread-store/src/local/thread_history_materialization.rs` |
 | 分组 | `thread_sections.rs` |
-| **rollout 血缘** | `rollout_lineage.rs` |
-| **写锁** | `writer_lock.rs` |
-| 实时写入 | `live_writer.rs` |
+| **rollout 血缘** | `codex-rs/thread-store/src/local/rollout_lineage.rs` |
+| **写锁** | `codex-rs/thread-store/src/local/writer_lock.rs` |
+| 实时写入 | `codex-rs/thread-store/src/local/live_writer.rs` |
 | 模型上下文 | `model_context.rs` |
 
 这套操作面与 app-server 协议的 `thread/*`（57 个方法）严格对应，见 [`app_server_protocol.md`](./app_server_protocol.md) §3。
@@ -226,21 +226,21 @@ pub const ARCHIVED_SESSIONS_SUBDIR: &str = "archived_sessions";
 ### 3.2 两个值得注意的机制
 
 > [!IMPORTANT]
-> **① 写锁（`writer_lock.rs` + `writer_lock_tests.rs`）**
+> **① 写锁（`codex-rs/thread-store/src/local/writer_lock.rs` + `codex-rs/thread-store/src/local/writer_lock_tests.rs`）**
 > 存在显式的写锁机制，说明**多个进程可能同时访问同一份线程存储**——TUI、app-server、exec 都可能在跑。改动写入路径时必须考虑并发。
 
 > [!IMPORTANT]
-> **② rollout 血缘（`rollout_lineage.rs`）**
-> `codex fork` 会从既有会话派生新会话，两者之间存在**血缘关系**。这解释了为什么有 `paginated_fork.rs`——fork 一个长会话需要分页处理。
+> **② rollout 血缘（`codex-rs/thread-store/src/local/rollout_lineage.rs`）**
+> `codex fork` 会从既有会话派生新会话，两者之间存在**血缘关系**。这解释了为什么有 `codex-rs/thread-store/src/local/paginated_fork.rs`——fork 一个长会话需要分页处理。
 
 ### 3.3 其他组成
 
 | 文件 | 说明 |
 | ---- | ---- |
-| `in_memory.rs` | 内存实现（测试用途） |
+| `codex-rs/thread-store/src/in_memory.rs` | 内存实现（测试用途） |
 | `store.rs` | 存储抽象 |
-| `live_thread.rs` | 活跃线程 |
-| `thread_metadata_sync.rs` | 元数据同步 |
+| `codex-rs/thread-store/src/live_thread.rs` | 活跃线程 |
+| `codex-rs/thread-store/src/thread_metadata_sync.rs` | 元数据同步 |
 | `types.rs` / `error.rs` | 类型与错误 |
 
 ---
@@ -251,20 +251,20 @@ pub const ARCHIVED_SESSIONS_SUBDIR: &str = "archived_sessions";
 
 | 文件 | 职责 |
 | ---- | ---- |
-| `sqlite.rs` | SQLite 接入 |
-| `migrations.rs` + `migrations_tests.rs` | **数据库迁移**，见下 |
-| `log_db.rs` + `log_db_filter_tests.rs` | 日志库与过滤 |
+| `codex-rs/state/src/sqlite.rs` | SQLite 接入 |
+| `codex-rs/state/src/migrations.rs` + `codex-rs/state/src/migrations_tests.rs` | **数据库迁移**，见下 |
+| `codex-rs/state/src/log_db.rs` + `codex-rs/state/src/log_db_filter_tests.rs` | 日志库与过滤 |
 | `audit.rs` | 审计 |
 | `telemetry.rs` | 遥测 |
-| `paths.rs` | 路径 |
-| `extract.rs` | 提取 |
+| `codex-rs/state/src/paths.rs` | 路径 |
+| `codex-rs/state/src/extract.rs` | 提取 |
 | `model/`、`runtime.rs` + `runtime/` | 模型与运行时 |
 
 ### 4.1 不是一个库，是 5 个（E3）
 
 > 第一版只写了「`sqlx::migrate!`」单数，容易误以为只有一套 schema。
 
-`state/src/migrations.rs:6-10`：
+`codex-rs/state/src/migrations.rs:6-10`：
 
 ```rust
 pub(crate) static STATE_MIGRATOR:          Migrator = sqlx::migrate!("./migrations");
@@ -286,7 +286,7 @@ pub(crate) static THREAD_HISTORY_MIGRATOR: Migrator = sqlx::migrate!("./thread_h
 
 ### 4.2 版本前向兼容策略（E3）
 
-`migrations.rs:12-25` 的 `runtime_migrator` 有一段值得注意的设计：
+`codex-rs/state/src/migrations.rs:12-25` 的 `runtime_migrator` 有一段值得注意的设计：
 
 > "Allow an older Codex binary to open a database that has already been migrated by a newer binary running in parallel. We intentionally **ignore applied migration versions that are newer than the embedded migration set**. Known migration versions are still validated by checksum, so this only relaxes the 'database is ahead of me' case."
 
@@ -322,15 +322,15 @@ CLI 实现见 `codex-rs/cli/src/main.rs:1268-1362`。TUI 侧的选择器是 `cod
 
 | 组件 | 位置 |
 | ---- | ---- |
-| 会话重建 | `core/src/session/rollout_reconstruction.rs`（+ 测试） |
-| rollout 血缘 | `thread-store/src/local/rollout_lineage.rs` |
-| 分页 fork | `thread-store/src/local/paginated_fork.rs` |
-| 集成测试 | `core/tests/suite/fork_thread.rs`、`compact_resume_fork.rs` |
+| 会话重建 | `codex-rs/core/src/session/rollout_reconstruction.rs`（+ 测试） |
+| rollout 血缘 | `codex-rs/thread-store/src/local/rollout_lineage.rs` |
+| 分页 fork | `codex-rs/thread-store/src/local/paginated_fork.rs` |
+| 集成测试 | `codex-rs/core/tests/suite/fork_thread.rs`、`codex-rs/core/tests/suite/compact_resume_fork.rs` |
 
 > [!CAUTION]
 > **「从既有 rollout 恢复会话」是 `AGENTS.md` `### Breaking changes` 一节明确点名的高风险改动面**（grep `resuming sessions from existing rollouts`），与 app-server API、`rawResponseItem/*` 事件、CLI 参数、配置加载并列。
 >
-> 尤其注意 `compact_resume_fork.rs` 这个测试名——**上下文压缩、恢复、fork 三者交互**是最容易出问题的组合。
+> 尤其注意 `codex-rs/core/tests/suite/compact_resume_fork.rs` 这个测试名——**上下文压缩、恢复、fork 三者交互**是最容易出问题的组合。
 
 ---
 
@@ -356,10 +356,10 @@ CLI 实现见 `codex-rs/cli/src/main.rs:1268-1362`。TUI 侧的选择器是 `cod
 | ---- | ---- |
 | **rollout 恢复是高风险改动面** | `AGENTS.md` `### Breaking changes`，grep `resuming sessions from existing rollouts` |
 | 改了 `sqlx::migrate!` 相关代码要补 `BUILD.bazel` 的 `compile_data`（**5 个迁移目录**） | `AGENTS.md` 顶部规则列表，grep `Bazel does not automatically make source-tree files available` |
-| 存储写入路径需考虑多进程并发（存在显式写锁） | `thread-store/src/local/writer_lock.rs` |
+| 存储写入路径需考虑多进程并发（存在显式写锁） | `codex-rs/thread-store/src/local/writer_lock.rs` |
 | 改智能体逻辑必须补集成测试 | AGENTS.md `### Test authoring guidance` |
 | 落盘格式变更会影响既有用户的历史会话，需考虑兼容 | `.jsonl` 是持久化契约。默认路径下只有明文一种形态；但一旦用户开过 `local_thread_store_compression`，目录里就会同时存在 `.jsonl` 与 `.jsonl.zst`，**读路径应统一走 `open_rollout_line_reader`** |
-| 不能原地修改已发布的迁移文件（checksum 校验） | `state/src/migrations.rs:12-25` |
+| 不能原地修改已发布的迁移文件（checksum 校验） | `codex-rs/state/src/migrations.rs:12-25` |
 | 改了 `Cargo.toml` / `Cargo.lock` 要跑 `just bazel-lock-update` | `AGENTS.md` 顶部规则列表，grep `just bazel-lock-update` |
 
 ---
@@ -368,14 +368,14 @@ CLI 实现见 `codex-rs/cli/src/main.rs:1268-1362`。TUI 侧的选择器是 `cod
 
 | 未覆盖项 | 当前证据 | 建议入口 |
 | ---- | ---- | ---- |
-| `.jsonl` 每行事件的具体结构 | E1 | `rollout/src/recorder.rs`、按 §2.1 的 `find` 命令取一个真实文件再 `jq` |
+| `.jsonl` 每行事件的具体结构 | E1 | `codex-rs/rollout/src/recorder.rs`、按 §2.1 的 `find` 命令取一个真实文件再 `jq` |
 | 5 个 SQLite 库的表结构与迁移历史 | E1 | `state/src/migrations/`、`logs_migrations/`、`goals_migrations/`、`memory_migrations/`、`thread_history_migrations/` |
-| rollout 写 SQLite 元数据的完整字段 | E1 | `rollout/src/state_db.rs`（`ThreadMetadataBuilder` 的调用点） |
-| 线程历史的物化（materialization）机制 | E1 | `thread-store/src/local/thread_history_materialization.rs` |
-| 写锁的粒度与超时 | E1 | `thread-store/src/local/writer_lock.rs` |
-| 会话搜索的索引方式 | E1 | `rollout/src/search.rs`、`session_index.rs` |
+| rollout 写 SQLite 元数据的完整字段 | E1 | `codex-rs/rollout/src/state_db.rs`（`ThreadMetadataBuilder` 的调用点） |
+| 线程历史的物化（materialization）机制 | E1 | `codex-rs/thread-store/src/local/thread_history_materialization.rs` |
+| 写锁的粒度与超时 | E1 | `codex-rs/thread-store/src/local/writer_lock.rs` |
+| 会话搜索的索引方式 | E1 | `codex-rs/rollout/src/search.rs`、`codex-rs/rollout/src/session_index.rs` |
 | `codex-rollout-trace` 的回放机制 | E1 | 该 crate + `codex debug trace-reduce` |
-| `archive_thread.rs` 迁移文件的具体步骤 | E1 | `thread-store/src/local/archive_thread.rs` |
+| `codex-rs/thread-store/src/local/archive_thread.rs` 迁移文件的具体步骤 | E1 | `codex-rs/thread-store/src/local/archive_thread.rs` |
 
 > **已从本表移除的两项**（第一版列为未知，本次已在正文给出 E3 结论）：
 > - 「rollout 压缩的触发条件」→ 见 §2.2，**先是特性开关 `local_thread_store_compression`（默认关闭），开启后阈值才是 `MIN_ROLLOUT_AGE = 7 天`**
@@ -388,5 +388,5 @@ CLI 实现见 `codex-rs/cli/src/main.rs:1268-1362`。TUI 侧的选择器是 `cod
 - [智能体核心循环](./core_agent_loop.md) — 会话与 turn 的内存态
 - [app-server 协议](./app_server_protocol.md) §3 — `thread/*` 方法族
 - [架构总览](./architecture_overview.md) §7 — `CODEX_HOME` 落盘内容
-- [测试指南](./testing_guide.md) — `fork_thread.rs`、`compact_resume_fork.rs`
+- [测试指南](./testing_guide.md) — `codex-rs/core/tests/suite/fork_thread.rs`、`codex-rs/core/tests/suite/compact_resume_fork.rs`
 - [构建与发布](./build_and_release.md) — `compile_data` 陷阱

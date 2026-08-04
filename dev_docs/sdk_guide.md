@@ -20,7 +20,7 @@ verified_at: 2026-08-03
 >
 > **这些全部不成立。** `grep -rn "app-server" sdk/typescript/` 返回 **0 行**。TypeScript SDK 根本不接 app-server——它拉起 `codex exec --experimental-json` 并消费 exec 的事件流。只有 Python SDK 用 app-server。
 >
-> 错误的根源是：第一版看到 `sdk/typescript/src/thread.ts` / `turnOptions.ts` 与协议里的 `thread/*`、`turn/*` 命名空间同名，就直接假定了对应关系，**没有打开 `exec.ts` 看它到底 spawn 了什么**。同名不等于同源。
+> 错误的根源是：第一版看到 `sdk/typescript/src/thread.ts` / `sdk/typescript/src/turnOptions.ts` 与协议里的 `thread/*`、`turn/*` 命名空间同名，就直接假定了对应关系，**没有打开 `sdk/typescript/src/exec.ts` 看它到底 spawn 了什么**。同名不等于同源。
 
 > [!WARNING]
 > **本文的 Python 部分证据等级上限为 E2/E3。** 分析环境的 Python 是 3.9.6，低于 `sdk/python` 声明的 `requires-python = ">=3.10"`，**无法通过实际运行 pytest 取得 E4 验证**。相关结论基于配置文件与源码阅读，不能写成「已验证」。
@@ -97,7 +97,7 @@ verified_at: 2026-08-03
 
 - `sdk/python/src/openai_codex/client.py:213` 的类文档字符串：
   > "Synchronous typed JSON-RPC client for `codex app-server` over stdio."
-- `client.py:252`：
+- `sdk/python/src/openai_codex/client.py:252`：
   ```text
   args.extend(["app-server", "--listen", "stdio://"])
   ```
@@ -108,9 +108,9 @@ verified_at: 2026-08-03
 | ---- | ---- | ---- |
 | 契约面 | `codex-rs/exec/src/exec_events.rs` 的 `ThreadEvent` 及 CLI 标志 | app-server v2 JSON-RPC 方法与通知 |
 | 改 app-server 协议会不会影响它 | **不会**（除非同时改了 exec 事件） | **会** |
-| 改 `exec_events.rs` 或 `codex exec` 标志会不会影响它 | **会** | 基本不会 |
-| 类型来源 | **手写** TS（`events.ts` / `items.ts` 参照 Rust 类型人工同步，无生成器） | **生成**（见 §5.3） |
-| 有无漂移检测 | 无（注释靠人维护） | 有（`tests/test_contract_generation.py`） |
+| 改 `codex-rs/exec/src/exec_events.rs` 或 `codex exec` 标志会不会影响它 | **会** | 基本不会 |
+| 类型来源 | **手写** TS（`sdk/typescript/src/events.ts` / `sdk/typescript/src/items.ts` 参照 Rust 类型人工同步，无生成器） | **生成**（见 §5.3） |
+| 有无漂移检测 | 无（注释靠人维护） | 有（`sdk/python/tests/test_contract_generation.py`） |
 
 > [!IMPORTANT]
 > **`schema/typescript/v2/` 下那 550 个 ts-rs 生成的 `.ts` 文件不是给 `@openai/codex-sdk` 用的。** 它们是 app-server 协议的对外类型产物，服务于直接对接 app-server 的客户端（例如 VS Code 扩展）。TypeScript SDK 不引用它们。
@@ -142,14 +142,14 @@ verified_at: 2026-08-03
 | 文件 | 职责 |
 | ---- | ---- |
 | `index.ts` | 入口，重导出类型 |
-| `codex.ts` | 主客户端 `class Codex`，提供 `startThread()` / `resumeThread()` |
-| `codexOptions.ts` | 客户端选项：`codexPathOverride`、`baseUrl`、`apiKey`、`config`、`env` |
-| `thread.ts` / `threadOptions.ts` | 线程抽象 |
-| `turnOptions.ts` | turn 选项 |
-| `items.ts` | 会话条目类型 |
-| `events.ts` | 事件类型（对应 `exec_events.rs::ThreadEvent`） |
-| `exec.ts` | **进程编排层**：定位二进制、拼装 `codex exec` 参数、spawn、逐行产出 |
-| `outputSchemaFile.ts` | 结构化输出的 schema 文件处理 |
+| `sdk/typescript/src/codex.ts` | 主客户端 `class Codex`，提供 `startThread()` / `resumeThread()` |
+| `sdk/typescript/src/codexOptions.ts` | 客户端选项：`codexPathOverride`、`baseUrl`、`apiKey`、`config`、`env` |
+| `sdk/typescript/src/thread.ts` / `sdk/typescript/src/threadOptions.ts` | 线程抽象 |
+| `sdk/typescript/src/turnOptions.ts` | turn 选项 |
+| `sdk/typescript/src/items.ts` | 会话条目类型 |
+| `sdk/typescript/src/events.ts` | 事件类型（对应 `exec_events.rs::ThreadEvent`） |
+| `sdk/typescript/src/exec.ts` | **进程编排层**：定位二进制、拼装 `codex exec` 参数、spawn、逐行产出 |
+| `sdk/typescript/src/outputSchemaFile.ts` | 结构化输出的 schema 文件处理 |
 
 > [!NOTE]
 > **勘误**：第一版说「核心抽象是 thread 与 turn，与 app-server 协议的 `thread/*`（57 个方法）、`turn/*`（8 个）、`item/*`（19 个）严格对应……SDK 是协议的薄封装」。**不对应，也不是薄封装。** thread/turn/item 是 codex 全栈通用的领域概念，exec 事件流里同样有 `ThreadStartedEvent` / `TurnCompletedEvent` / `ItemCompletedEvent`（见 `index.ts` 的重导出列表）。TS SDK 对接的是**那一套**。
@@ -158,15 +158,15 @@ verified_at: 2026-08-03
 
 第一版把这条标为「未验证（E1）」，现已查清（`sdk/typescript/src/exec.ts`）：
 
-1. **显式覆盖优先**：`CodexOptions.codexPathOverride`（`codexOptions.ts:6`）。
-2. **否则从 npm 包解析**（`exec.ts:391-410`）：
+1. **显式覆盖优先**：`CodexOptions.codexPathOverride`（`sdk/typescript/src/codexOptions.ts:6`）。
+2. **否则从 npm 包解析**（`sdk/typescript/src/exec.ts:391-410`）：
    ```ts
    const codexPackageJsonPath = moduleRequire.resolve(`${CODEX_NPM_NAME}/package.json`);   // "@openai/codex"
    const codexRequire = createRequire(codexPackageJsonPath);
    const platformPackageJsonPath = codexRequire.resolve(`${platformPackage}/package.json`);
    vendorRoot = path.join(path.dirname(platformPackageJsonPath), "vendor");
    ```
-   平台包按 target triple 映射（`exec.ts:47-54`）：
+   平台包按 target triple 映射（`sdk/typescript/src/exec.ts:47-54`）：
 
    | target triple | npm 平台包 |
    | ---- | ---- |
@@ -177,7 +177,7 @@ verified_at: 2026-08-03
    | `x86_64-pc-windows-msvc` | `@openai/codex-win32-x64` |
    | `aarch64-pc-windows-msvc` | `@openai/codex-win32-arm64` |
 
-3. **在 vendor 目录里定位可执行文件**（`resolveNativePackage`，`exec.ts:412-435`）：
+3. **在 vendor 目录里定位可执行文件**（`resolveNativePackage`，`sdk/typescript/src/exec.ts:412-435`）：
    - 首选 `vendor/<triple>/bin/codex`（Windows 为 `codex.exe`），且要求同目录存在 `codex-package.json`；`PATH` 补充目录取自 `vendor/<triple>/codex-path/`。
    - 回退到**遗留布局** `vendor/<triple>/codex/codex[.exe]`，`PATH` 补充目录取自 `vendor/<triple>/path/`。
 4. 都找不到就抛错：`Unable to locate Codex CLI binaries. Ensure @openai/codex is installed with optional dependencies.`
@@ -188,10 +188,10 @@ verified_at: 2026-08-03
 
 第一版把「SDK 的实际用法示例」标成 E1 未知并指向 README。实际上仓库里就有：
 
-- `sdk/typescript/samples/`（4 个）：`basic_streaming.ts`、`structured_output.ts`、`structured_output_zod.ts`、`helpers.ts`
-- `sdk/typescript/tests/`（8 个）：`run.test.ts`、`runStreamed.test.ts`、`exec.test.ts`、`abort.test.ts`，以及夹具 `codexExecSpy.ts`、`responsesProxy.ts`、`setupCodexHome.ts`、`testCodex.ts`
+- `sdk/typescript/samples/`（4 个）：`sdk/typescript/samples/basic_streaming.ts`、`sdk/typescript/samples/structured_output.ts`、`sdk/typescript/samples/structured_output_zod.ts`、`sdk/typescript/samples/helpers.ts`
+- `sdk/typescript/tests/`（8 个）：`sdk/typescript/tests/run.test.ts`、`sdk/typescript/tests/runStreamed.test.ts`、`sdk/typescript/tests/exec.test.ts`、`sdk/typescript/tests/abort.test.ts`，以及夹具 `sdk/typescript/tests/codexExecSpy.ts`、`sdk/typescript/tests/responsesProxy.ts`、`sdk/typescript/tests/setupCodexHome.ts`、`sdk/typescript/tests/testCodex.ts`
 
-`responsesProxy.ts` + `setupCodexHome.ts` 说明测试是**起一个假的 Responses 代理并搭一个临时 `CODEX_HOME`**，端到端跑真二进制，而不是纯 mock。
+`sdk/typescript/tests/responsesProxy.ts` + `sdk/typescript/tests/setupCodexHome.ts` 说明测试是**起一个假的 Responses 代理并搭一个临时 `CODEX_HOME`**，端到端跑真二进制，而不是纯 mock。
 
 ---
 
@@ -228,15 +228,15 @@ index-strategy = "first-index"
 > **② 依赖 `openai-codex-cli-bin==0.144.4`（精确版本锁定）+ 时间戳锁定。**
 > 除了 `==` 版本锁，`[tool.uv]` 与 `[tool.uv.pip]` 里还有 `exclude-newer-package = { openai-codex-cli-bin = "2026-07-15T01:00:00Z" }` —— **双保险**：即便版本号被放宽，解析器也不会取到该时刻之后发布的构件。全局还有 `exclude-newer = "7 days"` 与 `index-strategy = "first-index"`（防依赖混淆攻击）。
 >
-> 这也解释了 `sdk/python-runtime` 的存在与 `python-runtime-build.yml` / `python-runtime-release.yml` 两个独立工作流——它们负责打包各平台的二进制并发布成 `openai-codex-cli-bin`。
+> 这也解释了 `sdk/python-runtime` 的存在与 `.github/workflows/python-runtime-build.yml` / `.github/workflows/python-runtime-release.yml` 两个独立工作流——它们负责打包各平台的二进制并发布成 `openai-codex-cli-bin`。
 
 > [!WARNING]
 > **③ 勘误：「Python SDK 不自己实现协议客户端」是错的。**
 > 第一版写「Python SDK 不自己实现协议客户端，而是拉起 codex 二进制并与之通信」。这是把两件事对立起来了——**它两件事都做**：拉起二进制**作为服务端**，并在 Python 侧实现了一个完整的**带类型的 JSON-RPC 客户端**：
-> - `client.py` / `async_client.py`：`CodexClient` / `AsyncCodexClient`，负责 spawn、握手、请求-响应配对
-> - `_message_router.py:17`：`class MessageRouter`，负责把 stdout 上的帧分发给等待方
-> - `errors.py`：完整的错误层级 `CodexError` → `JsonRpcError` → `CodexRpcError` → `ParseError` / `InvalidRequestError` / `MethodNotFoundError` / `InvalidParamsError` / `InternalRpcError` / `ServerBusyError`，另有 `TransportClosedError`。**注意 `RetryLimitExceededError` 不是 `CodexRpcError` 的直接子类**——`errors.py:52` 是 `class RetryLimitExceededError(ServerBusyError)`，即它比 `ServerBusyError` **更深一层**。这个区别有实际后果：`except ServerBusyError` 会连带捕获 `RetryLimitExceededError`。（上一稿把它与 `ServerBusyError` 并列，错了。）
-> - `retry.py:12`：`retry_on_overload(...)`，过载重试策略
+> - `sdk/python/src/openai_codex/client.py` / `sdk/python/src/openai_codex/async_client.py`：`CodexClient` / `AsyncCodexClient`，负责 spawn、握手、请求-响应配对
+> - `sdk/python/src/openai_codex/_message_router.py:17`：`class MessageRouter`，负责把 stdout 上的帧分发给等待方
+> - `sdk/python/src/openai_codex/errors.py`：完整的错误层级 `CodexError` → `JsonRpcError` → `CodexRpcError` → `ParseError` / `InvalidRequestError` / `MethodNotFoundError` / `InvalidParamsError` / `InternalRpcError` / `ServerBusyError`，另有 `TransportClosedError`。**注意 `RetryLimitExceededError` 不是 `CodexRpcError` 的直接子类**——`sdk/python/src/openai_codex/errors.py:52` 是 `class RetryLimitExceededError(ServerBusyError)`，即它比 `ServerBusyError` **更深一层**。这个区别有实际后果：`except ServerBusyError` 会连带捕获 `RetryLimitExceededError`。（上一稿把它与 `ServerBusyError` 并列，错了。）
+> - `sdk/python/src/openai_codex/retry.py:12`：`retry_on_overload(...)`，过载重试策略
 >
 > 一句话：**二进制是服务端，协议客户端是 Python 自己写的。**
 
@@ -247,48 +247,48 @@ index-strategy = "first-index"
 ### 4.2 源码模块（`sdk/python/src/openai_codex/`，E1）
 
 > [!NOTE]
-> **勘误**：第一版这张表标为 E4 且只列了 12 项，实际目录下有 **19 项**（漏了 7 项，其中包括最关键的 `client.py`）。同时按本文档体系的证据分级，**目录清单属于 E1，不是 E4**。
+> **勘误**：第一版这张表标为 E4 且只列了 12 项，实际目录下有 **19 项**（漏了 7 项，其中包括最关键的 `sdk/python/src/openai_codex/client.py`）。同时按本文档体系的证据分级，**目录清单属于 E1，不是 E4**。
 
 | 文件 / 目录 | 职责 | 层 |
 | ---- | ---- | ---- |
 | `__init__.py` | 公开导出面 | 公开 |
-| `api.py` | 公开 API 的**主体**：`Codex` / `AsyncCodex` / `Thread` / `AsyncThread` / `TurnHandle` / `AsyncTurnHandle`。**注意它不是"全部公开 API"**——见下方勘误 | 公开 |
-| `models.py` | 公开数据模型（103 行） | 公开 |
-| `types.py` | 公开类型别名（81 行） | 公开 |
-| `errors.py` | 异常层级（见 §4.1 ③） | 公开 |
+| `sdk/python/src/openai_codex/api.py` | 公开 API 的**主体**：`Codex` / `AsyncCodex` / `Thread` / `AsyncThread` / `TurnHandle` / `AsyncTurnHandle`。**注意它不是"全部公开 API"**——见下方勘误 | 公开 |
+| `sdk/python/src/openai_codex/models.py` | 公开数据模型（103 行） | 公开 |
+| `sdk/python/src/openai_codex/types.py` | 公开类型别名（81 行） | 公开 |
+| `sdk/python/src/openai_codex/errors.py` | 异常层级（见 §4.1 ③） | 公开 |
 | `py.typed` | PEP 561 标记，声明包自带类型信息 | 公开 |
-| **`client.py`** | **`CodexClient`：同步 JSON-RPC 传输客户端**，另含 `CodexConfig`、`CodexBinResolverOps`、`_ThreadStartLock` | 传输 |
-| **`async_client.py`** | **`AsyncCodexClient`：异步对偶** | 传输 |
-| `_message_router.py` | 帧路由 | 传输 |
-| `retry.py` | 过载重试 | 传输 |
-| `generated/` | **生成的类型**：`v2_all.py`（9,454 行 pydantic 模型）、`notification_registry.py`、`__init__.py` | 生成 |
-| `_run.py` | turn 结果收集（`TurnResult`） | 内部 |
-| `_inputs.py` | 输入构造与 wire 转换 | 内部 |
-| `_goal.py` | 目标（对应 `thread/goal/*` 协议方法） | 内部 |
-| `_login.py` | 登录（ChatGPT / device code，同步与异步各一套 handle） | 内部 |
-| `_approval_mode.py` | 审批模式（对应 `AskForApproval`） | 内部 |
-| `_sandbox.py` | 沙箱（对应 `SandboxPolicy`） | 内部 |
-| `_initialize_metadata.py` | 初始化元数据校验 | 内部 |
-| `_version.py` | 版本 | 内部 |
+| **`sdk/python/src/openai_codex/client.py`** | **`CodexClient`：同步 JSON-RPC 传输客户端**，另含 `CodexConfig`、`CodexBinResolverOps`、`_ThreadStartLock` | 传输 |
+| **`sdk/python/src/openai_codex/async_client.py`** | **`AsyncCodexClient`：异步对偶** | 传输 |
+| `sdk/python/src/openai_codex/_message_router.py` | 帧路由 | 传输 |
+| `sdk/python/src/openai_codex/retry.py` | 过载重试 | 传输 |
+| `generated/` | **生成的类型**：`sdk/python/src/openai_codex/generated/v2_all.py`（9,454 行 pydantic 模型）、`sdk/python/src/openai_codex/generated/notification_registry.py`、`__init__.py` | 生成 |
+| `sdk/python/src/openai_codex/_run.py` | turn 结果收集（`TurnResult`） | 内部 |
+| `sdk/python/src/openai_codex/_inputs.py` | 输入构造与 wire 转换 | 内部 |
+| `sdk/python/src/openai_codex/_goal.py` | 目标（对应 `thread/goal/*` 协议方法） | 内部 |
+| `sdk/python/src/openai_codex/_login.py` | 登录（ChatGPT / device code，同步与异步各一套 handle） | 内部 |
+| `sdk/python/src/openai_codex/_approval_mode.py` | 审批模式（对应 `AskForApproval`） | 内部 |
+| `sdk/python/src/openai_codex/_sandbox.py` | 沙箱（对应 `SandboxPolicy`） | 内部 |
+| `sdk/python/src/openai_codex/_initialize_metadata.py` | 初始化元数据校验 | 内部 |
+| `sdk/python/src/openai_codex/_version.py` | 版本 | 内部 |
 
-**下划线前缀是 Python 的私有约定**——但注意：`client.py` / `async_client.py` / `retry.py` **没有**下划线前缀，却也不是主要面向用户的入口，它们是传输层。
+**下划线前缀是 Python 的私有约定**——但注意：`sdk/python/src/openai_codex/client.py` / `sdk/python/src/openai_codex/async_client.py` / `sdk/python/src/openai_codex/retry.py` **没有**下划线前缀，却也不是主要面向用户的入口，它们是传输层。
 
 > [!NOTE]
-> **勘误：`api.py` 不是"全部公开 API"。** 包的公开面由 `__init__.py:56` 的 `__all__` 定义，共 **36 项**；其中只有 6 项（`Codex` / `AsyncCodex` / `Thread` / `AsyncThread` / `TurnHandle` / `AsyncTurnHandle`）定义在 `api.py`，其余分散在 `errors.py`（11 项，异常层级与 `is_retryable_error`）、`_inputs.py`（8 项）、`_login.py`（4 项）、`client.py`（`CodexConfig`）、`retry.py`（`retry_on_overload`）、`_run.py`（`TurnResult`）、`_approval_mode.py`、`_sandbox.py`、`_version.py`。
+> **勘误：`sdk/python/src/openai_codex/api.py` 不是"全部公开 API"。** 包的公开面由 `__init__.py:56` 的 `__all__` 定义，共 **36 项**；其中只有 6 项（`Codex` / `AsyncCodex` / `Thread` / `AsyncThread` / `TurnHandle` / `AsyncTurnHandle`）定义在 `sdk/python/src/openai_codex/api.py`，其余分散在 `sdk/python/src/openai_codex/errors.py`（11 项，异常层级与 `is_retryable_error`）、`sdk/python/src/openai_codex/_inputs.py`（8 项）、`sdk/python/src/openai_codex/_login.py`（4 项）、`sdk/python/src/openai_codex/client.py`（`CodexConfig`）、`sdk/python/src/openai_codex/retry.py`（`retry_on_overload`）、`sdk/python/src/openai_codex/_run.py`（`TurnResult`）、`sdk/python/src/openai_codex/_approval_mode.py`、`sdk/python/src/openai_codex/_sandbox.py`、`sdk/python/src/openai_codex/_version.py`。
 >
 > 复核方式：读 `sdk/python/src/openai_codex/__init__.py` 的 `__all__`，再对每个名字在包内 grep 其 `class` / `def` / 赋值定义位置。
 
 ### 4.3 同步/异步是两层各一对（E3）
 
 > [!NOTE]
-> **勘误**：第一版说「`async_client.py` 与 `api.py` 并存说明提供同步与异步双接口」，把**公开层**和**传输层**混成了一对。正确的对应是**两层各有一对**：
+> **勘误**：第一版说「`sdk/python/src/openai_codex/async_client.py` 与 `sdk/python/src/openai_codex/api.py` 并存说明提供同步与异步双接口」，把**公开层**和**传输层**混成了一对。正确的对应是**两层各有一对**：
 
 | 层 | 同步 | 异步 |
 | ---- | ---- | ---- |
-| **公开 API**（都在 `api.py`） | `Codex`（`:75`）、`Thread`（`:534`）、`TurnHandle`（`:718`） | `AsyncCodex`（`:287`）、`AsyncThread`（`:622`）、`AsyncTurnHandle`（`:763`） |
-| **传输客户端** | `client.py:212` `CodexClient` | `async_client.py:52` `AsyncCodexClient` |
+| **公开 API**（都在 `sdk/python/src/openai_codex/api.py`） | `Codex`（`:75`）、`Thread`（`:534`）、`TurnHandle`（`:718`） | `AsyncCodex`（`:287`）、`AsyncThread`（`:622`）、`AsyncTurnHandle`（`:763`） |
+| **传输客户端** | `sdk/python/src/openai_codex/client.py:212` `CodexClient` | `sdk/python/src/openai_codex/async_client.py:52` `AsyncCodexClient` |
 
-`api.py:41-42` 直接 import 了两者，并在 `Codex.__init__`（`:83`）里 `self._client = CodexClient(config=config)`、在 `AsyncCodex.__init__`（`:296`）里 `self._client = AsyncCodexClient(config=config)`。**公开层是薄的，传输层才是重的。**
+`sdk/python/src/openai_codex/api.py:41-42` 直接 import 了两者，并在 `Codex.__init__`（`:83`）里 `self._client = CodexClient(config=config)`、在 `AsyncCodex.__init__`（`:296`）里 `self._client = AsyncCodexClient(config=config)`。**公开层是薄的，传输层才是重的。**
 
 ---
 
@@ -303,7 +303,7 @@ index-strategy = "first-index"
   # generated by datamodel-codegen:
   #   filename:  codex_app_server_protocol.v2.schemas.json
   ```
-- `generated/notification_registry.py:1-2`：
+- `sdk/python/src/openai_codex/generated/notification_registry.py:1-2`：
   ```text
   # Auto-generated by scripts/update_sdk_artifacts.py
   # DO NOT EDIT MANUALLY.
@@ -316,7 +316,7 @@ index-strategy = "first-index"
 > [!CAUTION]
 > **本文上一稿把这条链路的起点写错了。** 它画成「仓库里的 `codex-rs/app-server-protocol/schema/json/codex_app_server_protocol.v2.schemas.json` → 生成脚本」，并说脚本的 `:51` 在定位那个文件。**两点都不成立：**
 >
-> - `update_sdk_artifacts.py:49-51` 的 `schema_bundle_path()` 只是拼一个**文件名**，它接受的 `schema_dir` 是参数传进来的临时目录，与仓库内的 `schema/json/` 无关。脚本全文没有引用 `app-server-protocol` 这个 crate 路径，`codex_app_server_protocol.v2.schemas.json` 在这里只是运行时导出的产物文件名。
+> - `sdk/python/scripts/update_sdk_artifacts.py:49-51` 的 `schema_bundle_path()` 只是拼一个**文件名**，它接受的 `schema_dir` 是参数传进来的临时目录，与仓库内的 `schema/json/` 无关。脚本全文没有引用 `app-server-protocol` 这个 crate 路径，`codex-rs/app-server-protocol/schema/json/codex_app_server_protocol.v2.schemas.json` 在这里只是运行时导出的产物文件名。
 > - 真正的输入是**被 pin 住的运行时二进制自己吐出来的 schema**。
 
 真实链路（E3）：
@@ -338,7 +338,7 @@ sdk/python/tests/test_contract_generation.py
 
 关键含义：**Python SDK 的生成产物跟踪的是"那个被 pin 的已发布版本"，不是你工作区里的 Rust 源码。**
 
-`test_contract_generation.py:10-14` 声明的受检产物是三项——注意 **`api.py` 也在列**：
+`sdk/python/tests/test_contract_generation.py:10-14` 声明的受检产物是三项——注意 **`sdk/python/src/openai_codex/api.py` 也在列**：
 
 ```python
 GENERATED_TARGETS = [
@@ -365,7 +365,7 @@ env.pop("CODEX_EXEC_PATH", None)  # 注释明说：不用 checkout 或 CI 环境
 
 ### 5.3 谁在跑这个脚本，以及跑的是哪个子命令
 
-`update_sdk_artifacts.py` 确实在四个工作流里被调用（E1，`grep -rln`），但**子命令不同，后果完全不同**（E3，`:1435-1450` 的 `run_command`）：
+`sdk/python/scripts/update_sdk_artifacts.py` 确实在四个工作流里被调用（E1，`grep -rln`），但**子命令不同，后果完全不同**（E3，`:1435-1450` 的 `run_command`）：
 
 | 子命令 | 是否调用 `ops.generate_types()` |
 | ---- | ---- |
@@ -377,10 +377,10 @@ env.pop("CODEX_EXEC_PATH", None)  # 注释明说：不用 checkout 或 CI 环境
 
 | 工作流 | 子命令 | 是否重生成 SDK 类型 |
 | ---- | ---- | ---- |
-| `python-sdk-release.yml:196` | `stage-sdk` | ✅ |
-| `python-runtime-build.yml:77` | `stage-runtime` | ❌ |
-| `rust-release.yml:414`、`:838` | `stage-runtime` | ❌ |
-| `rust-release-windows.yml:326` | `stage-runtime` | ❌ |
+| `.github/workflows/python-sdk-release.yml:196` | `stage-sdk` | ✅ |
+| `.github/workflows/python-runtime-build.yml:77` | `stage-runtime` | ❌ |
+| `.github/workflows/rust-release.yml:414`、`:838` | `stage-runtime` | ❌ |
+| `.github/workflows/rust-release-windows.yml:326` | `stage-runtime` | ❌ |
 
 > [!CAUTION]
 > **上一稿写的"Rust 发布流程会连带重跑 SDK 产物生成"是错的**，并据此得出「这正是『协议是事实源、Python SDK 是下游』的机制体现」——**这个漂亮的因果链并不存在**。Rust 发布只走 `stage-runtime`，即把新构建出的 codex 二进制打进 `openai-codex-cli-bin` wheel；**只有 Python SDK 自己的发布流程（`stage-sdk`）才会重新生成类型**。
@@ -391,9 +391,9 @@ env.pop("CODEX_EXEC_PATH", None)  # 注释明说：不用 checkout 或 CI 环境
 
 `sdk/python/tests/` 下 18 个文件，按对象分三类：
 
-- **app-server 行为**：`test_app_server_lifecycle.py`、`test_app_server_run.py`、`test_app_server_streaming.py`、`test_app_server_approvals.py`、`test_app_server_goal_operations.py`、`test_app_server_inputs.py`、`test_app_server_login.py`、`test_app_server_turn_controls.py`，夹具 `app_server_harness.py` / `app_server_helpers.py` / `conftest.py`
-- **客户端与公开面**：`test_client_rpc_methods.py`、`test_async_client_behavior.py`、`test_public_api_signatures.py`、`test_public_api_runtime_behavior.py`
-- **产物与集成**：`test_contract_generation.py`、`test_artifact_workflow_and_binaries.py`、`test_real_app_server_integration.py`
+- **app-server 行为**：`sdk/python/tests/test_app_server_lifecycle.py`、`sdk/python/tests/test_app_server_run.py`、`sdk/python/tests/test_app_server_streaming.py`、`sdk/python/tests/test_app_server_approvals.py`、`sdk/python/tests/test_app_server_goal_operations.py`、`sdk/python/tests/test_app_server_inputs.py`、`sdk/python/tests/test_app_server_login.py`、`sdk/python/tests/test_app_server_turn_controls.py`，夹具 `sdk/python/tests/app_server_harness.py` / `sdk/python/tests/app_server_helpers.py` / `sdk/python/tests/conftest.py`
+- **客户端与公开面**：`sdk/python/tests/test_client_rpc_methods.py`、`sdk/python/tests/test_async_client_behavior.py`、`sdk/python/tests/test_public_api_signatures.py`、`sdk/python/tests/test_public_api_runtime_behavior.py`
+- **产物与集成**：`sdk/python/tests/test_contract_generation.py`、`sdk/python/tests/test_artifact_workflow_and_binaries.py`、`sdk/python/tests/test_real_app_server_integration.py`
 
 ---
 
@@ -410,13 +410,13 @@ env.pop("CODEX_EXEC_PATH", None)  # 注释明说：不用 checkout 或 CI 环境
 | 测试 | jest（起假 Responses 代理跑真二进制） | pytest（18 个文件） |
 | 与 codex 二进制的关系 | **不在包配置里声明**，运行时 `require.resolve("@openai/codex")` + 平台包，或 `codexPathOverride` | **精确锁 `openai-codex-cli-bin==0.144.4` + `exclude-newer-package` 时间戳锁** |
 | 同步/异步 | JS 天然异步 | **两层各一对**：`Codex`/`AsyncCodex`（公开）、`CodexClient`/`AsyncCodexClient`（传输） |
-| 类型来源 | **手写**（`events.ts` 顶部注释标注人工对照 Rust） | **生成**（datamodel-codegen 0.31.2 ← v2 JSON Schema） |
-| 漂移检测 | 无 | `tests/test_contract_generation.py` |
+| 类型来源 | **手写**（`sdk/typescript/src/events.ts` 顶部注释标注人工对照 Rust） | **生成**（datamodel-codegen 0.31.2 ← v2 JSON Schema） |
+| 漂移检测 | 无 | `sdk/python/tests/test_contract_generation.py` |
 | 声明的成熟度 | 未声明 | Production/Stable |
 
 > **两个最重要的差异**：
 > 1. **传输通道不同**——这决定了「改哪一层会影响哪个 SDK」。
-> 2. **类型策略不同**——Python 侧有生成器 + 漂移测试兜底；TS 侧靠人工与注释，**改 `exec_events.rs` 时没有任何机器保障会提醒你去同步 `sdk/typescript/src/events.ts`**。这是一个真实的风险点。
+> 2. **类型策略不同**——Python 侧有生成器 + 漂移测试兜底；TS 侧靠人工与注释，**改 `codex-rs/exec/src/exec_events.rs` 时没有任何机器保障会提醒你去同步 `sdk/typescript/src/events.ts`**。这是一个真实的风险点。
 
 ---
 
@@ -424,11 +424,11 @@ env.pop("CODEX_EXEC_PATH", None)  # 注释明说：不用 checkout 或 CI 环境
 
 | 工作流 | 用途 |
 | ---- | ---- |
-| `sdk.yml` | SDK 通用 CI |
-| `python-sdk-release.yml` | Python SDK 发布；`update_sdk_artifacts.py stage-sdk` —— **唯一会重新生成 SDK 类型的工作流** |
-| `python-runtime-build.yml` | `openai-codex-cli-bin` 构建；`update_sdk_artifacts.py stage-runtime`（不生成类型） |
-| `python-runtime-release.yml` | `openai-codex-cli-bin` 发布 |
-| `rust-release.yml` / `rust-release-windows.yml` | Rust 发布；同样只调 `stage-runtime`，**不重跑类型生成**（见 §5.3 的 CAUTION） |
+| `.github/workflows/sdk.yml` | SDK 通用 CI |
+| `.github/workflows/python-sdk-release.yml` | Python SDK 发布；`update_sdk_artifacts.py stage-sdk` —— **唯一会重新生成 SDK 类型的工作流** |
+| `.github/workflows/python-runtime-build.yml` | `openai-codex-cli-bin` 构建；`update_sdk_artifacts.py stage-runtime`（不生成类型） |
+| `.github/workflows/python-runtime-release.yml` | `openai-codex-cli-bin` 发布 |
+| `.github/workflows/rust-release.yml` / `.github/workflows/rust-release-windows.yml` | Rust 发布；同样只调 `stage-runtime`，**不重跑类型生成**（见 §5.3 的 CAUTION） |
 
 见 [`build_and_release.md`](./build_and_release.md) §4。
 
@@ -442,9 +442,9 @@ env.pop("CODEX_EXEC_PATH", None)  # 注释明说：不用 checkout 或 CI 环境
 | 事项 | 依据 |
 | ---- | ---- |
 | **先确认你改的是哪条通道**：exec 事件流影响 TS SDK，app-server 协议影响 Python SDK | §2 |
-| 改 `codex-rs/exec/src/exec_events.rs` 或 `codex exec` 的 CLI 标志 → **手工同步** `sdk/typescript/src/events.ts` / `items.ts` / `exec.ts` | 无生成器、无漂移测试，只有 `events.ts:1` 的一行注释 |
-| 改 app-server v2 schema **不会**让 `test_contract_generation.py` 变红（它比对的是被 pin 的运行时 wheel）。Python SDK 类型的更新时机是**运行时 pin 升版**，届时跑 `update_sdk_artifacts.py generate-types` | §5.2 / §5.3 |
-| 不要手改 `sdk/python/src/openai_codex/generated/**`，也不要随手改 `api.py` | 两者都是 `GENERATED_TARGETS` |
+| 改 `codex-rs/exec/src/exec_events.rs` 或 `codex exec` 的 CLI 标志 → **手工同步** `sdk/typescript/src/events.ts` / `sdk/typescript/src/items.ts` / `sdk/typescript/src/exec.ts` | 无生成器、无漂移测试，只有 `sdk/typescript/src/events.ts:1` 的一行注释 |
+| 改 app-server v2 schema **不会**让 `sdk/python/tests/test_contract_generation.py` 变红（它比对的是被 pin 的运行时 wheel）。Python SDK 类型的更新时机是**运行时 pin 升版**，届时跑 `update_sdk_artifacts.py generate-types` | §5.2 / §5.3 |
+| 不要手改 `sdk/python/src/openai_codex/generated/**`，也不要随手改 `sdk/python/src/openai_codex/api.py` | 两者都是 `GENERATED_TARGETS` |
 | 升 `datamodel-code-generator` 版本会改变生成产物，必须连带重生成并核对 diff | `pyproject.toml` 锁 `==0.31.2` |
 | 换捆绑二进制版本时，`==` 版本号与 `exclude-newer-package` 时间戳**要一起改** | `sdk/python/pyproject.toml` `[tool.uv]` / `[tool.uv.pip]` |
 | Python 侧的最低版本以最近的 `pyproject.toml` 的 `requires-python` 为准；**不要用 `__future__` 做 Python 2 兼容** | `AGENTS.md` `## Python Development Best Practices` → `### Ignore Python 2 compatibility` |
@@ -459,9 +459,9 @@ env.pop("CODEX_EXEC_PATH", None)  # 注释明说：不用 checkout 或 CI 环境
 | ---- | ---- | ---- |
 | 两套 SDK 的公开 API 逐个签名 | E1（仅类名与文件清单） | `sdk/typescript/src/index.ts`、`sdk/python/src/openai_codex/api.py` |
 | `codex exec --experimental-json` 事件流的完整事件表 | E1 | `codex-rs/exec/src/exec_events.rs` |
-| `update_sdk_artifacts.py` 对 schema 的预处理规则（它有大量 normalize 逻辑，如 `:351`、`:558`） | E1 | 该脚本 |
-| SDK 测试的实际通过情况 | **E2 上限**（本机 Python 3.9.6，跑不了） | `sdk.yml` 工作流 |
-| 版本号在发布时的替换机制 | E1（只确认了 `release_version.normalize_codex_version` 的存在） | `sdk/python/release_version.py`、`python-sdk-release.yml`、`sdk.yml` |
+| `sdk/python/scripts/update_sdk_artifacts.py` 对 schema 的预处理规则（它有大量 normalize 逻辑，如 `:351`、`:558`） | E1 | 该脚本 |
+| SDK 测试的实际通过情况 | **E2 上限**（本机 Python 3.9.6，跑不了） | `.github/workflows/sdk.yml` 工作流 |
+| 版本号在发布时的替换机制 | E1（只确认了 `release_version.normalize_codex_version` 的存在） | `sdk/python/release_version.py`、`.github/workflows/python-sdk-release.yml`、`.github/workflows/sdk.yml` |
 
 ---
 

@@ -138,6 +138,94 @@ FACTS: list[dict] = [
     },
 ]
 
+LEDGER_PATH = Path(__file__).resolve().parent / "claim_ledger.jsonl"
+
+
+def load_ledger() -> list[dict]:
+    """读取断言账本。
+
+    账本是本轮引入的：把散落在正文里的数值断言集中登记，每条附一条可复现命令与
+    期望值。这样「同一事实在多篇文档里抄成不同数字」和「数字整体抄错」两类问题
+    都能被机器拦下——前者靠 pattern 做跨文档对账，后者靠 verify/expected 对仓库真值。
+    """
+    if not LEDGER_PATH.exists():
+        return []
+    entries = []
+    for lineno, line in enumerate(LEDGER_PATH.read_text(encoding="utf-8").splitlines(), 1):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError as exc:
+            print(f"claim_ledger.jsonl:{lineno} 解析失败：{exc}", file=sys.stderr)
+            continue
+        if obj.get("id", "").startswith("_"):
+            continue
+        entries.append(obj)
+    return entries
+
+
+def merge_ledger_into_facts(ledger: list[dict]) -> None:
+    """账本中带 pattern 的条目并入 FACTS，参与跨文档对账。
+
+    同名条目以账本为准——账本是唯一事实源，脚本内建的 FACTS 只是历史遗留。
+    """
+    by_name = {f["name"]: f for f in FACTS}
+    for e in ledger:
+        if not e.get("pattern"):
+            continue
+        entry = {
+            "name": e["id"],
+            "desc": e.get("claim", e["id"]),
+            "pattern": e["pattern"],
+            "verify": e.get("verify", ""),
+        }
+        if e["id"] in by_name:
+            by_name[e["id"]].update(entry)
+        else:
+            FACTS.append(entry)
+
+
+def check_ledger_expectations(ledger: list[dict]) -> list[dict]:
+    """对账本中每条带 expected 的断言执行其命令，校验期望值仍然成立。"""
+    issues = []
+    for e in ledger:
+        cmd, expected = e.get("verify", ""), e.get("expected", "")
+        if not cmd or expected == "":
+            continue
+        got = run_verify(cmd)
+        if got is None:
+            issues.append(
+                {
+                    "type": "ledger_verify_failed",
+                    "id": e["id"],
+                    "claim": e.get("claim", ""),
+                    "command": cmd,
+                }
+            )
+        elif got.replace(",", "") != str(expected).replace(",", ""):
+            issues.append(
+                {
+                    "type": "ledger_expected_stale",
+                    "id": e["id"],
+                    "claim": e.get("claim", ""),
+                    "expected": expected,
+                    "actual": got,
+                    "command": cmd,
+                }
+            )
+    return issues
+
+
+def check_ledger_todo(ledger: list[dict]) -> list[dict]:
+    """expected 留空 = 本轮尚未复核确认，列为待办而非通过。"""
+    return [
+        {"type": "ledger_unconfirmed", "id": e["id"], "claim": e.get("claim", "")}
+        for e in ledger
+        if e.get("expected", "") == ""
+    ]
+
 # 标题中声明计数的写法。
 #
 # 只认「裸数字括号」`（20）`与「N 个 X」两种。若括号内还有别的字（如 `（涉及 19 个 crate）`），
@@ -366,6 +454,9 @@ def main() -> int:
         print(f"未找到文档：{DOC_ROOT}", file=sys.stderr)
         return 1
 
+    ledger = load_ledger()
+    merge_ledger_into_facts(ledger)
+
     issues: list[dict] = []
     values = collect_fact_values(docs)
 
@@ -430,6 +521,9 @@ def main() -> int:
 
     issues.extend(check_heading_counts(docs))
     issues.extend(check_section_refs(docs))
+    issues.extend(check_ledger_todo(ledger))
+    if args.verify_repo:
+        issues.extend(check_ledger_expectations(ledger))
 
     if args.json:
         print(
@@ -447,7 +541,7 @@ def main() -> int:
         )
         return 1 if issues else 0
 
-    print(f"扫描文档 {len(docs)} 篇，已登记事实 {len(FACTS)} 项", end="")
+    print(f"扫描文档 {len(docs)} 篇，账本 {len(ledger)} 条，已登记事实 {len(FACTS)} 项", end="")
     if args.verify_repo:
         print(f"，其中 {len(truth)} 项已取得仓库真值")
     else:
@@ -470,6 +564,15 @@ def main() -> int:
             print(f"  复现命令 = {it['command']}")
             for o in it["occurrences"]:
                 print(f"    {o['file']}:{o['line']} 写的是 {o['value']}")
+        elif it["type"] == "ledger_expected_stale":
+            print(f"[账本期望值已过期] {it['id']} — {it['claim']}")
+            print(f"  期望 {it['expected']}，实测 {it['actual']}")
+            print(f"  复现命令 = {it['command']}")
+        elif it["type"] == "ledger_verify_failed":
+            print(f"[账本命令执行失败] {it['id']} — {it['claim']}")
+            print(f"  命令 = {it['command']}")
+        elif it["type"] == "ledger_unconfirmed":
+            print(f"[账本待复核] {it['id']} — {it['claim']}（expected 留空，尚未确认）")
         elif it["type"] == "section_ref_missing":
             print(f"[跨文档章节引用指向不存在的章节] {it['file']}:{it['line']}")
             print(f"  引用 {it['target']} §{it['num']}（{it['label']}），该章节不存在")

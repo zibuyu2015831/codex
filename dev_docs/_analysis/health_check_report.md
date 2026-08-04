@@ -21,7 +21,7 @@ verified_at: 2026-08-03
 | 字段 | 值 |
 | ---- | ---- |
 | verdict | PASS_WITH_ACCEPTED_ISSUES |
-| scope | 17 篇正式文档 + `rules/combined/AI_RULES.md` + `plans/` 与 `knowledge/` 的 README + `_analysis` 四件套 |
+| scope | 17 篇正式文档 + `dev_docs/rules/combined/AI_RULES.md` + `plans/` 与 `knowledge/` 的 README + `_analysis` 四件套 |
 | 产物总行数 | 8,598（20 个产物，较首版 5,182 增 66%）；含 `_analysis` 四件套为 11,069 |
 | blocker_count | 0 |
 | accepted_issue_count | 2 |
@@ -87,9 +87,9 @@ verified_at: 2026-08-03
 | 15 | `tui_guide.md` | 225 |
 | 16 | `sdk_guide.md` | 209 |
 | 17 | `config_system.md` | 206 |
-| 18 | `rules/combined/AI_RULES.md` | 186 |
-| 19 | `plans/README.md` | 100 |
-| 20 | `knowledge/README.md` | 112 |
+| 18 | `dev_docs/rules/combined/AI_RULES.md` | 186 |
+| 19 | `dev_docs/plans/README.md` | 100 |
+| 20 | `dev_docs/knowledge/README.md` | 112 |
 | — | **合计** | **5,182** |
 
 > 首版验收表中 20 行有 9 行行数与实际不符（最大偏差 49 行），合计值 7,466 亦对不上任何口径。本表为 `wc -l` 实测。
@@ -130,30 +130,30 @@ verified_at: 2026-08-03
 
 | # | 文档 | 原断言 | 实际 | 证据 |
 | ---: | ---- | ---- | ---- | ---- |
-| H1 | 主文档 · `architecture_overview` · `crate_map` | 主干路径 `codex → codex-tui → codex-core`；「所有前端最终都汇聚到 `codex-core`」 | **`codex-tui` 不依赖 `codex-core`**，且这是 **CI 机器强制的架构不变量**。TUI 是 app-server 客户端 | `.github/scripts/verify_tui_core_boundary.py` 文件头：`"""Verify codex-tui does not depend on or import codex-core directly."""`；`tui/Cargo.toml` 无 `codex-core`；`tui/src/lib.rs:26-28` 导入 `codex_app_server_client` |
-| H2 | `tools_and_sandbox` · `architecture_overview` · `crate_map` | Linux 沙箱 = Landlock + seccomp 双机制，bwrap 为回退 | **默认路径是 bwrap（文件系统）+ seccomp + no_new_privs**；Landlock 文件系统强制是已废弃的 legacy 回退 | `linux-sandbox/src/landlock.rs:3-4`「Filesystem restrictions are enforced by bubblewrap in `linux_run_main`. Landlock helpers remain available here as legacy/backup utilities.」；`:135`「currently unused」；`linux_run_main.rs:217` `if !use_legacy_landlock`；`use_legacy_landlock` 默认 false 且 `Stage::Deprecated` |
+| H1 | 主文档 · `architecture_overview` · `crate_map` | 主干路径 `codex → codex-tui → codex-core`；「所有前端最终都汇聚到 `codex-core`」 | **`codex-tui` 不依赖 `codex-core`**，且这是 **CI 机器强制的架构不变量**。TUI 是 app-server 客户端 | `.github/scripts/verify_tui_core_boundary.py` 文件头：`"""Verify codex-tui does not depend on or import codex-core directly."""`；`codex-rs/tui/Cargo.toml` 无 `codex-core`；`codex-rs/tui/src/lib.rs:26-28` 导入 `codex_app_server_client` |
+| H2 | `tools_and_sandbox` · `architecture_overview` · `crate_map` | Linux 沙箱 = Landlock + seccomp 双机制，bwrap 为回退 | **默认路径是 bwrap（文件系统）+ seccomp + no_new_privs**；Landlock 文件系统强制是已废弃的 legacy 回退 | `codex-rs/linux-sandbox/src/landlock.rs:3-4`「Filesystem restrictions are enforced by bubblewrap in `linux_run_main`. Landlock helpers remain available here as legacy/backup utilities.」；`:135`「currently unused」；`codex-rs/linux-sandbox/src/linux_run_main.rs:217` `if !use_legacy_landlock`；`use_legacy_landlock` 默认 false 且 `Stage::Deprecated` |
 | H3 | `mcp_and_extensions` · `architecture_overview` · `crate_map` | 12 个 `ext/*` **全部**依赖 `codex-extension-api` | **8/12**。`ext/agent`、`ext/connectors`、`ext/items` 不依赖（第 4 个是 extension-api 自身，被误计入） | 逐个 `ext/*/Cargo.toml` |
-| H4 | `mcp_and_extensions` | `codex-core` 直接依赖 5 个 ext crate，其余 7 个在别处装配 | `core/Cargo.toml` 的 **`[dev-dependencies]` 从第 137 行开始**，所引 141/144/147 三行全在 dev 段。生产依赖只有 `extension-api` 与 `extension-items`；**11 个具体扩展全部在上层装配** | `grep -n "^\[" core/Cargo.toml` |
-| H5 | `config_system` | MDM 优先级最低（0），是会被逐层覆盖的基线 | `ConfigLayerSource::Mdm` 在生产代码中**从未被构造**（全部命中均为 match 分支）。macOS 真实 MDM 走 `LegacyManagedConfigTomlFromMdm` = **50 = 全场最高** | `config/src/loader/README.md:26-28`「Precedence is top overrides bottom: 1. `LegacyManagedConfigTomlFromMdm`」；测试名 `managed_preferences_take_highest_precedence` |
+| H4 | `mcp_and_extensions` | `codex-core` 直接依赖 5 个 ext crate，其余 7 个在别处装配 | `codex-rs/core/Cargo.toml` 的 **`[dev-dependencies]` 从第 137 行开始**，所引 141/144/147 三行全在 dev 段。生产依赖只有 `extension-api` 与 `extension-items`；**11 个具体扩展全部在上层装配** | `grep -n "^\[" core/Cargo.toml` |
+| H5 | `config_system` | MDM 优先级最低（0），是会被逐层覆盖的基线 | `ConfigLayerSource::Mdm` 在生产代码中**从未被构造**（全部命中均为 match 分支）。macOS 真实 MDM 走 `LegacyManagedConfigTomlFromMdm` = **50 = 全场最高** | `codex-rs/config/src/loader/README.md:26-28`「Precedence is top overrides bottom: 1. `LegacyManagedConfigTomlFromMdm`」；测试名 `managed_preferences_take_highest_precedence` |
 
 ### B 组：通路与边界错误（把一个前提当成了整篇的框架）
 
 | # | 文档 | 原断言 | 实际 | 证据 |
 | ---: | ---- | ---- | ---- | ---- |
-| H6 | `sdk_guide` | 两套 SDK 共享同一份 app-server 协议；TS 类型由 ts-rs 生成；协议变更同时影响两者 | **TS SDK 完全不走 app-server**，拉起的是 `codex exec --experimental-json`；`sdk/typescript/src/` 中 "app-server" 出现 **0 次**；TS 类型为手写 | `sdk/typescript/src/exec.ts:87` `["exec", "--experimental-json"]`；`events.ts:1`「based on event types from codex-rs/exec/src/exec_events.rs」 |
-| H7 | `observability` | debug 构建 analytics 写本地文件、不发网络 | `CaptureFile` 分支需捕获环境变量已设置；**未设时 debug 照常走 `Self::Http` 发网络** | `analytics/src/client.rs:98-118`、`:122-133` |
-| H8 | `observability` | OTEL 与 analytics 两条通路独立，仅关一条不够 | **耦合**：关闭 analytics 会连带把 OTEL metrics exporter 强制为 `None` | `core/src/otel_init.rs:70-77` |
-| H9 | `session_and_persistence` | rollout 落盘于 `$CODEX_HOME/sessions/`，纯文本 JSONL 无需工具 | 实为 **`sessions/YYYY/MM/DD/`** 按日期分层；且 7 天以上会被压成 `.jsonl.zst` | `rollout/src/recorder.rs:1553-1560`；`rollout/src/compression.rs:18,258` |
+| H6 | `sdk_guide` | 两套 SDK 共享同一份 app-server 协议；TS 类型由 ts-rs 生成；协议变更同时影响两者 | **TS SDK 完全不走 app-server**，拉起的是 `codex exec --experimental-json`；`sdk/typescript/src/` 中 "app-server" 出现 **0 次**；TS 类型为手写 | `sdk/typescript/src/exec.ts:87` `["exec", "--experimental-json"]`；`sdk/typescript/src/events.ts:1`「based on event types from codex-rs/exec/src/exec_events.rs」 |
+| H7 | `observability` | debug 构建 analytics 写本地文件、不发网络 | `CaptureFile` 分支需捕获环境变量已设置；**未设时 debug 照常走 `Self::Http` 发网络** | `codex-rs/analytics/src/client.rs:98-118`、`:122-133` |
+| H8 | `observability` | OTEL 与 analytics 两条通路独立，仅关一条不够 | **耦合**：关闭 analytics 会连带把 OTEL metrics exporter 强制为 `None` | `codex-rs/core/src/otel_init.rs:70-77` |
+| H9 | `session_and_persistence` | rollout 落盘于 `$CODEX_HOME/sessions/`，纯文本 JSONL 无需工具 | 实为 **`sessions/YYYY/MM/DD/`** 按日期分层；且 7 天以上会被压成 `.jsonl.zst` | `codex-rs/rollout/src/recorder.rs:1553-1560`；`rollout/src/compression.rs:18,258` |
 
 ### C 组：流程与命令错误（照抄了上游的陈旧记载，未验证）
 
 | # | 文档 | 原断言 | 实际 | 证据 |
 | ---: | ---- | ---- | ---- | ---- |
-| H10 | `build_and_release` | Bazel 负责发布构建 | 发布二进制**全部由 Cargo 构建**；`rust-release.yml` 中 bazel 出现 0 次。Bazel 的真实定位是 PR 合并前主验证路径 | `grep -c bazel .github/workflows/rust-release.yml` → 0；`.github/workflows/README.md:5-10` |
-| H11 | `build_and_release` · `testing_guide` | `rust-ci.yml` 是 PR 的 Rust 测试通道 | 它**不跑任何测试、不跑 clippy**，只做 fmt/bench-smoke/shear。nextest 全量矩阵在 `rust-ci-full.yml`，仅 push main 触发，不阻塞 PR | `.github/workflows/README.md:12-18`；`postmerge-ci.yml:7-15` |
-| H12 | `build_and_release` | `rust-release-prepare.yml` 管发布版本号与打标 | 该文件 57 行，是 cron 定时更新 `models.json` 的 PR 机器人。真正的打标校验在 `rust-release.yml:25-56` 的 `tag-check` job | `wc -l`、文件内容 |
+| H10 | `build_and_release` | Bazel 负责发布构建 | 发布二进制**全部由 Cargo 构建**；`.github/workflows/rust-release.yml` 中 bazel 出现 0 次。Bazel 的真实定位是 PR 合并前主验证路径 | `grep -c bazel .github/workflows/rust-release.yml` → 0；`.github/workflows/README.md:5-10` |
+| H11 | `build_and_release` · `testing_guide` | `.github/workflows/rust-ci.yml` 是 PR 的 Rust 测试通道 | 它**不跑任何测试、不跑 clippy**，只做 fmt/bench-smoke/shear。nextest 全量矩阵在 `.github/workflows/rust-ci-full.yml`，仅 push main 触发，不阻塞 PR | `.github/workflows/README.md:12-18`；`.github/workflows/postmerge-ci.yml:7-15` |
+| H12 | `build_and_release` | `.github/workflows/rust-release-prepare.yml` 管发布版本号与打标 | 该文件 57 行，是 cron 定时更新 `codex-rs/models-manager/models.json` 的 PR 机器人。真正的打标校验在 `.github/workflows/rust-release.yml:25-56` 的 `tag-check` job | `wc -l`、文件内容 |
 | H13 | `testing_guide`（含 accepted issue AI-004） | insta 快照更新流程在 `justfile` 与 AGENTS.md 中**均无记载**，做法未知 | AGENTS.md 的 `### Snapshot tests` 一节有完整专章，含完整命令链与一条**强制要求**（改动可见 UI 必须配快照覆盖） | `grep -n insta AGENTS.md` |
-| H14 | `app_server_protocol` | `just write-app-server-schema` 为强制流程第 3 步 | `codex-app-server-protocol` **无任何 bin target**，该 recipe 引用的 `--bin write_schema_fixtures` 不存在，命令会失败。真实路径是 `app-server-protocol/scripts/write_schema_fixtures.py` | `cargo metadata` targets；`ls src/bin` 不存在 |
+| H14 | `app_server_protocol` | `just write-app-server-schema` 为强制流程第 3 步 | `codex-app-server-protocol` **无任何 bin target**，该 recipe 引用的 `--bin write_schema_fixtures` 不存在，命令会失败。真实路径是 `codex-rs/app-server-protocol/scripts/write_schema_fixtures.py` | `cargo metadata` targets；`ls src/bin` 不存在 |
 
 > H14 是**上游 `justfile` 与 `AGENTS.md` 自身的陈旧**，不是本文档体系编造。但本体系将其作为「强制流程」照抄而未验证可执行性，属证据等级越权。
 

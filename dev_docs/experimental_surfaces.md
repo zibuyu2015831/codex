@@ -17,7 +17,7 @@ verified_at: 2026-08-03
 > [!CAUTION]
 > **本文已修订。** 初版有三处事实错误、一处覆盖不全：
 >
-> 1. **`codex-cloud-config` 不属于 Cloud 任务**——`cloud-tasks/Cargo.toml` 根本不依赖它。这正是本体系明令禁止的"凭 crate 名推断"。见 §1.2。
+> 1. **`codex-cloud-config` 不属于 Cloud 任务**——`codex-rs/cloud-tasks/Cargo.toml` 根本不依赖它。这正是本体系明令禁止的"凭 crate 名推断"。见 §1.2。
 > 2. **cloud-tasks 不是"独立 TUI 应用"**——它依赖 `codex-tui`。见 §1.3。
 > 3. **`experimental_*` 配置键并不门控本文的六个表面**——真正的门控是 `codex-features` 的 `Feature` 枚举。见 §9.1。
 > 4. 初版自称"全部展开"，但**漏掉了至少五类实验性表面**，已补入 §7。
@@ -36,7 +36,7 @@ verified_at: 2026-08-03
 | 表面 | 标记 | 可见性 | 主要 crate |
 | ---- | ---- | ---- | ---- |
 | Codex Cloud 任务 | `[EXPERIMENTAL]` | 可见 | `cloud-tasks` 系列 **3 个**（修订，见 §1.2） |
-| 桌面端 | 无实验标记，但**平台条件编译** | macOS / Windows 可见 | `cli/src/app_cmd.rs` |
+| 桌面端 | 无实验标记，但**平台条件编译** | macOS / Windows 可见 | `codex-rs/cli/src/app_cmd.rs` |
 | remote-control | `[experimental]` | 可见 | `app-server-daemon`、`app-server-transport` |
 | responses-api-proxy | `#[clap(hide = true)]` | **隐藏** | `responses-api-proxy` |
 | v8-poc | 目录名即 PoC | 无 CLI 入口 | `v8-poc`（92 行） |
@@ -64,7 +64,7 @@ Cloud(CloudTasksCli),
 
 命令：`codex cloud`（别名 `codex cloud-tasks`），分发在 `main.rs:1450`。
 
-### 1.2 crate 构成：**3 个，不是 4 个**（E2，逐项核对 `cloud-tasks/Cargo.toml`）
+### 1.2 crate 构成：**3 个，不是 4 个**（E2，逐项核对 `codex-rs/cloud-tasks/Cargo.toml`）
 
 | crate | 行数 | 职责 |
 | ---- | ---: | ---- |
@@ -75,9 +75,9 @@ Cloud(CloudTasksCli),
 > [!CAUTION]
 > **修订说明（原文错误）**：初版把 **`codex-cloud-config`（2,433 行）** 列为 Cloud 任务的第 4 个 crate，职责写成"云配置"。
 >
-> **`cloud-tasks/Cargo.toml` 完全不依赖 `codex-cloud-config`。** 它的依赖方是 `app-server`、`cli`、`exec`、`tui`——与 cloud-tasks 无关。
+> **`codex-rs/cloud-tasks/Cargo.toml` 完全不依赖 `codex-cloud-config`。** 它的依赖方是 `app-server`、`cli`、`exec`、`tui`——与 cloud-tasks 无关。
 >
-> 该 crate 的模块文档（`cloud-config/src/lib.rs:1-4`）自述：
+> 该 crate 的模块文档（`codex-rs/cloud-config/src/lib.rs:1-4`）自述：
 >
 > > *"Cloud-hosted configuration data for Codex. This crate owns transport, caching, and refresh behavior for cloud-delivered config data. Parsing and composition remain in `codex-config`."*
 >
@@ -87,19 +87,19 @@ Cloud(CloudTasksCli),
 
 | 文件 | 说明 |
 | ---- | ---- |
-| `app.rs` / `ui.rs` | TUI 层 |
+| `app.rs` / `codex-rs/cloud-tasks/src/ui.rs` | TUI 层 |
 | `cli.rs` | 命令行参数 |
-| `new_task.rs` | 新建任务 |
-| `scrollable_diff.rs` | **可滚动 diff 视图** |
-| `env_detect.rs` | **环境探测** |
+| `codex-rs/cloud-tasks/src/new_task.rs` | 新建任务 |
+| `codex-rs/cloud-tasks/src/scrollable_diff.rs` | **可滚动 diff 视图** |
+| `codex-rs/cloud-tasks/src/env_detect.rs` | **环境探测** |
 | `util.rs` / `lib.rs` | — |
 
 > [!CAUTION]
 > **修订说明（原文错误）**：初版写「**这是一个独立的 TUI 应用**，不复用 `codex-tui`」。
 >
-> `cloud-tasks/Cargo.toml:27` 明确写着 **`codex-tui = { workspace = true }`**，另有 `ratatui` 与 `crossterm`。它**复用 `codex-tui`**，`app.rs` / `ui.rs` 是在其之上的自有界面，而不是另起炉灶。
+> `codex-rs/cloud-tasks/Cargo.toml:27` 明确写着 **`codex-tui = { workspace = true }`**，另有 `ratatui` 与 `crossterm`。它**复用 `codex-tui`**，`app.rs` / `codex-rs/cloud-tasks/src/ui.rs` 是在其之上的自有界面，而不是另起炉灶。
 
-`scrollable_diff.rs` 与命令描述中的 "apply changes locally" 对应——浏览云端任务产生的变更并在本地应用。
+`codex-rs/cloud-tasks/src/scrollable_diff.rs` 与命令描述中的 "apply changes locally" 对应——浏览云端任务产生的变更并在本地应用。
 
 `mock-client` 的存在说明这条链路**可以脱离真实云服务测试**。
 
@@ -136,7 +136,7 @@ App(app_cmd::AppCommand),
 
 > **注意**：桌面 app 本身**不在这个仓库里**。CLI 只负责拉起或引导安装。相关协议方法：`app/list`、`app/read`、`app/installed`、`app/list/updated`。
 
-> **未验证**（E1）：安装器的下载源与安装流程。入口是 `cli/src/app_cmd.rs`。
+> **未验证**（E1）：安装器的下载源与安装流程。入口是 `codex-rs/cli/src/app_cmd.rs`。
 
 ---
 
@@ -175,13 +175,13 @@ RemoteControl(RemoteControlCommand),
 | 文件 | 职责 |
 | ---- | ---- |
 | `auth.rs` | **鉴权** |
-| `enroll.rs` | **注册/入网** |
-| `websocket.rs` + `websocket_refresh_tests.rs` | WebSocket 连接与刷新 |
-| `clients.rs` / `client_tracker.rs` | 客户端管理与追踪 |
-| `desired_state.rs` | **期望状态**（声明式同步） |
+| `codex-rs/app-server-transport/src/transport/remote_control/enroll.rs` | **注册/入网** |
+| `websocket.rs` + `codex-rs/app-server-transport/src/transport/remote_control/websocket_refresh_tests.rs` | WebSocket 连接与刷新 |
+| `clients.rs` / `codex-rs/app-server-transport/src/transport/remote_control/client_tracker.rs` | 客户端管理与追踪 |
+| `codex-rs/app-server-transport/src/transport/remote_control/desired_state.rs` | **期望状态**（声明式同步） |
 | `protocol.rs` | 协议 |
-| `server_api.rs` | 服务端 API |
-| `segment.rs` | 分段 |
+| `codex-rs/app-server-transport/src/transport/remote_control/server_api.rs` | 服务端 API |
+| `codex-rs/app-server-transport/src/transport/remote_control/segment.rs` | 分段 |
 
 **这是一套完整的远程接入体系**：注册 → 鉴权 → WebSocket 长连 → 期望状态同步。协议侧有 `remoteControl/*` 共 8 个方法。
 
@@ -214,12 +214,12 @@ ResponsesApiProxy(ResponsesApiProxyArgs),
 | ---- | ---- |
 | `lib.rs` | 主体，使用 `TcpListener`、`SocketAddr` —— **起本地 HTTP 服务** |
 | `main.rs` | 独立二进制入口 |
-| `read_api_key.rs` | **读取 API key** |
-| `dump.rs` | 请求/响应转储 |
+| `codex-rs/responses-api-proxy/src/read_api_key.rs` | **读取 API key** |
+| `codex-rs/responses-api-proxy/src/dump.rs` | 请求/响应转储 |
 
 ### 4.3 监听地址：**仅回环 + 随机端口**（E3）
 
-初版把这一项列为 E1 未验证，实际上一行代码就能确定（`responses-api-proxy/src/lib.rs:139`）：
+初版把这一项列为 E1 未验证，实际上一行代码就能确定（`codex-rs/responses-api-proxy/src/lib.rs:139`）：
 
 ```rust
 fn bind_listener(port: Option<u16>) -> Result<(TcpListener, SocketAddr)> {
@@ -236,12 +236,12 @@ fn bind_listener(port: Option<u16>) -> Result<(TcpListener, SocketAddr)> {
 
 ### 4.4 dump **会脱敏认证头与 Cookie 头**（E3）
 
-初版只说"`dump.rs` 的存在意味着它可能会转储请求内容"，漏掉了它自带的脱敏：
+初版只说"`codex-rs/responses-api-proxy/src/dump.rs` 的存在意味着它可能会转储请求内容"，漏掉了它自带的脱敏：
 
-`dump.rs` 定义了一个认证头名常量与一个脱敏占位值常量（`:16-17`），并在写出请求头与响应头两处（`:160-161`、`:173-174`）都过一遍 `should_redact_header`。配套测试 `dump_request_writes_redacted_headers_and_json_body`（`:225` 起）锁定了这个行为。
+`codex-rs/responses-api-proxy/src/dump.rs` 定义了一个认证头名常量与一个脱敏占位值常量（`:16-17`），并在写出请求头与响应头两处（`:160-161`、`:173-174`）都过一遍 `should_redact_header`。配套测试 `dump_request_writes_redacted_headers_and_json_body`（`:225` 起）锁定了这个行为。
 
 > [!NOTE]
-> **勘误：脱敏不止认证头一种。** 上一稿写"已知的脱敏只覆盖 Authorization 头"，并把"除此之外是否还有其他敏感头未脱敏"列为未验证项。实际的判定函数是两个条件的**或**（`responses-api-proxy/src/dump.rs:186-188`）：
+> **勘误：脱敏不止认证头一种。** 上一稿写"已知的脱敏只覆盖 Authorization 头"，并把"除此之外是否还有其他敏感头未脱敏"列为未验证项。实际的判定函数是两个条件的**或**（`codex-rs/responses-api-proxy/src/dump.rs:186-188`）：
 >
 > ```rust
 > fn should_redact_header(name: &str) -> bool {
@@ -284,9 +284,9 @@ pub fn linked_v8_has_sandbox() -> bool;         // 链接的 V8 是否启用了 
 对应的基建：
 
 - `MODULE.bazel` 中的 `llvm_rusty_v8_custom_libcxx.patch`（自定义 libc++）
-- CI 工作流 `rusty-v8-release.yml`、`v8-canary.yml`
+- CI 工作流 `.github/workflows/rusty-v8-release.yml`、`.github/workflows/v8-canary.yml`
 
-> **它与 code-mode 的关系**：`code-mode-runtime` 有 `v8_init.rs`——**V8 是 code-mode 的运行时基础**。v8-poc 可以理解为这条链路的最小验证件。
+> **它与 code-mode 的关系**：`code-mode-runtime` 有 `codex-rs/code-mode-runtime/src/v8_init.rs`——**V8 是 code-mode 的运行时基础**。v8-poc 可以理解为这条链路的最小验证件。
 
 ---
 
@@ -300,10 +300,10 @@ pub fn linked_v8_has_sandbox() -> bool;         // 链接的 V8 是否启用了 
 
 | crate | 行数 | 职责 |
 | ---- | ---: | ---- |
-| `codex-code-mode-runtime` | 6,749 | 运行时，含 `v8_init.rs`、`cell_actor/`、`session_runtime/` |
+| `codex-code-mode-runtime` | 6,749 | 运行时，含 `codex-rs/code-mode-runtime/src/v8_init.rs`、`cell_actor/`、`session_runtime/` |
 | `codex-code-mode` | 5,128 | 主体，含 `remote_session/` |
-| `codex-code-mode-protocol` | 3,587 | 协议：`host/`、`runtime.rs`、`session.rs`、`response.rs`、`description.rs` |
-| `codex-code-mode-host` | 3,517 | 宿主进程：`delegate.rs`、`peer.rs`、`transport.rs` |
+| `codex-code-mode-protocol` | 3,587 | 协议：`host/`、`runtime.rs`、`session.rs`、`codex-rs/code-mode-protocol/src/response.rs`、`codex-rs/code-mode-protocol/src/description.rs` |
+| `codex-code-mode-host` | 3,517 | 宿主进程：`delegate.rs`、`codex-rs/code-mode-host/src/peer.rs`、`transport.rs` |
 
 ### 6.2 架构线索（E3 依赖 + **E1** 目录清单；初版的 E4 已下调）
 
@@ -323,11 +323,11 @@ codex-code-mode-runtime (v8_init.rs → V8 运行时)
 | 位置 | 说明 |
 | ---- | ---- |
 | `core/src/tools/code_mode/` | 工具侧接入 |
-| `core/src/session/code_mode_warning.rs` | **code-mode 告警** |
-| `core/tests/suite/code_mode.rs`、`code_mode_elicitation.rs` | 集成测试 |
-| `tools/router.rs:209` 的 `dispatch_tool_call_with_code_mode_result` | **工具分发直接感知 code-mode** |
+| `codex-rs/core/src/session/code_mode_warning.rs` | **code-mode 告警** |
+| `codex-rs/core/tests/suite/code_mode.rs`、`codex-rs/core/tests/suite/code_mode_elicitation.rs` | 集成测试 |
+| `codex-rs/core/src/tools/router.rs:209` 的 `dispatch_tool_call_with_code_mode_result` | **工具分发直接感知 code-mode** |
 
-> `code_mode_warning.rs` 的存在说明启用 code-mode 时会**向用户发出告警**——这本身就是"实验性"的信号。
+> `codex-rs/core/src/session/code_mode_warning.rs` 的存在说明启用 code-mode 时会**向用户发出告警**——这本身就是"实验性"的信号。
 
 ### 6.4 运行方式
 
@@ -343,7 +343,7 @@ just bazel-code-mode-host    # Bazel 路径
 ## 7. 初版遗漏的实验性表面（修订补入）
 
 > [!CAUTION]
-> 初版声称"六个表面全部展开"。逐条核对 `cli/src/main.rs` 的属性宏与文档注释后，**至少还有以下五类实验性表面未被覆盖**，其中两类（realtime、`codex-features`）的体量都超过初版已展开的 v8-poc。
+> 初版声称"六个表面全部展开"。逐条核对 `codex-rs/cli/src/main.rs` 的属性宏与文档注释后，**至少还有以下五类实验性表面未被覆盖**，其中两类（realtime、`codex-features`）的体量都超过初版已展开的 v8-poc。
 
 ### 7.1 `codex exec-server`——与 Cloud 同级的 `[EXPERIMENTAL]`（E3）
 
@@ -352,7 +352,7 @@ just bazel-code-mode-host    # Bazel 路径
 ExecServer(ExecServerCommand),
 ```
 
-`cli/src/main.rs:207-208`。**用的是大写 `[EXPERIMENTAL]`，与 Cloud 任务（`:195`）同一档**，并且**没有 `hide = true`，在 `codex --help` 中可见**。相关 crate：`codex-exec-server`；遥测装配见 `cli/src/exec_server_telemetry.rs`（其 `DEFAULT_ANALYTICS_ENABLED = false`，见 [`observability.md`](./observability.md) §1.2）。
+`codex-rs/cli/src/main.rs:207-208`。**用的是大写 `[EXPERIMENTAL]`，与 Cloud 任务（`:195`）同一档**，并且**没有 `hide = true`，在 `codex --help` 中可见**。相关 crate：`codex-exec-server`；遥测装配见 `codex-rs/cli/src/exec_server_telemetry.rs`（其 `DEFAULT_ANALYTICS_ENABLED = false`，见 [`observability.md`](./observability.md) §1.2）。
 
 > **未验证**（E1）：exec-server 的协议、与 `codex exec` 的关系、独立部署形态。
 
@@ -363,7 +363,7 @@ ExecServer(ExecServerCommand),
 AppServer(AppServerCommand),
 ```
 
-`cli/src/main.rs:147-148`。初版在 §3 只提到 `app-server daemon` 的两个 remote-control 子命令，**从未指出 `codex app-server` 这个子命令本身带 `[experimental]` 标记**。
+`codex-rs/cli/src/main.rs:147-148`。初版在 §3 只提到 `app-server daemon` 的两个 remote-control 子命令，**从未指出 `codex app-server` 这个子命令本身带 `[experimental]` 标记**。
 
 这一点对读 [`app_server_protocol.md`](./app_server_protocol.md) 的人尤其重要：**app-server 协议虽然文档化程度最高，其 CLI 入口在上游仍标注为实验性。**
 
@@ -380,7 +380,7 @@ AppServer(AppServerCommand),
 
 初版展开了 92 行的 v8-poc，却完全没提这条**合计约 7,500 行**的表面。（上一稿此处写"上万行"，与紧接着那张自己列出的、合计 7,512 行的表格自相矛盾——**同一节里的定性词与定量表要对得上**。）
 
-**配置键（6 个，`core/src/config/mod.rs:987-1008`）**：`experimental_realtime_ws_base_url`、`experimental_realtime_webrtc_call_base_url`、`experimental_realtime_ws_model`、`experimental_realtime_ws_backend_prompt`、`experimental_realtime_ws_startup_context`、`experimental_realtime_start_instructions`。
+**配置键（6 个，`codex-rs/core/src/config/mod.rs:987-1008`）**：`experimental_realtime_ws_base_url`、`experimental_realtime_webrtc_call_base_url`、`experimental_realtime_ws_model`、`experimental_realtime_ws_backend_prompt`、`experimental_realtime_ws_startup_context`、`experimental_realtime_start_instructions`。
 
 **代码规模**：
 
@@ -389,10 +389,10 @@ AppServer(AppServerCommand),
 | `codex-rs/codex-api/src/endpoint/realtime_websocket/`（14 个文件，含 v1 / v2 / frameless-bidi 三套协议） | 4,393 |
 | `codex-rs/core/src/realtime_conversation.rs` | 2,465 |
 | `codex-rs/core/src/realtime_context.rs` | 580 |
-| `codex-rs/core/src/context/realtime_start_instructions.rs` / `realtime_end_instructions.rs` | 28 / 46 |
+| `codex-rs/core/src/context/realtime_start_instructions.rs` / `codex-rs/core/src/context/realtime_end_instructions.rs` | 28 / 46 |
 | **合计** | **7,512** |
 
-> 口径说明：4,393 行是 `realtime_websocket/` 下 14 个 `.rs` 的 `wc -l` 总和，其中含 **3 个 `*_tests.rs`、共 316 行**（`methods_common_tests.rs` 150、`methods_frameless_bidi_tests.rs` 102、`protocol_frameless_bidi_tests.rs` 64）。**扣掉测试后该目录的实现代码约 4,077 行。**
+> 口径说明：4,393 行是 `realtime_websocket/` 下 14 个 `.rs` 的 `wc -l` 总和，其中含 **3 个 `*_tests.rs`、共 316 行**（`codex-rs/codex-api/src/endpoint/realtime_websocket/methods_common_tests.rs` 150、`codex-rs/codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi_tests.rs` 102、`codex-rs/codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi_tests.rs` 64）。**扣掉测试后该目录的实现代码约 4,077 行。**
 
 `webrtc_call_base_url` 这个键名指向**语音通话**方向。这也是全仓 `experimental_*` 配置键中占比最大的一组（10 个里有 6 个）。
 
@@ -410,7 +410,7 @@ AppServer(AppServerCommand),
 - `pub enum Stage`（**`:38` 起**）：`UnderDevelopment` / `Experimental { name, menu_description, announcement }` / `Stable` / `Deprecated` / `Removed`——**成熟度是一等公民，不是文档注释里的一句话**。
 - `pub enum Feature`（`:85` 起）：**102 个变体**。
 - `Stage::Experimental` 变体带 `name` 与 `menu_description`，供 **`/experimental` 菜单**向用户展示。
-- CLI 入口：**`codex features`**（`cli/src/main.rs:211`），子命令含 `list`（列出各 feature 的 stage 与生效状态）。
+- CLI 入口：**`codex features`**（`codex-rs/cli/src/main.rs:211`），子命令含 `list`（列出各 feature 的 stage 与生效状态）。
 
 #### 成熟度分布要按 `stage:` 字段数，不能按注释分段数（E3）
 
@@ -440,7 +440,7 @@ grep -oE 'stage: Stage::[A-Za-z]+' codex-rs/features/src/lib.rs | sort | uniq -c
 | `Experimental` | **1 或 2**（见下） | 只有这一档会出现在 `/experimental` 菜单里 |
 
 > [!IMPORTANT]
-> **上面这条 `grep` 只数到 101 条，比 102 个变体少一条**——差的那条恰恰是最有意思的一条。`Feature::PreventIdleSleep`（`features/src/lib.rs:1414-1431`）的 stage 是**平台条件表达式**，不是字面量：
+> **上面这条 `grep` 只数到 101 条，比 102 个变体少一条**——差的那条恰恰是最有意思的一条。`Feature::PreventIdleSleep`（`codex-rs/features/src/lib.rs:1414-1431`）的 stage 是**平台条件表达式**，不是字面量：
 >
 > ```rust
 > stage: if cfg!(any(target_os = "macos", target_os = "linux", target_os = "windows")) {
@@ -498,7 +498,7 @@ grep -oE 'stage: Stage::[A-Za-z]+' codex-rs/features/src/lib.rs | sort | uniq -c
 | **`codex login --experimental_client-id <CLIENT_ID>`** | `main.rs:495` | **覆盖 OAuth client ID**，`hide = true` |
 
 > [!CAUTION]
-> **勘误：`--remote-control` 不是根级全局标志。** 上一稿把它写成"隐藏的全局开关，独立于子命令"。实际上它是 `struct AppServerCommand` 的字段（`cli/src/main.rs:514` 起，`--remote-control` 在 `:540-542`），因此**只能写成 `codex app-server --remote-control`**。根 CLI 结构体是 `MultitoolCli`（`main.rs:106`），里面没有这个字段。
+> **勘误：`--remote-control` 不是根级全局标志。** 上一稿把它写成"隐藏的全局开关，独立于子命令"。实际上它是 `struct AppServerCommand` 的字段（`codex-rs/cli/src/main.rs:514` 起，`--remote-control` 在 `:540-542`），因此**只能写成 `codex app-server --remote-control`**。根 CLI 结构体是 `MultitoolCli`（`main.rs:106`），里面没有这个字段。
 >
 > 同一个结构体里还有 `--strict-config`、`--listen`、`--stdio`、`--analytics-default-enabled` 等，全都是 app-server 子命令级的。**判断一个 clap 标志的作用域，要看它挂在哪个 `#[derive(Parser)]` 结构体上，不能只看 `hide = true`。**
 
@@ -512,7 +512,7 @@ grep -oE 'stage: Stage::[A-Za-z]+' codex-rs/features/src/lib.rs | sort | uniq -c
 | 观察 | 说明 |
 | ---- | ---- |
 | **多数有独立协议或独立二进制** | code-mode 有 4 个 crate 与独立协议；responses-api-proxy、exec-server 有独立 main；realtime 有三套协议版本 |
-| **都有测试覆盖** | 即便是 PoC 也进 CI（`v8-canary.yml`） |
+| **都有测试覆盖** | 即便是 PoC 也进 CI（`.github/workflows/v8-canary.yml`） |
 | **部分与 Bazel 深度绑定** | v8-poc 明说是 "Bazel-wired"；code-mode 有专门的 bazel 任务 |
 | **标记方式不统一——共 6 种** | ①`[EXPERIMENTAL]` / `[experimental]` 文档注释；②`#[clap(hide = true)]`；③平台 `cfg`；④目录名（v8-poc）；⑤**`codex-features` 的 `Stage` 枚举**（§7.4）；⑥**协议层 `#[experimental(...)]` 宏**（§7.5） |
 | **大小写有含义（观察，非明文规则）** | `[EXPERIMENTAL]`（Cloud、exec-server）与 `[experimental]`（app-server、remote-control、generate-ts）并存；上游未说明二者是否有意区分，**不要据此推断成熟度差异** |
@@ -521,7 +521,7 @@ grep -oE 'stage: Stage::[A-Za-z]+' codex-rs/features/src/lib.rs | sort | uniq -c
 > **判断某个表面成熟度的可靠方法**（已修订，按可靠性排序）：
 >
 > 1. 先跑 **`codex features list`**，查 `Feature` 枚举上的 `Stage`（§7.4）——这是最系统的一处。
-> 2. 协议方法查 `app-server-protocol/src/protocol/common.rs` 上的 `#[experimental(...)]`（§7.5）。
+> 2. 协议方法查 `codex-rs/app-server-protocol/src/protocol/common.rs` 上的 `#[experimental(...)]`（§7.5）。
 > 3. CLI 表面查 `codex-rs/cli/src/main.rs` 的 `Subcommand` 枚举定义处的文档注释与属性宏。
 >
 > **不要靠 crate 名或目录名猜测**——§1.2 的 `codex-cloud-config` 就是这么被归错类的。
@@ -533,14 +533,14 @@ grep -oE 'stage: Stage::[A-Za-z]+' codex-rs/features/src/lib.rs | sort | uniq -c
 | 未覆盖项 | 建议入口 |
 | ---- | ---- |
 | Cloud 任务的云端 API 协议 | `codex-cloud-tasks-client`、`codex-backend-client` |
-| 桌面 app 的安装器行为 | `cli/src/app_cmd.rs` |
-| remote-control 的鉴权模型 | `app-server-transport/src/transport/remote_control/auth.rs`、`enroll.rs` |
-| responses-api-proxy 的整体转发行为与 dump 落盘位置 | `responses-api-proxy/src/lib.rs`、`dump.rs` |
-| code-mode 的 JS 沙箱隔离边界 | `code-mode-runtime/src/v8_init.rs`、`session_runtime/` |
+| 桌面 app 的安装器行为 | `codex-rs/cli/src/app_cmd.rs` |
+| remote-control 的鉴权模型 | `codex-rs/app-server-transport/src/transport/remote_control/auth.rs`、`codex-rs/app-server-transport/src/transport/remote_control/enroll.rs` |
+| responses-api-proxy 的整体转发行为与 dump 落盘位置 | `codex-rs/responses-api-proxy/src/lib.rs`、`codex-rs/responses-api-proxy/src/dump.rs` |
+| code-mode 的 JS 沙箱隔离边界 | `codex-rs/code-mode-runtime/src/v8_init.rs`、`session_runtime/` |
 | `cell_actor` 的执行模型 | `code-mode-runtime/src/cell_actor/` |
-| realtime 会话的启用方式与音频数据流向 | `core/src/realtime_conversation.rs`、`codex-api/src/endpoint/realtime_websocket/` |
-| exec-server 的协议与部署形态 | `codex-exec-server`、`cli/src/exec_server_telemetry.rs` |
-| 102 个 `Feature` 各自的语义与默认状态 | `features/src/lib.rs`；或跑 `codex features list` |
+| realtime 会话的启用方式与音频数据流向 | `codex-rs/core/src/realtime_conversation.rs`、`codex-api/src/endpoint/realtime_websocket/` |
+| exec-server 的协议与部署形态 | `codex-exec-server`、`codex-rs/cli/src/exec_server_telemetry.rs` |
+| 102 个 `Feature` 各自的语义与默认状态 | `codex-rs/features/src/lib.rs`；或跑 `codex features list` |
 
 ### 9.1 关于"各表面的启用配置键"（修订）
 
@@ -569,7 +569,7 @@ grep -oE 'stage: Stage::[A-Za-z]+' codex-rs/features/src/lib.rs | sort | uniq -c
 | `CodeModeOnly` | `:104` | *"Restrict model-visible tools to code mode entrypoints (`exec`, `wait`)."* |
 
 > [!TIP]
-> 找某个实验性表面的开关，**先查 `Feature` 枚举，再查 `config.schema.json`**——多数表面走前者。二者的关系见 [`config_system.md`](./config_system.md)。
+> 找某个实验性表面的开关，**先查 `Feature` 枚举，再查 `codex-rs/core/config.schema.json`**——多数表面走前者。二者的关系见 [`config_system.md`](./config_system.md)。
 
 ---
 

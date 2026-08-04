@@ -141,7 +141,7 @@ graph TD
 > **`codex-tui` 不得「直接」依赖、也不得「直接」`use` `codex-core` —— CI 强制。**
 > 校验脚本 `.github/scripts/verify_tui_core_boundary.py`（文件头：`"""Verify codex-tui does not depend on or import codex-core directly."""`），由 `.github/workflows/repo-checks.yml` 执行。脚本同时检查 `codex-rs/tui/Cargo.toml` 不含 `codex-core`，以及 TUI 源码不出现 `codex_core::` / `use codex_core` / `extern crate codex_core`。
 > - **例外一（再导出）**：`codex-app-server-client` 显式再导出 core 的配置类型（`pub mod legacy_core { pub mod config { pub use codex_core::config::*; } }`），TUI 在 93 处、40 个文件中使用。校验脚本的报错文案也点名这是被认可的过渡通道，所以该边界约束的是**依赖边与 import**，而非「core 能力必须经协议方法抵达」。详见 [`tui_guide.md`](./tui_guide.md) §0.2。
-> - **例外二（传递链接）**：门禁只看**直接**关系。`codex-cloud-config`（`Cargo.toml:16`）与 `codex-utils-oss`（`Cargo.toml:11`）都在普通 `[dependencies]` 里直接依赖 `codex-core`，`tui/src/lib.rs:41`、`:66-67` 正在使用这两个 crate；`codex-app-server-client` 自身也直接依赖 `codex-core`。**因此 `codex-core` 会传递性地链接进 `codex-tui`。** E4：在 `cargo metadata` 的普通依赖图上 BFS，`codex-tui → codex-app-server-client → codex-core` 可达；而 `codex-tui` 的 92 个直接普通依赖里没有 `codex-core`。
+> - **例外二（传递链接）**：门禁只看**直接**关系。`codex-cloud-config`（`Cargo.toml:16`）与 `codex-utils-oss`（`Cargo.toml:11`）都在普通 `[dependencies]` 里直接依赖 `codex-core`，`codex-rs/tui/src/lib.rs:41`、`:66-67` 正在使用这两个 crate；`codex-app-server-client` 自身也直接依赖 `codex-core`。**因此 `codex-core` 会传递性地链接进 `codex-tui`。** E4：在 `cargo metadata` 的普通依赖图上 BFS，`codex-tui → codex-app-server-client → codex-core` 可达；而 `codex-tui` 的 92 个直接普通依赖里没有 `codex-core`。
 >
 > 正确通路：`codex-tui` → `codex-app-server-client` → `codex-app-server` + `codex-core`（同进程 `InProcessAppServerClient`，远端 `RemoteAppServerClient`）。
 >
@@ -346,9 +346,9 @@ graph TD
 >
 > | 传 `true`（默认开） | 传 `false`（默认关） |
 > | ---- | ---- |
-> | TUI（`tui/src/lib.rs:1157`）、`codex exec`（`exec/src/lib.rs:163`）、`codex mcp-server`（`mcp-server/src/lib.rs:57`） | app-server（`app-server/src/main.rs:108`）、remote-control（`cli/src/remote_control_cmd.rs:137`）、exec-server 遥测（`cli/src/exec_server_telemetry.rs:6`） |
+> | TUI（`codex-rs/tui/src/lib.rs:1157`）、`codex exec`（`codex-rs/exec/src/lib.rs:163`）、`codex mcp-server`（`codex-rs/mcp-server/src/lib.rs:57`） | app-server（`codex-rs/app-server/src/main.rs:108`）、remote-control（`codex-rs/cli/src/remote_control_cmd.rs:137`）、exec-server 遥测（`codex-rs/cli/src/exec_server_telemetry.rs:6`） |
 >
-> **勘误**：本文上一稿写成"只对 TUI 成立"，这是**过度收窄**。`exec/src/lib.rs:163` 与 `mcp-server/src/lib.rs:57` 同样是 `const DEFAULT_ANALYTICS_ENABLED: bool = true;`，且都在各自的 `#[cfg(test)]` 块（分别在 `:2016`、`:209`）之前，属于生产代码。权威表格见 [`observability.md`](./observability.md) §1.2；另见 [`architecture_overview.md`](./architecture_overview.md) §8。
+> **勘误**：本文上一稿写成"只对 TUI 成立"，这是**过度收窄**。`codex-rs/exec/src/lib.rs:163` 与 `codex-rs/mcp-server/src/lib.rs:57` 同样是 `const DEFAULT_ANALYTICS_ENABLED: bool = true;`，且都在各自的 `#[cfg(test)]` 块（分别在 `:2016`、`:209`）之前，属于生产代码。权威表格见 [`observability.md`](./observability.md) §1.2；另见 [`architecture_overview.md`](./architecture_overview.md) §8。
 
 ### 3.10 实验性与低频表面（8）
 

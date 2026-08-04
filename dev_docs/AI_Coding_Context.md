@@ -53,7 +53,7 @@ verified_at: 2026-08-03
 > [!CAUTION]
 > **`codex-tui` 不得直接依赖或 import `codex-core`，这是 CI 机器强制的架构不变量。**
 >
-> 校验脚本：`.github/scripts/verify_tui_core_boundary.py`，文件头写明 `"""Verify codex-tui does not depend on or import codex-core directly."""`，由 `repo-checks.yml` 在每个 PR 上执行。
+> 校验脚本：`.github/scripts/verify_tui_core_boundary.py`，文件头写明 `"""Verify codex-tui does not depend on or import codex-core directly."""`，由 `.github/workflows/repo-checks.yml` 在每个 PR 上执行。
 >
 > TUI 经 `codex-app-server-client` 接入，有两种客户端实现：`InProcessAppServerClient`（同进程）与 `RemoteAppServerClient`（连远端 app-server）。详见 [`architecture_overview.md`](./architecture_overview.md) §5。
 >
@@ -78,13 +78,13 @@ verified_at: 2026-08-03
 | `codex-rs/utils/` | **23 个**通用工具 crate | — |
 | `codex-rs/sandboxing/` | 三平台沙箱统一入口 + 3 个 `.sbpl` 策略 | — |
 | `codex-rs/vendor/` | **vendored bubblewrap C 源码**，Linux 默认沙箱的实际载体 | 51 |
-| `codex-rs/docs/` | 仓库自带开发者文档：`protocol_v1.md` / `bazel.md` / `codex_mcp_interface.md` | 3 |
+| `codex-rs/docs/` | 仓库自带开发者文档：`codex-rs/docs/protocol_v1.md` / `codex-rs/docs/bazel.md` / `codex-rs/docs/codex_mcp_interface.md` | 3 |
 | `codex-cli/` | **npm 分发包 `@openai/codex`**（注意：与 Cargo 包名 `codex-cli`＝目录 `codex-rs/cli` 同名，容易搜错） | 7 |
 | `sdk/` | TypeScript / Python / Python-runtime 三套 SDK | 115 |
 | `.github/` | CI 工作流（27 个 yml）与脚本 | 89 |
-| `scripts/` | 格式化与辅助脚本（`format.py` 等） | 38 |
+| `scripts/` | 格式化与辅助脚本（`scripts/format.py` 等） | 38 |
 | `tools/` | `argument-comment-lint`（workspace 之外的独立 crate） | 31 |
-| `docs/` | 仓库内文档，**极薄**（`config.md` 15 行、`sandbox.md` 3 行） | 15 |
+| `docs/` | 仓库内文档，**极薄**（`docs/config.md` 15 行、`docs/sandbox.md` 3 行） | 15 |
 | `dev_docs/` | **本文档体系**（不属于上游） | — |
 
 > [!WARNING]
@@ -141,7 +141,7 @@ verified_at: 2026-08-03
 | 第 4 批 | [`experimental_surfaces.md`](./experimental_surfaces.md) — 实验性表面 | ✅ |
 | 第 4 批 | [`observability.md`](./observability.md) — 可观测性与遥测边界 | ✅ |
 | 第 4 批 | [`sdk_guide.md`](./sdk_guide.md) — TypeScript / Python SDK | ✅ |
-| 第 4 批 | [`rules/combined/AI_RULES.md`](./rules/combined/AI_RULES.md) — AI 规则索引 | ✅ |
+| 第 4 批 | [`dev_docs/rules/combined/AI_RULES.md`](./rules/combined/AI_RULES.md) — AI 规则索引 | ✅ |
 
 **辅助目录**：[`plans/`](./plans/README.md)（变更计划）、[`knowledge/`](./knowledge/README.md)（知识沉淀）、`_analysis/`（生成过程记录，非阅读材料）
 
@@ -177,7 +177,7 @@ verified_at: 2026-08-03
 
 | 你改了什么 | 必须补跑 |
 | ---- | ---- |
-| `Cargo.toml` / `Cargo.lock` | `just bazel-lock-update`，锁文件入同一 change |
+| `codex-rs/Cargo.toml` / `codex-rs/Cargo.lock` | `just bazel-lock-update`，锁文件入同一 change |
 | `ConfigToml` 或嵌套配置类型 | `just write-config-schema` |
 | app-server API 形状 | ⚠️ `just write-app-server-schema` 当前跑不通，改用 `python3 codex-rs/app-server-protocol/scripts/write_schema_fixtures.py`（见「模式 4」） |
 | 新增 `include_str!` / `sqlx::migrate!` | 更新该 crate 的 `BUILD.bazel`（`compile_data`） |
@@ -218,7 +218,7 @@ ResponsesApiProxy(ResponsesApiProxyArgs),
 App(app_cmd::AppCommand),
 ```
 
-随后在 `main.rs:1016` 起的 match 中补分发分支。
+随后在 `codex-rs/cli/src/main.rs` 的 `match subcommand`（:1001 起）中补分发分支。
 
 ### 模式 2：trait 中的异步方法（`AGENTS.md` 顶部规则列表，grep `async_fn_in_trait`）
 
@@ -280,7 +280,7 @@ pub struct SomeRequest { ... }
 处理工具与工具调用的变更时，优先走 MCP 连接管理器复用既有抽象，不要把逻辑层层透传。
 
 > [!NOTE]
-> `AGENTS.md` 原文给的路径是 `codex-rs/codex-mcp/src/mcp_connection_manager.rs`，**该文件不存在**——上游规则文件的路径已陈旧。实际文件是 `codex-rs/codex-mcp/src/connection_manager.rs`（另有 `connection_manager/` 目录与 `connection_manager_tests.rs`）。
+> <!-- ref-exempt: 本行正在说明 AGENTS.md 给的路径不存在，引用不可解析即为要表达的事实 --> `AGENTS.md` 原文给的路径是 `codex-rs/codex-mcp/src/mcp_connection_manager.rs`，**该文件不存在**——上游规则文件的路径已陈旧。实际文件是 `codex-rs/codex-mcp/src/connection_manager.rs`（另有 `connection_manager/` 目录与 `codex-rs/codex-mcp/src/connection_manager_tests.rs`）。
 
 ---
 
@@ -290,10 +290,10 @@ pub struct SomeRequest { ... }
 | ---- | ---- | ---- |
 | crate 包名 | `codex-` 前缀 + kebab-case | `codex-core`、`codex-app-server-protocol` |
 | crate 目录 | kebab-case，通常与包名去掉 `codex-` 前缀后一致 | `codex-rs/app-server-protocol/` |
-| 例外：目录与包名不一致 | 少数 crate 存在偏差，**以 `Cargo.toml` 的 `name` 为准** | `codex-rs/windows-sandbox-rs/` → `codex-windows-sandbox`；`codex-rs/utils/path-utils/` → `codex-utils-path` |
+| 例外：目录与包名不一致 <!-- ref-exempt: Cargo.toml 此处泛指任意 crate 的清单文件 --> | 少数 crate 存在偏差，**以 `Cargo.toml` 的 `name` 为准** | `codex-rs/windows-sandbox-rs/` → `codex-windows-sandbox`；`codex-rs/utils/path-utils/` → `codex-utils-path` |
 | 工具库 crate | 统一放 `codex-rs/utils/`，包名 `codex-utils-*` | `codex-utils-absolute-path` |
 | `ext/` 下的 crate | 统一放 `codex-rs/ext/`，但**包名不统一** | 8 个用 `codex-*-extension`（如 `codex-skills-extension`）；4 个不符：`codex-extension-api`、`codex-extension-items`、`codex-git-attribution`、`codex-guardian` |
-| 单元测试文件 | `*_tests.rs` | `config_tests.rs`、`manager_tests.rs` |
+| 单元测试文件 <!-- ref-exempt: 此列是命名规范举例，非指定文件 --> | `*_tests.rs` | `config_tests.rs`、`manager_tests.rs` |
 | 集成测试 | `<crate>/tests/suite/` 下 | `codex-rs/core/tests/suite/compact.rs` |
 | 测试辅助 crate | `*_test_support`（下划线，非 kebab） | `core_test_support`、`app_test_support` |
 | 快照文件 | insta 生成的 `.snap` | 全仓 681 个 |
@@ -356,7 +356,7 @@ pub struct SomeRequest { ... }
 | ---: | ---- | ---- |
 | 8 | 把新逻辑堆进 `codex-core` | `## The codex-core crate`；已 296,963 行、66 个 workspace 依赖 |
 | 9 | 继续扩写超过 800 行的文件 | 顶部规则列表，grep `add new functionality in a new module` |
-| 10 | 给 `chatwidget.rs` 加新的独立方法（除非改动很小） | 顶部规则列表，grep `chatwidget.rs` |
+| 10 | 给 `codex-rs/tui/src/chatwidget.rs` 加新的独立方法（除非改动很小） | 顶部规则列表，grep `codex-rs/tui/src/chatwidget.rs` |
 | 11 | 用 `#[allow(async_fn_in_trait)]` 绕过 future 契约 | 顶部规则列表，grep `async_fn_in_trait` |
 | 12 | 在调用点用 `.instrument(...)` 而非在定义处标注 | 顶部规则列表，grep `tracing::instrument` |
 | 13 | 创建只被引用一次的小助手方法 | 顶部规则列表，grep `helper method` |
@@ -388,7 +388,7 @@ pub struct SomeRequest { ... }
 > - 把 `[dev-dependencies]` 里的条目当成架构依赖，据此推出「`codex-core` 直接依赖 5 个扩展」——实际生产依赖只有 2 个
 > - 读 `SandboxType` 与 `ConfigLayerSource` 的枚举定义就下结论，而 `Landlock` 文件系统强制与 `Mdm` 变体在生产路径上**根本不被构造**
 >
-> 写下规则不等于遵守规则。详见 [`_analysis/health_check_report.md`](./_analysis/health_check_report.md)。
+> 写下规则不等于遵守规则。详见 [`dev_docs/_analysis/health_check_report.md`](./_analysis/health_check_report.md)。
 
 ---
 
@@ -442,7 +442,7 @@ pub struct SomeRequest { ... }
 > **最常见的错误是把 E1 的目录名/依赖名推断写成 E3 事实。** 本体系有两次实例可供警惕：
 >
 > 1. 「12 个 `ext/*` 全部依赖 `extension-api`」——用 `grep -rl` 数文件名得出，实际是 8/12，且把 `extension-api` 自身也数了进去
-> 2. 「Linux 沙箱用 Landlock」——因为 `Cargo.toml` 里有 `landlock` 依赖、文件名叫 `landlock.rs`。实际该机制已废弃，默认走 bwrap
+> 2. 「Linux 沙箱用 Landlock」——因为 `Cargo.toml` 里有 `landlock` 依赖、文件名叫 `landlock.rs`。实际该机制已废弃，默认走 bwrap <!-- ref-exempt: 复述致错线索，泛指依赖名与文件名本身 -->
 >
 > 依赖存在 ≠ 依赖生效；类型定义存在 ≠ 该分支被构造。
 
@@ -463,14 +463,14 @@ pub struct SomeRequest { ... }
 
 | 子系统 | 入口 | 说明 |
 | ---- | ---- | ---- |
-| **Realtime 语音 / WebSocket 会话面** | `core/src/realtime_conversation.rs`(2,465)、`realtime_context.rs`(580)、`codex-api/src/endpoint/realtime_websocket/`(4,393)、6 个 `experimental_realtime_*` 配置键 | 体量数千行，是最大的单一缺口 |
-| **`codex-features` 门控机制** | `features/src/lib.rs` 的 `Feature` 枚举（102 个变体，显式分 `// Stable.` 与 `// Experimental`）、`codex features` 子命令 | 这是仓库内**最系统的实验性标记方式**，`experimental_surfaces.md` 首版一字未提 |
+| **Realtime 语音 / WebSocket 会话面** | `codex-rs/core/src/realtime_conversation.rs`(2,465)、`codex-rs/core/src/realtime_context.rs`(580)、`codex-api/src/endpoint/realtime_websocket/`(4,393)、6 个 `experimental_realtime_*` 配置键 | 体量数千行，是最大的单一缺口 |
+| **`codex-features` 门控机制** | `codex-rs/features/src/lib.rs` 的 `Feature` 枚举（102 个变体，显式分 `// Stable.` 与 `// Experimental`）、`codex features` 子命令 | 这是仓库内**最系统的实验性标记方式**，`experimental_surfaces.md` 首版一字未提 |
 | **Nix 构建路径** | `flake.nix`、`flake.lock`、`codex-rs/default.nix` | 「双构建系统 = Cargo + Bazel」的表述因此不完整 |
-| **容器 / devcontainer 开发环境** | `.devcontainer/`、`codex-cli/scripts/run_in_container.sh`、`init_firewall.sh` | 原方案计划收入 `development_workflow.md`，被静默丢弃 |
+| **容器 / devcontainer 开发环境** | `.devcontainer/`、`codex-cli/scripts/run_in_container.sh`、`codex-cli/scripts/init_firewall.sh` | 原方案计划收入 `development_workflow.md`，被静默丢弃 |
 | **记忆（memories）子系统** | `codex-rs/memories/`、`ext/memories`、`thread/memoryMode/set` | 仅在 crate 表中占一行 |
-| **协作模式（collaboration mode）** | `collaboration-mode-templates`、`protocol/v2/collaboration_mode.rs`、`tui/src/collaboration_modes.rs` | 4 处提及文件名，无一处解释是什么 |
+| **协作模式（collaboration mode）** | `collaboration-mode-templates`、`codex-rs/app-server-protocol/src/protocol/v2/collaboration_mode.rs`、`codex-rs/tui/src/collaboration_modes.rs` | 4 处提及文件名，无一处解释是什么 |
 | **guardian 安全子系统** | `ext/guardian`、`core/src/guardian/`、`ApprovalReviewContributor` | 是审批链路的自动审查后端 |
-| **多智能体协作** | `session/multi_agents.rs`、`tools/handlers/multi_agents_v2/`、`ext/agent`、`agent-graph-store` | 跨 5 个 crate |
+| **多智能体协作** | `codex-rs/core/src/session/multi_agents.rs`、`tools/handlers/multi_agents_v2/`、`ext/agent`、`agent-graph-store` | 跨 5 个 crate |
 
 ### 已知但未验证的架构点
 
@@ -482,11 +482,11 @@ pub struct SomeRequest { ... }
 | ~~遥测的默认开关~~ | **E3** | ⚠️ 已闭合但**首版结论有错**：debug 构建默认仍发网络，且两条通路是耦合的。见 [`observability.md`](./observability.md) §1 |
 | ~~`find_codex_home` 是否重复实现~~ | **E3** | ✅ 已闭合：是薄委托，见 [`config_system.md`](./config_system.md) §5 |
 | ~~insta 快照的更新流程~~ | **E2** | ✅ 已闭合：`AGENTS.md` 的 `### Snapshot tests` 一节有完整流程。**首版记为「无任何记载」是漏读**，见 [`testing_guide.md`](./testing_guide.md) |
-| ~~turn 完整状态流转~~ | **E3** | ✅ 已闭合：`submission_loop` → `SessionTask` → `regular.rs` 的 turn 循环，见 [`core_agent_loop.md`](./core_agent_loop.md) §2 |
+| ~~turn 完整状态流转~~ | **E3** | ✅ 已闭合：`submission_loop` → `SessionTask` → `codex-rs/core/src/tasks/regular.rs` 的 turn 循环，见 [`core_agent_loop.md`](./core_agent_loop.md) §2 |
 | ~~审批与沙箱的先后次序~~ | **E3** | ✅ 已闭合：审批 → 选沙箱 → 尝试 → 拒绝后升级重试（不重新审批），见 [`tools_and_sandbox.md`](./tools_and_sandbox.md) |
 | app-server ↔ exec-server 的跨 OS 传输实现 | E2 | ⏳ **未闭合**，入口见 [`app_server_protocol.md`](./app_server_protocol.md) §7 |
 | `codex-core` 66 个 workspace 依赖的具体用途 | E1 | ⏳ 未闭合，见 [`core_agent_loop.md`](./core_agent_loop.md) §9 |
-| 配置项全集（93 个键）的逐个语义 | E2（schema 键名） | ⏳ 未闭合，查 `config.schema.json` |
+| 配置项全集（93 个键）的逐个语义 | E2（schema 键名） | ⏳ 未闭合，查 `codex-rs/core/config.schema.json` |
 | Realtime 会话面 | 未开始 | ⏳ 见上方「系统级缺口」表 |
 | Python SDK 的运行时行为 | E2（本机 Python 3.9.6 低于要求的 3.10，无法实跑） | ⏳ 待环境升级 |
 

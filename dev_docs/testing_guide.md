@@ -71,7 +71,7 @@ verified_at: 2026-08-03
 | `just test` | 全量。**跑前先征询用户**（`AGENTS.md` 顶部规则列表，grep `do ask the user before running the complete test suite`） |
 | `just test -p <crate> --test all` | 只跑该 crate 的集成测试 target（`$remote-tests` skill 里的标准形式，见 §8） |
 | `just test-github-scripts` | `.github/scripts` 下的 Python 单测 |
-| `just bazel-test` | Bazel 侧测试。**PR 上的 Rust 测试信号来自 Bazel，不是 `rust-ci.yml`**（见 §10） |
+| `just bazel-test` | Bazel 侧测试。**PR 上的 Rust 测试信号来自 Bazel，不是 `.github/workflows/rust-ci.yml`**（见 §10） |
 
 底层实现（`justfile`）：
 
@@ -128,7 +128,7 @@ inherits = "default"
 | `windows_sandbox_legacy_sessions` | 1 | 创建受限令牌子进程与私有桌面，串行以免耗尽 Windows 会话/桌面资源 |
 | `windows_process_heavy` | 2 | 这些 Windows 重测试会拉子进程、写会话文件或起 JSON-RPC 客户端，是 30s 全量 CI 超时的主要来源 |
 
-> **纠正**：第一版这张表声称"原因（配置文件注释要点）"，但 `app_server_protocol_codegen` 在 `nextest.toml` 里**根本没有注释**，"代码生成类测试"是推断而非原文。
+> **纠正**：第一版这张表声称"原因（配置文件注释要点）"，但 `app_server_protocol_codegen` 在 `codex-rs/.config/nextest.toml` 里**根本没有注释**，"代码生成类测试"是推断而非原文。
 
 > **可读出的信息**：**Windows 是测试稳定性的主要痛点**——6 个分组里有 2 个是专门为 Windows 资源限制设的。app-server 集成测试的成本也很高（每用例一个子进程）。
 
@@ -244,11 +244,11 @@ slow-timeout = { period = "1m", terminate-after = 4 }
 
 | 类型 / 函数 | 位置 |
 | ---- | ---- |
-| `TestCodexBuilder` | `test_codex.rs:294` |
-| `TestCodex` | `test_codex.rs:815` |
-| `TestCodexHarness` | `test_codex.rs:1036` |
-| `TestCodexExecBuilder` | `test_codex_exec.rs:6` |
-| `pub fn test_codex_exec()` | `test_codex_exec.rs:43` |
+| `TestCodexBuilder` | `codex-rs/core/tests/common/test_codex.rs:294` |
+| `TestCodex` | `codex-rs/core/tests/common/test_codex.rs:815` |
+| `TestCodexHarness` | `codex-rs/core/tests/common/test_codex.rs:1036` |
+| `TestCodexExecBuilder` | `codex-rs/core/tests/common/test_codex_exec.rs:6` |
+| `pub fn test_codex_exec()` | `codex-rs/core/tests/common/test_codex_exec.rs:43` |
 
 **builder 模式**：`TestCodexBuilder` → `TestCodex` → `TestCodexHarness`。另有 `test_codex_exec()` 专门用于 `codex exec` 路径。
 
@@ -270,22 +270,22 @@ slow-timeout = { period = "1m", terminate-after = 4 }
 
 | 领域 | 文件 |
 | ---- | ---- |
-| 上下文压缩 | `compact.rs`（5,440 行）、`compact_remote.rs`、`compact_remote_parity.rs`、`compact_resume_fork.rs` |
-| 审批与策略 | `approvals.rs`、`exec_policy.rs`、`catalog_permission_messages.rs`、`guardian_review.rs` |
-| 执行 | `exec.rs`、`apply_patch_cli.rs`、`extension_sandbox.rs` |
-| 会话 | `fork_thread.rs`、`abort_tasks.rs`、`codex_delegate.rs` |
-| 智能体 | `agent_execution.rs`、`agent_websocket.rs` |
-| 客户端 | `client.rs`、`client_websockets.rs`、`cli_stream.rs` |
-| 规范注入 | `agents_md.rs`、`additional_context.rs`、`collaboration_instructions.rs` |
-| 其他 | `auto_review.rs`、`code_mode.rs`、`external_auth.rs`、`git_enrichment.rs`、`current_time_reminder.rs` |
+| 上下文压缩 | `compact.rs`（5,440 行）、`compact_remote.rs`、`codex-rs/core/tests/suite/compact_remote_parity.rs`、`codex-rs/core/tests/suite/compact_resume_fork.rs` |
+| 审批与策略 | `approvals.rs`、`exec_policy.rs`、`codex-rs/core/tests/suite/catalog_permission_messages.rs`、`codex-rs/core/tests/suite/guardian_review.rs` |
+| 执行 | `exec.rs`、`codex-rs/core/tests/suite/apply_patch_cli.rs`、`codex-rs/core/tests/suite/extension_sandbox.rs` |
+| 会话 | `codex-rs/core/tests/suite/fork_thread.rs`、`codex-rs/core/tests/suite/abort_tasks.rs`、`codex_delegate.rs` |
+| 智能体 | `codex-rs/core/tests/suite/agent_execution.rs`、`codex-rs/core/tests/suite/agent_websocket.rs` |
+| 客户端 | `client.rs`、`codex-rs/core/tests/suite/client_websockets.rs`、`codex-rs/core/tests/suite/cli_stream.rs` |
+| 规范注入 | `agents_md.rs`、`additional_context.rs`、`codex-rs/core/tests/suite/collaboration_instructions.rs` |
+| 其他 | `codex-rs/core/tests/suite/auto_review.rs`、`code_mode.rs`、`external_auth.rs`、`codex-rs/core/tests/suite/git_enrichment.rs`、`current_time_reminder.rs` |
 
-> `compact_remote_parity.rs` 的存在说明**本地与远程压缩之间有一致性（parity）测试**——这是理解压缩机制的好入口。
+> `codex-rs/core/tests/suite/compact_remote_parity.rs` 的存在说明**本地与远程压缩之间有一致性（parity）测试**——这是理解压缩机制的好入口。
 
 ### 6.2 `app-server/tests/suite/`
 
-顶层：`auth.rs`、`conversation_summary.rs`、`fuzzy_file_search.rs`、`logging.rs`、`strict_config.rs`、`zsh/`，以及 **`v2/`（97 个文件）**。
+顶层：`auth.rs`、`codex-rs/app-server/tests/suite/conversation_summary.rs`、`fuzzy_file_search.rs`、`logging.rs`、`strict_config.rs`、`zsh/`，以及 **`v2/`（97 个文件）**。
 
-`v2/plugin_list.rs` 有 5,478 行，是仓库第 8 大文件。
+`codex-rs/app-server/tests/suite/v2/plugin_list.rs` 有 5,478 行，是仓库第 8 大文件。
 
 ---
 
@@ -332,7 +332,7 @@ slow-timeout = { period = "1m", terminate-after = 4 }
 
 同节还指出，app-server 与 exec-server 可以跑在**不同操作系统**上，这类配置的集成测试细节见 **`$remote-tests` skill**。
 
-平台专属测试的例子：`core/src/exec_policy_windows_tests.rs`、`windows-sandbox-rs` 的 `legacy_*` 测试。
+平台专属测试的例子：`codex-rs/core/src/exec_policy_windows_tests.rs`、`windows-sandbox-rs` 的 `legacy_*` 测试。
 
 ### 8.1 `$remote-tests` skill 的内容（`.codex/skills/remote-tests/SKILL.md`）
 
@@ -431,11 +431,11 @@ bazel test //codex-rs/app-server:app-server-all-wine-exec-test
 
 | 通道 | 触发 | 内容 |
 | ---- | ---- | ---- |
-| `bazel.yml`（经 `blocking-ci.yml`） | 每个 PR + push main | **PR 上的 Rust 测试信号来自这里**；Windows gnullvm 按 4 片分 shard |
-| `rust-ci-full.yml`（经 `postmerge-ci.yml`，或**分支名含 `full-ci` 时自触发**） | push main（经 postmerge-ci）+ `push: branches: ["**full-ci**"]` + `workflow_dispatch` | 完整 Cargo nextest 矩阵——**不阻断 PR** |
+| `.github/workflows/bazel.yml`（经 `.github/workflows/blocking-ci.yml`） | 每个 PR + push main | **PR 上的 Rust 测试信号来自这里**；Windows gnullvm 按 4 片分 shard |
+| `.github/workflows/rust-ci-full.yml`（经 `.github/workflows/postmerge-ci.yml`，或**分支名含 `full-ci` 时自触发**） | push main（经 postmerge-ci）+ `push: branches: ["**full-ci**"]` + `workflow_dispatch` | 完整 Cargo nextest 矩阵——**不阻断 PR** |
 
 > [!NOTE]
-> **勘误：`rust-ci-full.yml` 不是"只在 push main"。** 它自己的 `on:` 块（`.github/workflows/rust-ci-full.yml:2-9`）有三个触发器：
+> **勘误：`.github/workflows/rust-ci-full.yml` 不是"只在 push main"。** 它自己的 `on:` 块（`.github/workflows/rust-ci-full.yml:2-9`）有三个触发器：
 >
 > ```yaml
 > on:
@@ -449,11 +449,11 @@ bazel test //codex-rs/app-server:app-server-all-wine-exec-test
 > ```
 >
 > **这是一个很有用的能力，值得记住**：把分支名起成包含 `full-ci` 的形式（例如 `<你的名字>/full-ci-sandbox-refactor`），**推上去就会在合并前跑完整矩阵**，不必等 postmerge 才发现平台相关的失败。yml 里的注释明说这就是它的设计意图。另外 `workflow_dispatch` 也允许手动对任意分支触发。
-| `rust-ci.yml`（经 `blocking-ci.yml`） | 每个 PR | **不跑 codex-rs workspace 的测试**，只有 fmt / bench-smoke / cargo-shear / argument-comment-lint |
+| `.github/workflows/rust-ci.yml`（经 `.github/workflows/blocking-ci.yml`） | 每个 PR | **不跑 codex-rs workspace 的测试**，只有 fmt / bench-smoke / cargo-shear / argument-comment-lint |
 
 ### 10.2 archive + partition 的两段式
 
-`rust-ci-full.yml` 调用 `rust-ci-full-nextest-platform.yml` **5 次**，每次一个平台通道。这个 reusable workflow 分两段：
+`.github/workflows/rust-ci-full.yml` 调用 `.github/workflows/rust-ci-full-nextest-platform.yml` **5 次**，每次一个平台通道。这个 reusable workflow 分两段：
 
 1. **`archive` job**：`cargo nextest archive --cargo-profile <profile> --archive-file nextest-<artifact_id>.tar.zst`，把编译好的测试二进制打包上传（Linux/Windows 还额外构建 sandbox / command-runner 等运行时 helper）。
 2. **`shard` job**：`shard: [1, 2, 3, 4]` 矩阵，下载归档后用 **`--partition "hash:<shard>/4"`** 回放。
@@ -482,7 +482,7 @@ bazel test //codex-rs/app-server:app-server-all-wine-exec-test
 
 | 未覆盖项 | 当前证据 | 建议入口 |
 | ---- | ---- | ---- |
-| `TestCodexBuilder` 的完整 builder 方法 | E1 | `core/tests/common/test_codex.rs`（分段读） |
+| `TestCodexBuilder` 的完整 builder 方法 | E1 | `codex-rs/core/tests/common/test_codex.rs`（分段读） |
 | `zsh/` 测试子目录的用途 | E1 | `app-server/tests/suite/zsh/` |
 | 基准测试（bench）的组织与基线 | E1 | `just bench`（divan）、`just bench-smoke`、`//codex-rs:e2e-benchmarks` |
 | `scripts/test-remote-env.sh` 的实现细节 | E1 | 该脚本 |

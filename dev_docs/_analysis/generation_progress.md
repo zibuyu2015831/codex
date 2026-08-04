@@ -381,7 +381,7 @@ verified_at: 2026-08-03
 - **已阻塞**: 0
 - **产物完成度**: 26/26 (100%)
 - **流程阶段进度**: 8/8 (100%)
-- **产物总行数**: **5,182**（20 个交付产物：17 篇正式文档 + `rules/combined/AI_RULES.md` + `plans/README.md` + `knowledge/README.md`）；连同 `_analysis` 四件套为 **7,518**
+- **产物总行数**: **5,182**（20 个交付产物：17 篇正式文档 + `dev_docs/rules/combined/AI_RULES.md` + `dev_docs/plans/README.md` + `dev_docs/knowledge/README.md`）；连同 `_analysis` 四件套为 **7,518**
 - **行数口径**: `wc -l`。此前记录的 7,466 对不上任何口径（既非 20 个产物之和，也非含 `_analysis` 之和），已作废；逐产物行数见 `health_check_report.md` 的「验收对象」表
 - **方案复查轮次**: 2
 - **独立审查轮次**: 1（7 个独立代理）

@@ -23,8 +23,8 @@ verified_at: 2026-08-03
 >
 > 1. **不是"全部 12 个 ext/\* 都依赖 extension-api"**——12 个目录里 1 个就是 `extension-api` 本身（crate 不能依赖自己），剩下 11 个里有 **3 个不依赖它**。真实比例是 **8 / 11**。
 > 2. **`codex-core` 并不直接依赖那 5 个 ext crate**——初版引用的 `core/Cargo.toml:141/144/147` 全部落在 `[dev-dependencies]`（该段从 `:137` 开始）。**11 个具体扩展一个都不在 core 的生产依赖里。**
-> 3. **装配点不是未知的**——主装配点是 `app-server/src/extensions.rs` 的 `thread_extensions()`。
-> 4. `codex-rs/codex-mcp/src/mcp_connection_manager.rs` **这个文件不存在**，真实文件名是 `connection_manager.rs`。
+> 3. **装配点不是未知的**——主装配点是 `codex-rs/app-server/src/extensions.rs` 的 `thread_extensions()`。
+> 4. `codex-rs/codex-mcp/src/mcp_connection_manager.rs` **这个文件不存在**，真实文件名是 `codex-rs/codex-mcp/src/connection_manager.rs`。
 > 5. `ext/connectors` **不依赖** extension-api，所以它不是"两套机制的交叉点"；`tui` **不依赖** extension-api。
 
 ---
@@ -43,7 +43,7 @@ verified_at: 2026-08-03
 | `connectors` | ❌ | 依赖 `codex-connectors`、`codex-core-plugins`、`codex-plugin`、`codex-utils-path-uri` |
 
 > [!CAUTION]
-> **修订说明（原文错误）**：初版写「全部 12 个 `ext/*` crate 都依赖 `codex-extension-api`」，并给了 `grep -rl` 作为证据。那条 grep 的命中里**包含 `ext/extension-api/Cargo.toml` 自己**（`[package] name` 行就含这个字符串）——**crate 不可能依赖自己**。逐文件核对后的真实数字是 **11 个具体扩展中的 8 个**。
+> **修订说明（原文错误）**：初版写「全部 12 个 `ext/*` crate 都依赖 `codex-extension-api`」，并给了 `grep -rl` 作为证据。那条 grep 的命中里**包含 `codex-rs/ext/extension-api/Cargo.toml` 自己**（`[package] name` 行就含这个字符串）——**crate 不可能依赖自己**。逐文件核对后的真实数字是 **11 个具体扩展中的 8 个**。
 
 其余实测结论：
 
@@ -60,9 +60,9 @@ verified_at: 2026-08-03
 
 | crate | 定位 | 依据 |
 | ---- | ---- | ---- |
-| `ext/items`（`codex-extension-items`） | **纯类型 crate**，不是扩展。模块文档自述：*"Typed display items owned by Codex extensions. This crate intentionally sits below `codex-protocol` so core can carry extension items without owning each extension's display schema."* | `ext/items/src/lib.rs:1-4` |
-| `ext/agent`（`codex-agent-extension`） | **子智能体派生的辅助层**，位于 `ThreadManager` **之上**：定义 `AgentInvocation` / `AgentRun` / `AgentRunner`，直接使用 `codex_core::ThreadManager`、`StartThreadOptions`、`NewThread` | `ext/agent/src/lib.rs:1-25`；被 `app-server/src/request_processors/turn_processor.rs:2-4` 使用 |
-| `ext/connectors`（`codex-connectors-extension`） | **建在插件机制之上**。模块文档只有一行：*"Executor-backed connector declaration loading."*；公开 `ExecutorPluginConnectorProvider` | `ext/connectors/src/lib.rs:1-6` |
+| `ext/items`（`codex-extension-items`） | **纯类型 crate**，不是扩展。模块文档自述：*"Typed display items owned by Codex extensions. This crate intentionally sits below `codex-protocol` so core can carry extension items without owning each extension's display schema."* | `codex-rs/ext/items/src/lib.rs:1-4` |
+| `ext/agent`（`codex-agent-extension`） | **子智能体派生的辅助层**，位于 `ThreadManager` **之上**：定义 `AgentInvocation` / `AgentRun` / `AgentRunner`，直接使用 `codex_core::ThreadManager`、`StartThreadOptions`、`NewThread` | `codex-rs/ext/agent/src/lib.rs:1-25`；被 `codex-rs/app-server/src/request_processors/turn_processor.rs:2-4` 使用 |
+| `ext/connectors`（`codex-connectors-extension`） | **建在插件机制之上**。模块文档只有一行：*"Executor-backed connector declaration loading."*；公开 `ExecutorPluginConnectorProvider` | `codex-rs/ext/connectors/src/lib.rs:1-6` |
 
 > [!IMPORTANT]
 > **`ext/connectors` 是"插件是完全平行的独立轨道"这一说法的反例。** 它位于 `ext/` 目录下、名字带 `-extension`，却完全不碰 `extension-api`，而是构建在 `codex-core-plugins` + `codex-plugin` 上。两套机制在目录层面并不是干净分开的。
@@ -115,7 +115,7 @@ core-skills  codex-mcp
 ## 2. extension-api：13 个扩展点 trait = 12 个 `*Contributor` + 1（E3）
 
 > [!NOTE]
-> **勘误：不要写成"13 个 Contributor trait"。** 上一稿全文（含摘要与 §1.3 的示意图）都用了这个说法，但 `contributors.rs` 里以 `Contributor` 结尾的 trait 只有 **12** 个；第 13 个是 `UserInstructionsProvider`，定义在**另一个文件** `ext/extension-api/src/user_instructions.rs:38`，**名字里没有 "Contributor"**。
+> **勘误：不要写成"13 个 Contributor trait"。** 上一稿全文（含摘要与 §1.3 的示意图）都用了这个说法，但 `codex-rs/ext/extension-api/src/contributors.rs` 里以 `Contributor` 结尾的 trait 只有 **12** 个；第 13 个是 `UserInstructionsProvider`，定义在**另一个文件** `codex-rs/ext/extension-api/src/user_instructions.rs:38`，**名字里没有 "Contributor"**。
 >
 > 复核：`grep -cE "pub trait [A-Za-z]*Contributor" codex-rs/ext/extension-api/src/contributors.rs` → `12`。按 `Contributor` 关键词 grep 只会得到 12，这是最常见的对不上账原因。
 >
@@ -137,7 +137,7 @@ core-skills  codex-mcp
 | `ToolLifecycleContributor` | `:300` | 工具生命周期（start / finish） |
 | `ApprovalReviewContributor` | `:313` | 审批评审 |
 | `TurnItemContributor` | `:327` | turn 条目 |
-| **`UserInstructionsProvider`** | **`user_instructions.rs:38`**（不在 `contributors.rs`，也不叫 `*Contributor`） | 用户指令加载 |
+| **`UserInstructionsProvider`** | **`user_instructions.rs:38`**（不在 `codex-rs/ext/extension-api/src/contributors.rs`，也不叫 `*Contributor`） | 用户指令加载 |
 
 **所有 trait 都要求 `Send + Sync`**，说明扩展在多线程运行时环境中被调用。
 
@@ -150,7 +150,7 @@ pub use registry::ExtensionRegistryBuilder;
 pub use registry::empty_extension_registry;
 ```
 
-`ExtensionRegistryBuilder` 在 `codex-rs/core/src/thread_manager_tests.rs:535,704` 等测试里有最小用例；**生产装配点见 §3.1**。注册表建好后作为 `Arc<ExtensionRegistry<Config>>` 传给 `ThreadManager::new`（可在 `thread-manager-sample/src/main.rs:137-152` 看到完整流程），说明**扩展的生命周期与 thread 绑定**。
+`ExtensionRegistryBuilder` 在 `codex-rs/core/src/thread_manager_tests.rs:535,704` 等测试里有最小用例；**生产装配点见 §3.1**。注册表建好后作为 `Arc<ExtensionRegistry<Config>>` 传给 `ThreadManager::new`（可在 `codex-rs/thread-manager-sample/src/main.rs:137-152` 看到完整流程），说明**扩展的生命周期与 thread 绑定**。
 
 ### 能力接口（`capabilities.rs`）
 
@@ -182,7 +182,7 @@ pub use registry::empty_extension_registry;
 | `codex-skills-extension` | `ext/skills` | 11,114 | ✅ | ❌（仅 `[dev-dependencies]:144`） |
 | `codex-goal-extension` | `ext/goal` | 4,384 | ✅ | ❌ |
 | `codex-memories-extension` | `ext/memories` | 2,399 | ✅ | ❌ |
-| `codex-extension-api` | `ext/extension-api` | 2,377 | —（自身） | ✅（`core/Cargo.toml:39`） |
+| `codex-extension-api` | `ext/extension-api` | 2,377 | —（自身） | ✅（`codex-rs/core/Cargo.toml:39`） |
 | `codex-mcp-extension` | `ext/mcp` | 1,504 | ✅ | ❌ |
 | `codex-image-generation-extension` | `ext/image-generation` | 1,166 | ✅ | ❌（仅 `[dev-dependencies]:141`） |
 | `codex-web-search-extension` | `ext/web-search` | 874 | ✅ | ❌（仅 `[dev-dependencies]:147`） |
@@ -227,13 +227,13 @@ pub use registry::empty_extension_registry;
 | `codex-rs/mcp-server/src/message_processor.rs:69` 起 | `ExtensionRegistryBuilder::with_event_sink` + `git_attribution`、`image_generation` 等 |
 | `codex-rs/thread-manager-sample/src/main.rs:137` | 最小示例：只装 image-generation，随后传给 `ThreadManager::new` |
 
-> `codex-agent-extension` 与 `codex-connectors-extension` **不走 `ExtensionRegistry`**：前者被 `app-server/src/request_processors/turn_processor.rs` 当作普通库调用，后者被 `ext/mcp` 作为插件 provider 依赖。这再次印证 §1.2 的判断。
+> `codex-agent-extension` 与 `codex-connectors-extension` **不走 `ExtensionRegistry`**：前者被 `codex-rs/app-server/src/request_processors/turn_processor.rs` 当作普通库调用，后者被 `ext/mcp` 作为插件 provider 依赖。这再次印证 §1.2 的判断。
 
 ---
 
 ## 4. 插件路径（并行机制）
 
-### 4.1 模块版图（**E1**：`core-plugins/src/lib.rs` 的模块声明清单，职责列按模块名推断；初版标 E4 已下调）
+### 4.1 模块版图（**E1**：`codex-rs/core-plugins/src/lib.rs` 的模块声明清单，职责列按模块名推断；初版标 E4 已下调）
 
 | 模块 | 职责 |
 | ---- | ---- |
@@ -261,7 +261,7 @@ pub use registry::empty_extension_registry;
 
 | crate | `extension-api` | `core-plugins` | 含义 |
 | ---- | :--: | :--: | ---- |
-| `ext/mcp` | ✅ | ✅ | **唯一的真正交叉点**——`extensions.rs` 里 `codex_mcp_extension::install_executor_plugins(...)` 就是这条合流的落地 |
+| `ext/mcp` | ✅ | ✅ | **唯一的真正交叉点**——`codex-rs/app-server/src/extensions.rs` 里 `codex_mcp_extension::install_executor_plugins(...)` 就是这条合流的落地 |
 | `ext/connectors` | ❌ | ✅ | **纯插件侧**：`ExecutorPluginConnectorProvider`，被 `ext/mcp` 依赖 |
 
 ### 4.3 对比：谁依赖 `extension-api`（E2）
@@ -277,11 +277,11 @@ pub use registry::empty_extension_registry;
 
 | 入口 | 说明 |
 | ---- | ---- |
-| `codex plugin add / list / remove / marketplace` | CLI 子命令（`cli/src/main.rs:1090-1110`） |
+| `codex plugin add / list / remove / marketplace` | CLI 子命令（`codex-rs/cli/src/main.rs:1090-1110`） |
 | `plugin/*` 协议方法（12 个） | app-server 协议 |
 | `request_plugin_install` / `list_available_plugins_to_install` | 模型可调用的工具 |
 
-**模型自己可以请求安装插件**——`core/src/tools/handlers/request_plugin_install.rs` 与 `list_available_plugins_to_install.rs`。这是一条值得注意的能力面。
+**模型自己可以请求安装插件**——`codex-rs/core/src/tools/handlers/request_plugin_install.rs` 与 `codex-rs/core/src/tools/handlers/list_available_plugins_to_install.rs`。这是一条值得注意的能力面。
 
 ---
 
@@ -314,7 +314,7 @@ pub enum SystemSkillsError;  // :143
 | crate | 行数 | 角色 |
 | ---- | ---: | ---- |
 | `codex-rmcp-client` | 19,361 | MCP 客户端底层实现 |
-| `codex-mcp` | 14,560 | MCP 集成层，含 `connection_manager.rs`（另有 `connection_manager/` 目录与 `connection_manager_tests.rs`） |
+| `codex-mcp` | 14,560 | MCP 集成层，含 `codex-rs/codex-mcp/src/connection_manager.rs`（另有 `connection_manager/` 目录与 `codex-rs/codex-mcp/src/connection_manager_tests.rs`） |
 | `codex-mcp-extension`（`ext/mcp`） | 1,504 | **扩展包装层**，实现 `McpServerContributor`；**依赖 `codex-core`，位于 core 之上** |
 | `codex-mcp-server` | 4,128 | **把 Codex 自身暴露为 MCP server** |
 
@@ -343,7 +343,7 @@ pub enum SystemSkillsError;  // :143
 
 ### 6.3 会话侧接入
 
-`codex-rs/core/src/session/` 下有 5 个 MCP 相关文件：`mcp.rs`、`mcp_runtime.rs`、`mcp_prewarm.rs`（**预热**）、`mcp_refresh.rs`、`mcp_tests.rs`。
+`codex-rs/core/src/session/` 下有 5 个 MCP 相关文件：`mcp.rs`、`codex-rs/core/src/session/mcp_runtime.rs`、`codex-rs/core/src/session/mcp_prewarm.rs`（**预热**）、`mcp_refresh.rs`、`codex-rs/core/src/session/mcp_tests.rs`。
 
 预热与刷新的存在说明 MCP server 连接是**有状态且需要维护的长连接**，不是每次调用现连。
 
@@ -351,9 +351,9 @@ pub enum SystemSkillsError;  // :143
 
 | 面 | 位置 |
 | ---- | ---- |
-| 配置类型 | `codex-rs/config/src/mcp_types.rs`、`mcp_edit.rs`、`mcp_requirements.rs` |
+| 配置类型 | `codex-rs/config/src/mcp_types.rs`、`codex-rs/config/src/mcp_edit.rs`、`codex-rs/config/src/mcp_requirements.rs` |
 | 协议方法 | `mcpServer/*`（6 个）、`config/mcpServer/reload` |
-| 工具处理器 | `core/src/tools/handlers/mcp.rs`、`mcp_resource.rs` |
+| 工具处理器 | `codex-rs/core/src/tools/handlers/mcp.rs`、`mcp_resource.rs` |
 
 ---
 
@@ -374,11 +374,11 @@ pub enum SystemSkillsError;  // :143
 
 | 事项 | 依据 |
 | ---- | ---- |
-| MCP 工具调用优先走 `codex-mcp/src/connection_manager.rs`（注意 AGENTS.md 里的路径已过时，见 §6.2） | AGENTS.md 顶部规则列表，关键词 `mcp_connection_manager` |
+| MCP 工具调用优先走 `codex-rs/codex-mcp/src/connection_manager.rs`（注意 AGENTS.md 里的路径已过时，见 §6.2） | AGENTS.md 顶部规则列表，关键词 `mcp_connection_manager` |
 | 尽量复用既有抽象，不要多层透传 | 同上 |
 | 新扩展应实现 `extension-api` 的 trait，而不是直接改 `codex-core` | 见 [`crate_map.md`](./crate_map.md) §6 |
-| **新扩展的注册要加到 `app-server/src/extensions.rs` 的 `thread_extensions()`**，而不是往 `core/Cargo.toml` 里加依赖 | §3.1 |
-| 扩展 trait 都要求 `Send + Sync` | `contributors.rs` |
+| **新扩展的注册要加到 `codex-rs/app-server/src/extensions.rs` 的 `thread_extensions()`**，而不是往 `codex-rs/core/Cargo.toml` 里加依赖 | §3.1 |
+| 扩展 trait 都要求 `Send + Sync` | `codex-rs/ext/extension-api/src/contributors.rs` |
 | trait 中的异步方法用 `impl Future + Send`，不要 `#[allow(async_fn_in_trait)]` | `AGENTS.md` 顶部规则列表，关键词 `async_fn_in_trait` / RPITIT |
 
 ---
@@ -388,15 +388,15 @@ pub enum SystemSkillsError;  // :143
 | 未覆盖项 | 当前证据 | 建议入口 |
 | ---- | ---- | ---- |
 | ~~7 个未被 core 直接依赖的 ext 在哪装配~~ | **已在 §3.1 解决**（前提也是错的：不是 7 个而是 11 个全部） | — |
-| 各 Contributor trait 的方法签名与调用时机 | E1（仅知 trait 名） | `ext/extension-api/src/contributors.rs` |
-| 8 个装配调用各自的门控条件（哪些受 feature / 配置控制） | E1 | `app-server/src/extensions.rs:51-117` |
-| 插件清单（manifest）的格式 | E1 | `core-plugins/src/manifest.rs` |
+| 各 Contributor trait 的方法签名与调用时机 | E1（仅知 trait 名） | `codex-rs/ext/extension-api/src/contributors.rs` |
+| 8 个装配调用各自的门控条件（哪些受 feature / 配置控制） | E1 | `codex-rs/app-server/src/extensions.rs:51-117` |
+| 插件清单（manifest）的格式 | E1 | `codex-rs/core-plugins/src/manifest.rs` |
 | 插件市场的远程协议 | E1 | `core-plugins/src/remote*.rs` |
-| Skill 注入模型上下文的具体形式 | E1 | `core-skills/src/injection.rs` |
-| MCP 连接的握手与工具发现流程 | E1 | `codex-mcp/src/connection_manager.rs` 与 `connection_manager/` |
-| `ext/mcp` 里 `install_executor_plugins` 把插件接进 MCP 的具体语义 | E1 | `ext/mcp/src/lib.rs`、`ext/connectors/src/executor_plugin.rs` |
+| Skill 注入模型上下文的具体形式 | E1 | `codex-rs/core-skills/src/injection.rs` |
+| MCP 连接的握手与工具发现流程 | E1 | `codex-rs/codex-mcp/src/connection_manager.rs` 与 `connection_manager/` |
+| `ext/mcp` 里 `install_executor_plugins` 把插件接进 MCP 的具体语义 | E1 | `codex-rs/ext/mcp/src/lib.rs`、`codex-rs/ext/connectors/src/executor_plugin.rs` |
 | `codex-connectors`（4,851 行）与 `ext/connectors`（71 行）的分工 | E1 | 两者的 `Cargo.toml` 与 `lib.rs` |
-| `ext/agent` 派生子智能体时的隔离边界 | E1 | `ext/agent/src/lib.rs`、`app-server/src/request_processors/turn_processor.rs` |
+| `ext/agent` 派生子智能体时的隔离边界 | E1 | `codex-rs/ext/agent/src/lib.rs`、`codex-rs/app-server/src/request_processors/turn_processor.rs` |
 
 ---
 

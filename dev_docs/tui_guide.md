@@ -12,7 +12,7 @@ verified_at: 2026-08-03
 
 > **基线 commit**: `bb5054fe47abe73ecbbd454751066a28c89f4bb9`
 > **覆盖范围**: `codex-tui`（238,439 行，全仓第 2 大 crate）
-> **证据等级**: 文件数量与行数清点为 E1（`git ls-files` / `wc -l` 口径见正文）；`styles.md`、`clippy.toml`、AGENTS.md 的条款为 E2（明文）；架构边界为 E3（CI 脚本与 `lib.rs` 导入）
+> **证据等级**: 文件数量与行数清点为 E1（`git ls-files` / `wc -l` 口径见正文）；`codex-rs/tui/styles.md`、`codex-rs/clippy.toml`、AGENTS.md 的条款为 E2（明文）；架构边界为 E3（CI 脚本与 `lib.rs` 导入）
 
 > [!NOTE]
 > **依赖数量的口径**（`codex-rs/tui/Cargo.toml`，E1）：
@@ -36,8 +36,8 @@ verified_at: 2026-08-03
 | ---- | ---- |
 | **不得「直接」依赖或 import `codex-core`**，且由 CI 机器强制（传递链接不受此限，见 §0.1） | `.github/scripts/verify_tui_core_boundary.py`（由 `.github/workflows/repo-checks.yml` 调起） |
 | 5 个高触碰文件被 AGENTS.md 点名 | AGENTS.md 顶部规则列表，grep `high-touch files` |
-| `chatwidget.rs` 有**额外**的单独约束 | AGENTS.md 顶部规则列表，grep `keep chatwidget.rs focused on orchestration` |
-| 样式规则由 `clippy.toml` **机器强制** | `codex-rs/clippy.toml` 的 `disallowed-methods` |
+| `codex-rs/tui/src/chatwidget.rs` 有**额外**的单独约束 | AGENTS.md 顶部规则列表，grep `keep chatwidget.rs focused on orchestration` |
+| 样式规则由 `codex-rs/clippy.toml` **机器强制** | `codex-rs/clippy.toml` 的 `disallowed-methods` |
 
 在这个 crate 里写代码之前，先读完本文 §0.1、§2、§3 与 §4。
 
@@ -86,7 +86,7 @@ TUI 的运行时通路是 **app-server 客户端**：`codex-rs/tui/Cargo.toml` �
 > }
 > ```
 >
-> TUI 用它的地方有 **93 处、分布在 40 个文件**（`grep -rn "legacy_core" codex-rs/tui/src/`），`tui/src/lib.rs` 开头就是 `use crate::legacy_core::config::Config;`。
+> TUI 用它的地方有 **93 处、分布在 40 个文件**（`grep -rn "legacy_core" codex-rs/tui/src/`），`codex-rs/tui/src/lib.rs` 开头就是 `use crate::legacy_core::config::Config;`。
 >
 > 校验脚本自己的报错文案也点名了它：`"...startup gaps belong behind codex_app_server_client::legacy_core."`——即这是**被认可的过渡通道**，不是绕过门禁的歪路。
 
@@ -94,7 +94,7 @@ TUI 的运行时通路是 **app-server 客户端**：`codex-rs/tui/Cargo.toml` �
 
 | 被禁止的 | 被允许的 |
 | ---- | ---- |
-| `tui/Cargo.toml` 里出现 `codex-core`（含 dev / build / target 段） | 经 `codex_app_server_client::legacy_core` 使用 core 的**配置类型** |
+| `codex-rs/tui/Cargo.toml` 里出现 `codex-core`（含 dev / build / target 段） | 经 `codex_app_server_client::legacy_core` 使用 core 的**配置类型** |
 | `tui/src/` 里出现 `codex_core::` / `use codex_core` / `extern crate codex_core` | 依赖 `codex-core-plugins`（**另一个 crate**，不在禁止名单内） |
 | — | 依赖 `codex-cloud-config`、`codex-utils-oss`、`codex-app-server-client` 等**自身直接依赖 `codex-core` 的 crate**（传递链接不受门禁约束） |
 
@@ -164,11 +164,11 @@ codex-rs/tui/src/
 ```
 
 > [!IMPORTANT]
-> `app_event.rs`、`app_event_sender.rs`、`app_command.rs`、`app_backtrack.rs` 位于 `codex-rs/tui/src/` **顶层**，不在 `app/` 目录下。此前版本把它们画在 `app.rs / app/` 之下是错的，按错误路径去 grep 会找不到文件。
+> `codex-rs/tui/src/app_event.rs`、`codex-rs/tui/src/app_event_sender.rs`、`codex-rs/tui/src/app_command.rs`、`codex-rs/tui/src/app_backtrack.rs` 位于 `codex-rs/tui/src/` **顶层**，不在 `app/` 目录下。此前版本把它们画在 `app.rs / app/` 之下是错的，按错误路径去 grep 会找不到文件。
 
-> **未验证**（E1）：`app` → `chatwidget` → `bottom_pane` 的**事件流方向与所有权关系**。上面的三层划分是按文件名与规模归纳的结构性描述。要确认实际数据流，读顶层的 `codex-rs/tui/src/app_event.rs` 与 `codex-rs/tui/src/app_event_sender.rs`，再看 `app/event_dispatch.rs`。
+> **未验证**（E1）：`app` → `chatwidget` → `bottom_pane` 的**事件流方向与所有权关系**。上面的三层划分是按文件名与规模归纳的结构性描述。要确认实际数据流，读顶层的 `codex-rs/tui/src/app_event.rs` 与 `codex-rs/tui/src/app_event_sender.rs`，再看 `codex-rs/tui/src/app/event_dispatch.rs`。
 
-> `codex-rs/tui/src/bottom_pane/` 目录自带一份 AGENTS.md：改动 paste-burst 与 chat-composer 状态机时，必须同步更新 `chat_composer.rs` / `paste_burst.rs` 的模块文档，并核对文档只描述代码中真实存在的 API 与行为。
+> `codex-rs/tui/src/bottom_pane/` 目录自带一份 AGENTS.md：改动 paste-burst 与 chat-composer 状态机时，必须同步更新 `codex-rs/tui/src/bottom_pane/chat_composer.rs` / `codex-rs/tui/src/bottom_pane/paste_burst.rs` 的模块文档，并核对文档只描述代码中真实存在的 API 与行为。
 
 ---
 
@@ -180,33 +180,33 @@ AGENTS.md 顶部规则列表（grep `Avoid large modules`）的目标是模块 *
 
 | 文件 | 实测行数 | 被点名 |
 | ---- | ---: | :--: |
-| `bottom_pane/chat_composer.rs` | **12,616** | ✅ |
-| `app/tests.rs` | 7,520 | — |
-| `resume_picker.rs` | 6,681 | — |
-| `chatwidget/tests/status_and_layout.rs` | 4,849 | — |
-| `bottom_pane/textarea.rs` | 4,016 | — |
-| `bottom_pane/request_user_input/mod.rs` | 3,899 | — |
-| `chatwidget/tests/popups_and_settings.rs` | 3,797 | — |
+| `codex-rs/tui/src/bottom_pane/chat_composer.rs` | **12,616** | ✅ |
+| `codex-rs/tui/src/app/tests.rs` | 7,520 | — |
+| `codex-rs/tui/src/resume_picker.rs` | 6,681 | — |
+| `codex-rs/tui/src/chatwidget/tests/status_and_layout.rs` | 4,849 | — |
+| `codex-rs/tui/src/bottom_pane/textarea.rs` | 4,016 | — |
+| `codex-rs/tui/src/bottom_pane/request_user_input/mod.rs` | 3,899 | — |
+| `codex-rs/tui/src/chatwidget/tests/popups_and_settings.rs` | 3,797 | — |
 | `lib.rs` | 3,413 | — |
-| `keymap.rs` | 3,203 | — |
-| `bottom_pane/mod.rs` | 3,114 | ✅ |
-| `app_server_session.rs` | 2,960 | — |
-| `chatwidget/tests/slash_commands.rs` | 2,958 | — |
+| `codex-rs/tui/src/keymap.rs` | 3,203 | — |
+| `codex-rs/tui/src/bottom_pane/mod.rs` | 3,114 | ✅ |
+| `codex-rs/tui/src/app_server_session.rs` | 2,960 | — |
+| `codex-rs/tui/src/chatwidget/tests/slash_commands.rs` | 2,958 | — |
 
-另外三个被点名的文件：`app.rs`（1,424 行）、`bottom_pane/footer.rs`（2,075 行）、`chatwidget.rs`（2,020 行）。它们都没进 Top 12——**被点名的理由是「吸引不相关改动」，不是「当前最大」**。
+另外三个被点名的文件：`app.rs`（1,424 行）、`codex-rs/tui/src/bottom_pane/footer.rs`（2,075 行）、`codex-rs/tui/src/chatwidget.rs`（2,020 行）。它们都没进 Top 12——**被点名的理由是「吸引不相关改动」，不是「当前最大」**。
 
 > [!IMPORTANT]
 > **正确的理解方式**：500/800 行的目标约束的是**新增代码**。AGENTS.md 的原文是 "add new functionality in a new module instead of extending the existing file"——存量文件不违反规范，但**新代码不得继续堆入**。
 >
 > 本表列出实测值是为了避免误判，**不是对上游的整改建议**。
 
-### `chatwidget.rs` 的额外约束
+### `codex-rs/tui/src/chatwidget.rs` 的额外约束
 
 AGENTS.md 顶部规则列表（grep `keep chatwidget.rs focused on orchestration`）：
 
-> "Avoid adding new standalone methods to `codex-rs/tui/src/chatwidget.rs` unless the change is trivial; prefer new modules/files and keep `chatwidget.rs` focused on orchestration."
+> "Avoid adding new standalone methods to `codex-rs/tui/src/chatwidget.rs` unless the change is trivial; prefer new modules/files and keep `codex-rs/tui/src/chatwidget.rs` focused on orchestration."
 
-**翻译成操作**：`chatwidget.rs`（2,020 行）只做编排。要加逻辑，新建模块，让它调用。`chatwidget/` 目录下已有 60 个 `.rs` 兄弟模块，绝大多数就是这样被拆出来的——加新文件是这里的常规动作，不是例外。
+**翻译成操作**：`codex-rs/tui/src/chatwidget.rs`（2,020 行）只做编排。要加逻辑，新建模块，让它调用。`chatwidget/` 目录下已有 60 个 `.rs` 兄弟模块，绝大多数就是这样被拆出来的——加新文件是这里的常规动作，不是例外。
 
 ### 读取大文件的正确姿势
 
@@ -240,15 +240,15 @@ git grep -n "^pub fn\|^impl\|^pub struct\|^fn " codex-rs/tui/src/bottom_pane/cha
 | 错误、失败与删除 | ANSI `red` |
 | Codex 自身 | ANSI `magenta` |
 
-### `styles.md` 的 Avoid 清单（三条，全文照录要点）
+### `codex-rs/tui/styles.md` 的 Avoid 清单（三条，全文照录要点）
 
 | # | 条目 | 是否被 clippy 机器强制 |
 | ---: | ---- | ---- |
-| 1 | 回避自定义颜色——无法保证在各种终端主题下对比度足够。`shimmer.rs` 是可行的例外，因为它只取默认色并调整明度 | **是**。`Color::Rgb` 与 `Color::Indexed` 都在 `disallowed-methods` 中 |
+| 1 | 回避自定义颜色——无法保证在各种终端主题下对比度足够。`codex-rs/tui/src/shimmer.rs` 是可行的例外，因为它只取默认色并调整明度 | **是**。`Color::Rgb` 与 `Color::Indexed` 都在 `disallowed-methods` 中 |
 | 2 | 回避把 ANSI `black` 与 `white` 用作**前景色**，默认终端主题色效果更好（用 `reset` 可取回）。**例外**：在手工上色的背景上要拿到对比度时可用 | **是**。`Stylize::white` / `Stylize::black` 在 `disallowed-methods` 中 |
 | 3 | 回避 ANSI `blue` 与 `yellow`，当前样式指南不使用它们，改用上表列出的前景色 | **部分**。`yellow` 被 clippy 拦下；`blue` 只是文档约定 |
 
-### `clippy.toml` 的 `disallowed-methods`（机器强制，E2）
+### `codex-rs/clippy.toml` 的 `disallowed-methods`（机器强制，E2）
 
 `codex-rs/clippy.toml` 的 `disallowed-methods` 数组中与 TUI 样式相关的 5 条：
 
@@ -258,12 +258,12 @@ git grep -n "^pub fn\|^impl\|^pub struct\|^fn " codex-rs/tui/src/bottom_pane/cha
 | `ratatui::style::Color::Indexed` | 同上 |
 | `ratatui::style::Stylize::white` | 回避硬编码 white，优先默认前景色或 dim/bold。**例外**：在硬编码 ANSI 背景上渲染时可禁用该规则 |
 | `ratatui::style::Stylize::black` | 同上（硬编码 black） |
-| `ratatui::style::Stylize::yellow` | 回避 yellow，优先 `tui/styles.md` 中列出的颜色 |
+| `ratatui::style::Stylize::yellow` | 回避 yellow，优先 `codex-rs/tui/styles.md` 中列出的颜色 |
 
 > [!TIP]
-> **自定义颜色是被机器拦下的，不只是文档劝阻。** `Color::Rgb` 与 `Color::Indexed` 是构造任意颜色的两条路，两条都在禁用列表里——这正是 `styles.md` 第 1 条 Avoid 的执行手段。
+> **自定义颜色是被机器拦下的，不只是文档劝阻。** `Color::Rgb` 与 `Color::Indexed` 是构造任意颜色的两条路，两条都在禁用列表里——这正是 `codex-rs/tui/styles.md` 第 1 条 Avoid 的执行手段。
 >
-> `styles.md` 末尾写道 "(There are some rules to try to catch this in `clippy.toml`.)"——**文档约定与机器规则并不完全重合**。落在文档一侧、clippy 不拦的只有 ANSI `blue` 一项。
+> `codex-rs/tui/styles.md` 末尾写道 "(There are some rules to try to catch this in `codex-rs/clippy.toml`.)"——**文档约定与机器规则并不完全重合**。落在文档一侧、clippy 不拦的只有 ANSI `blue` 一项。
 
 同一个 `disallowed-methods` 数组里还有一批与样式无关的 `sqlx::Pool::connect*` 条目（要求经 `codex-state` 的 sqlite shim 建池），改 TUI 时通常不会碰到。
 
@@ -271,7 +271,7 @@ git grep -n "^pub fn\|^impl\|^pub struct\|^fn " codex-rs/tui/src/bottom_pane/cha
 
 ## 4. AGENTS.md 中的 TUI 与测试条款（E2）
 
-`styles.md` 只管颜色与层级。**写法层面的约定在 AGENTS.md 里**，分散在下面几节。本节按章节标题归纳要点，不复制条款原文之外的解读；查原文请 grep 标题。
+`codex-rs/tui/styles.md` 只管颜色与层级。**写法层面的约定在 AGENTS.md 里**，分散在下面几节。本节按章节标题归纳要点，不复制条款原文之外的解读；查原文请 grep 标题。
 
 ### `## TUI code conventions`
 
@@ -332,7 +332,7 @@ cargo insta accept -p codex-tui                          # 确认要全量接受
 mod tests;
 ```
 
-该约定**只适用于新增**测试模块；不要仅为了合规去搬动或重写已有的内联 `#[cfg(test)] mod tests { ... }`。TUI 里 `config_update_tests.rs`、`line_truncation_tests.rs`、`markdown_render_tests.rs`、`app/agent_status_feed_tests.rs` 等都是这一形态。
+该约定**只适用于新增**测试模块；不要仅为了合规去搬动或重写已有的内联 `#[cfg(test)] mod tests { ... }`。TUI 里 `codex-rs/tui/src/config_update_tests.rs`、`codex-rs/tui/src/line_truncation_tests.rs`、`codex-rs/tui/src/markdown_render_tests.rs`、`codex-rs/tui/src/app/agent_status_feed_tests.rs` 等都是这一形态。
 
 ---
 
@@ -340,14 +340,14 @@ mod tests;
 
 | 位置 | 规模 |
 | ---- | ---- |
-| `app/tests.rs` | 7,520 行 |
-| `app/tests/` | 10 个 `.rs` + `snapshots/`（`startup.rs`、`turn_submission.rs`、`key_chords.rs`、`rate_limits.rs`、`session_lifecycle_requests.rs`、`session_summary.rs`、`model_catalog.rs`、`plugin_catalog.rs`、`safety_buffering.rs`、`advanced_reasoning_tests.rs`） |
+| `codex-rs/tui/src/app/tests.rs` | 7,520 行 |
+| `app/tests/` | 10 个 `.rs` + `snapshots/`（`startup.rs`、`codex-rs/tui/src/app/tests/turn_submission.rs`、`codex-rs/tui/src/app/tests/key_chords.rs`、`rate_limits.rs`、`codex-rs/tui/src/app/tests/session_lifecycle_requests.rs`、`codex-rs/tui/src/app/tests/session_summary.rs`、`model_catalog.rs`、`plugin_catalog.rs`、`safety_buffering.rs`、`codex-rs/tui/src/app/tests/advanced_reasoning_tests.rs`） |
 | `chatwidget/tests/` | 23 个 `.rs` + `snapshots/` |
-| `chatwidget/tests/status_and_layout.rs` | 4,849 行 |
-| `chatwidget/tests/popups_and_settings.rs` | 3,797 行 |
-| `chatwidget/tests/slash_commands.rs` | 2,958 行 |
+| `codex-rs/tui/src/chatwidget/tests/status_and_layout.rs` | 4,849 行 |
+| `codex-rs/tui/src/chatwidget/tests/popups_and_settings.rs` | 3,797 行 |
+| `codex-rs/tui/src/chatwidget/tests/slash_commands.rs` | 2,958 行 |
 
-`chatwidget/tests/` 的 23 个文件按功能面切分，除上面三个大件外还有 `app_server.rs`、`approval_requests.rs`、`composer_submission.rs`、`config_errors_tests.rs`、`exec_flow.rs`、`goal_menu.rs`、`goal_validation.rs`、`guardian.rs`、`helpers.rs`、`history_replay.rs`、`mcp_startup.rs`、`permissions.rs`、`plan_mode.rs`、`plugin_catalog_tests.rs`、`review_mode.rs`、`side.rs`、`status_command_tests.rs`、`status_surface_previews.rs`、`terminal_title.rs`、`usage.rs`。
+`chatwidget/tests/` 的 23 个文件按功能面切分，除上面三个大件外还有 `app_server.rs`、`codex-rs/tui/src/chatwidget/tests/approval_requests.rs`、`codex-rs/tui/src/chatwidget/tests/composer_submission.rs`、`codex-rs/tui/src/chatwidget/tests/config_errors_tests.rs`、`codex-rs/tui/src/chatwidget/tests/exec_flow.rs`、`goal_menu.rs`、`codex-rs/tui/src/chatwidget/tests/goal_validation.rs`、`codex-rs/tui/src/chatwidget/tests/guardian.rs`、`helpers.rs`、`codex-rs/tui/src/chatwidget/tests/history_replay.rs`、`mcp_startup.rs`、`permissions.rs`、`codex-rs/tui/src/chatwidget/tests/plan_mode.rs`、`codex-rs/tui/src/chatwidget/tests/plugin_catalog_tests.rs`、`codex-rs/tui/src/chatwidget/tests/review_mode.rs`、`side.rs`、`codex-rs/tui/src/chatwidget/tests/status_command_tests.rs`、`codex-rs/tui/src/chatwidget/tests/status_surface_previews.rs`、`terminal_title.rs`、`usage.rs`。
 
 **测试按功能面拆分到子目录**，而不是塞进单个 `tests.rs`——这符合 AGENTS.md「提取代码时把相关测试与模块文档一并迁移」的条目（grep `move the related tests`）。
 
@@ -361,7 +361,7 @@ mod tests;
 
 - `codex-rs/tui/src/lib.rs` 导入 `codex_app_server_client::InProcessAppServerClient` 与 `codex_app_server_client::RemoteAppServerClient`。
 - `InProcessAppServerClient::start` 在 TUI 进程内拉起 app-server；`RemoteAppServerClient::connect` 连接外部进程。
-- `app_server_session.rs`（2,960 行）与 `app_server_approval_conversions.rs` 负责会话与审批事件的转换。
+- `codex-rs/tui/src/app_server_session.rs`（2,960 行）与 `codex-rs/tui/src/app_server_approval_conversions.rs` 负责会话与审批事件的转换。
 
 `just tui-with-exec-server` 任务（`justfile`，Unix 专属）会同时起 exec-server 与 TUI，用于测试远程连接这条路径。
 
@@ -373,14 +373,14 @@ mod tests;
 
 | 事项 | 依据 |
 | ---- | ---- |
-| **不得给 `tui/Cargo.toml` 加 `codex-core`，也不得 `use codex_core`**（约束的是「直接」依赖与「直接」导入；传递链接不在其内，见 §0.1） | `.github/scripts/verify_tui_core_boundary.py`（CI 强制） |
+| **不得给 `codex-rs/tui/Cargo.toml` 加 `codex-core`，也不得 `use codex_core`**（约束的是「直接」依赖与「直接」导入；传递链接不在其内，见 §0.1） | `.github/scripts/verify_tui_core_boundary.py`（CI 强制） |
 | **改了用户可见 UI（含新增 UI）→ 必须附 insta 快照覆盖** | AGENTS.md `### Snapshot tests` |
 | 改 TUI 后跑 `just test -p codex-tui` | AGENTS.md 顶部规则列表，grep `just test -p codex-tui` |
-| 回避给 `chatwidget.rs` 加新的独立方法（除非改动很小） | AGENTS.md 顶部规则列表，grep `keep chatwidget.rs focused on orchestration` |
+| 回避给 `codex-rs/tui/src/chatwidget.rs` 加新的独立方法（除非改动很小） | AGENTS.md 顶部规则列表，grep `keep chatwidget.rs focused on orchestration` |
 | 新功能放新模块，不要扩写已超 800 行的文件 | AGENTS.md 顶部规则列表，grep `Avoid large modules` |
 | 提取代码时把相关测试与模块文档一并迁移 | AGENTS.md 顶部规则列表，grep `move the related tests` |
 | 新增测试模块用 `#[path = "..._tests.rs"]` 兄弟文件 | AGENTS.md `### Test module organization` |
-| 颜色遵守 `styles.md`；`white`/`black`/`yellow` 与 `Color::Rgb`/`Color::Indexed` 会被 clippy 拦下 | `codex-rs/clippy.toml` 的 `disallowed-methods` |
+| 颜色遵守 `codex-rs/tui/styles.md`；`white`/`black`/`yellow` 与 `Color::Rgb`/`Color::Indexed` 会被 clippy 拦下 | `codex-rs/clippy.toml` 的 `disallowed-methods` |
 | 改 `bottom_pane/` 的 paste-burst / chat-composer 状态机 → 同步模块文档 | `codex-rs/tui/src/bottom_pane/AGENTS.md` |
 | 大改动收尾跑 `just fix -p codex-tui` | AGENTS.md，grep `just fix -p <project>` |
 | TUI 功能必须支持 Linux / macOS / Windows | AGENTS.md `## Platform Support` |
@@ -391,14 +391,14 @@ mod tests;
 
 | 未覆盖项 | 当前证据 | 建议入口 |
 | ---- | ---- | ---- |
-| `app` → `chatwidget` → `bottom_pane` 的事件流 | E1 | 顶层的 `codex-rs/tui/src/app_event.rs`、`codex-rs/tui/src/app_event_sender.rs`，再看 `app/event_dispatch.rs` |
-| `app/` 下 33 个模块的职责划分 | E1 | 从 `app/session_lifecycle.rs`、`app/thread_routing.rs` 入手 |
+| `app` → `chatwidget` → `bottom_pane` 的事件流 | E1 | 顶层的 `codex-rs/tui/src/app_event.rs`、`codex-rs/tui/src/app_event_sender.rs`，再看 `codex-rs/tui/src/app/event_dispatch.rs` |
+| `app/` 下 33 个模块的职责划分 | E1 | 从 `codex-rs/tui/src/app/session_lifecycle.rs`、`codex-rs/tui/src/app/thread_routing.rs` 入手 |
 | `chatwidget/` 下 60 个兄弟模块的职责划分 | E1 | 先 `ls` 再按功能名定点读 |
-| `chat_composer.rs`（12,616 行）的内部结构 | E1 | 先读同目录 `AGENTS.md`，再 grep 结构分段读 |
-| 键位映射体系 | E1 | `keymap.rs`（3,203 行）与 `keymap/` 目录 |
-| 斜杠命令的注册与分发 | E1 | `chatwidget/tests/slash_commands.rs` 是最快的入口 |
-| diff 渲染 | E1 | `diff_model.rs`、`diff_render.rs` |
-| 会话恢复选择器 | E1 | `resume_picker.rs`（6,681 行） |
+| `codex-rs/tui/src/bottom_pane/chat_composer.rs`（12,616 行）的内部结构 | E1 | 先读同目录 `AGENTS.md`，再 grep 结构分段读 |
+| 键位映射体系 | E1 | `codex-rs/tui/src/keymap.rs`（3,203 行）与 `keymap/` 目录 |
+| 斜杠命令的注册与分发 | E1 | `codex-rs/tui/src/chatwidget/tests/slash_commands.rs` 是最快的入口 |
+| diff 渲染 | E1 | `codex-rs/tui/src/diff_model.rs`、`codex-rs/tui/src/diff_render.rs` |
+| 会话恢复选择器 | E1 | `codex-rs/tui/src/resume_picker.rs`（6,681 行） |
 | in-process 与 remote app-server 客户端的选择条件 | E1 | `codex-rs/tui/src/lib.rs` 中两个客户端的构造点 |
 | 快照测试的具体断言方式 | E1 | 见 [`testing_guide.md`](./testing_guide.md) |
 

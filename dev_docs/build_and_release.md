@@ -14,7 +14,7 @@ verified_at: 2026-08-03
 > **证据等级**: 工作流内容、锁文件规模、MODULE.bazel 内容、发布 job 拓扑为 E2/E3（读取 yml 与配置）；文件计数为 E1
 
 > [!NOTE]
-> **第一版勘误（本次修订）**：初版把 Bazel 写成"发布构建系统"、把 `rust-release-prepare.yml` 当成发布打标入口、把 `rust-ci.yml` 当成 PR 上的测试通道——三条都是错的，本文已按工作流实际内容重写（见 §1、§4、§5）。
+> **第一版勘误（本次修订）**：初版把 Bazel 写成"发布构建系统"、把 `.github/workflows/rust-release-prepare.yml` 当成发布打标入口、把 `.github/workflows/rust-ci.yml` 当成 PR 上的测试通道——三条都是错的，本文已按工作流实际内容重写（见 §1、§4、§5）。
 
 ---
 
@@ -26,14 +26,14 @@ verified_at: 2026-08-03
 | 清单 | `codex-rs/Cargo.toml` | `MODULE.bazel`（16,677 字节） |
 | 锁文件 | `codex-rs/Cargo.lock`（367,304 字节） | `MODULE.bazel.lock`（**1,547,127 字节**） |
 | 运行 | `just codex`、`just test` | `just bazel-codex`、`just bazel-test` |
-| 发布 | `rust-release.yml` / `rust-release-windows.yml` 里的 `cargo build --target <t> --release` | 不参与发布产物构建；`bazel.yml` 的 `verify-release-build` job 只做**可构建性校验** |
+| 发布 | `.github/workflows/rust-release.yml` / `.github/workflows/rust-release-windows.yml` 里的 `cargo build --target <t> --release` | 不参与发布产物构建；`.github/workflows/bazel.yml` 的 `verify-release-build` job 只做**可构建性校验** |
 
 > [!IMPORTANT]
-> **纠正第一版的判断**：`grep -c bazel .github/workflows/rust-release.yml` 结果为 **0**——发布工作流完全不碰 Bazel。产物由 `cargo build --target "$target" --release --timings` 产出（`rust-release.yml` 的 build job；Windows 在 `rust-release-windows.yml` 里同款）。
+> **纠正第一版的判断**：`grep -c bazel .github/workflows/rust-release.yml` 结果为 **0**——发布工作流完全不碰 Bazel。产物由 `cargo build --target "$target" --release --timings` 产出（`.github/workflows/rust-release.yml` 的 build job；Windows 在 `.github/workflows/rust-release-windows.yml` 里同款）。
 >
-> Bazel 的真实定位写在 `.github/workflows/README.md` 开头：**"`bazel.yml` is the main pre-merge verification path for Rust code."** 它由 `blocking-ci.yml` 作为第一个 reusable workflow 调用，跑 Bazel `test` 与 Bazel `clippy`（包括为 lint 内联 `#[cfg(test)]` 代码而生成的测试二进制）。
+> Bazel 的真实定位写在 `.github/workflows/README.md` 开头：**"`.github/workflows/bazel.yml` is the main pre-merge verification path for Rust code."** 它由 `.github/workflows/blocking-ci.yml` 作为第一个 reusable workflow 调用，跑 Bazel `test` 与 Bazel `clippy`（包括为 lint 内联 `#[cfg(test)]` 代码而生成的测试二进制）。
 >
-> `bazel.yml` 里确实有 `verify-release-build` job，但它只是"验证 release 配置能构建"，不产出发布资产。
+> `.github/workflows/bazel.yml` 里确实有 `verify-release-build` job，但它只是"验证 release 配置能构建"，不产出发布资产。
 
 > Bazel 锁文件是 Cargo 锁文件的 **4.2 倍大**，反映出 Bazel 侧管理的是包含 C++ 工具链在内的完整 hermetic 依赖树。
 
@@ -145,7 +145,7 @@ bazel_dep(name = "llvm", version = "0.8.11")
 
 ## 4. CI 工作流（27 个 yml）
 
-`.github/workflows/` 下共 **27 个 `.yml`**（E1），另有三个非 yml 条目：`README.md`、`Dockerfile.bazel`，以及 **`zstd`——它是一个文件，不是目录**（`#!/usr/bin/env dotslash` 脚本，用途写在它自己的注释里：为 Windows runner 包装 zstd，windows-aarch64 通过 x64 模拟复用 win64 产物）。第一版把它列成"未知用途的目录"，属于误判。
+`.github/workflows/` 下共 **27 个 `.yml`**（E1），另有三个非 yml 条目：`README.md`、`.github/workflows/Dockerfile.bazel`，以及 **`zstd`——它是一个文件，不是目录**（`#!/usr/bin/env dotslash` 脚本，用途写在它自己的注释里：为 Windows runner 包装 zstd，windows-aarch64 通过 x64 模拟复用 win64 产物）。第一版把它列成"未知用途的目录"，属于误判。
 
 ### 4.1 编排结构：两个**主编排器**，但不是仅有的两个事件入口
 
@@ -161,9 +161,9 @@ bazel_dep(name = "llvm", version = "0.8.11")
 >
 > 再逐个解析顶层 `on:` 块可得：**只声明 `workflow_call` 的有 10 个**（真正的纯 reusable），而**声明了至少一个真实事件触发器的有 17 个**：`bazel`、`blocking-ci`、`cla`、`close-stale-contributor-prs`、`issue-deduplicator`、`issue-labeler`、`issue-translator`、`postmerge-ci`、`python-runtime-release`、`python-sdk-release`、`rust-ci-full`、`rust-ci`、`rust-release-prepare`、`rust-release-zsh`、`rust-release`、`rusty-v8-release`、`v8-canary`。
 >
-> 「只有两个事件入口」这句话**在本文内部就已被推翻**：§4.4 明写 `v8-canary.yml` 有 `pull_request` 触发器、**每个 PR 都会跑**；§4.4 还说 `close-stale-contributor-prs.yml` 有 `cron`。**同一篇文档里前后打架，是最容易被读者信以为真的那类错误。**
+> 「只有两个事件入口」这句话**在本文内部就已被推翻**：§4.4 明写 `.github/workflows/v8-canary.yml` 有 `pull_request` 触发器、**每个 PR 都会跑**；§4.4 还说 `.github/workflows/close-stale-contributor-prs.yml` 有 `cron`。**同一篇文档里前后打架，是最容易被读者信以为真的那类错误。**
 
-准确的说法是：**`blocking-ci.yml` 与 `postmerge-ci.yml` 是两个主编排器**（它们聚合了绝大多数校验、并各自带一个 `check_ci_results.py` 聚合 job），但**它们不是仅有的事件入口**——发布、社区自动化、定时任务等 15 个工作流各有自己的触发器。两个主编排器的结构如下：
+准确的说法是：**`.github/workflows/blocking-ci.yml` 与 `.github/workflows/postmerge-ci.yml` 是两个主编排器**（它们聚合了绝大多数校验、并各自带一个 `.github/scripts/check_ci_results.py` 聚合 job），但**它们不是仅有的事件入口**——发布、社区自动化、定时任务等 15 个工作流各有自己的触发器。两个主编排器的结构如下：
 
 ```
 blocking-ci.yml        （on: pull_request + push main）—— 唯一的合并阻断入口
@@ -184,14 +184,14 @@ postmerge-ci.yml       （on: push main）—— 不阻断合并
 └── results                   同款 check_ci_results.py 聚合
 ```
 
-> `blocking-ci.yml` 的注释直接点明：*"This is the single entrypoint for checks that block a PR merge"*；`required` job 是"版本控制的必需检查清单"，main 分支 ruleset 应当只要求这一个。
+> `.github/workflows/blocking-ci.yml` 的注释直接点明：*"This is the single entrypoint for checks that block a PR merge"*；`required` job 是"版本控制的必需检查清单"，main 分支 ruleset 应当只要求这一个。
 >
-> **第一版把 `blocking-ci.yml` / `postmerge-ci.yml` 混在"Rust CI"一类里，掩盖了这个编排层次。**
+> **第一版把 `.github/workflows/blocking-ci.yml` / `.github/workflows/postmerge-ci.yml` 混在"Rust CI"一类里，掩盖了这个编排层次。**
 
-### 4.2 `rust-ci.yml` 到底跑什么（重要纠正）
+### 4.2 `.github/workflows/rust-ci.yml` 到底跑什么（重要纠正）
 
 > [!IMPORTANT]
-> **`rust-ci.yml` 不跑 codex-rs workspace 的测试，也不跑 clippy。** 第一版把它当成 PR 上的测试通道，是错的。
+> **`.github/workflows/rust-ci.yml` 不跑 codex-rs workspace 的测试，也不跑 clippy。** 第一版把它当成 PR 上的测试通道，是错的。
 >
 > 精确说法：它确实有一个 `cargo test`，但作用域是 workspace 之外的 `tools/argument-comment-lint`（另配一个 `python3 -m unittest discover`）。codex-rs 本体的 nextest 矩阵不在这里。
 >
@@ -206,13 +206,13 @@ postmerge-ci.yml       （on: push main）—— 不阻断合并
 > | `argument_comment_lint_prebuilt` | Linux / macOS / Windows 三平台跑 argument-comment-lint |
 > | results | 聚合，是唯一需要标为 required 的状态 |
 >
-> `.github/workflows/README.md` 的原话：*"`rust-ci.yml` keeps the Cargo-native PR checks intentionally small"*，且 *"Keep `rust-ci.yml` fast enough that it usually does not dominate PR latency."*
+> `.github/workflows/README.md` 的原话：*"`.github/workflows/rust-ci.yml` keeps the Cargo-native PR checks intentionally small"*，且 *"Keep `.github/workflows/rust-ci.yml` fast enough that it usually does not dominate PR latency."*
 >
-> **完整的 nextest 矩阵在 `rust-ci-full.yml`**，只由 `postmerge-ci.yml` 在 push main 时触发——**它不阻断 PR**。PR 上的 Rust 测试信号来自 `bazel.yml`。
+> **完整的 nextest 矩阵在 `.github/workflows/rust-ci-full.yml`**，只由 `.github/workflows/postmerge-ci.yml` 在 push main 时触发——**它不阻断 PR**。PR 上的 Rust 测试信号来自 `.github/workflows/bazel.yml`。
 
-### 4.3 `repo-checks.yml`：一批硬性仓库规则（第一版完全没覆盖）
+### 4.3 `.github/workflows/repo-checks.yml`：一批硬性仓库规则（第一版完全没覆盖）
 
-它是 `blocking-ci.yml` 的成员，因此**下面每一条都是合并阻断的**：
+它是 `.github/workflows/blocking-ci.yml` 的成员，因此**下面每一条都是合并阻断的**：
 
 | 检查 | 命令 |
 | ---- | ---- |
@@ -227,7 +227,7 @@ postmerge-ci.yml       （on: push main）—— 不阻断合并
 | 全仓格式化 | `just fmt-check` |
 | JS/MD/YAML 格式化 | `pnpm run format` |
 
-> **`verify_tui_core_boundary.py` 值得单独记住**：TUI 与 core 的依赖边界是被 CI 机器强制的，不是口头约定。
+> **`.github/scripts/verify_tui_core_boundary.py` 值得单独记住**：TUI 与 core 的依赖边界是被 CI 机器强制的，不是口头约定。
 
 > [!WARNING]
 > **`.github/actions/check-clean-worktree` 是"改脏工作区就红"的机器约束**：所有生成物（schema、fixtures、`MODULE.bazel.lock`、格式化结果）必须已经提交在 change 里。见 §7。
@@ -238,9 +238,9 @@ postmerge-ci.yml       （on: push main）—— 不阻断合并
 > grep -lr "check-clean-worktree" .github/workflows/*.yml | wc -l   # 8（共 27 个工作流）
 > ```
 >
-> **只有 8 个工作流引用它**：`bazel.yml`、`blob-size-policy.yml`、`cargo-deny.yml`、`codespell.yml`、`repo-checks.yml`、`rust-ci.yml`、`sdk.yml`、`v8-canary.yml`——**恰好就是 `blocking-ci.yml` 聚合的那批 pre-merge 校验**。其余 19 个工作流（含 `rust-ci-full.yml` 与全部 `rust-release*`）从不引用它。
+> **只有 8 个工作流引用它**：`.github/workflows/bazel.yml`、`.github/workflows/blob-size-policy.yml`、`.github/workflows/cargo-deny.yml`、`.github/workflows/codespell.yml`、`.github/workflows/repo-checks.yml`、`.github/workflows/rust-ci.yml`、`.github/workflows/sdk.yml`、`.github/workflows/v8-canary.yml`——**恰好就是 `.github/workflows/blocking-ci.yml` 聚合的那批 pre-merge 校验**。其余 19 个工作流（含 `.github/workflows/rust-ci-full.yml` 与全部 `rust-release*`）从不引用它。
 >
-> 上一稿还说"`rust-ci.yml` 的每个 job"都有——**也是 5/6，不是 6/6**。该文件 6 个 job（`changed`、`general`、`cargo_shear`、`argument_comment_lint_package`、`argument_comment_lint_prebuilt`、`results`）里只有 5 处 `uses: ./.github/actions/check-clean-worktree`（`:58`、`:85`、`:110`、`:166`、`:221`），**纯聚合 job `results` 没有**（它不产生任何文件，也就无从查起）。
+> 上一稿还说"`.github/workflows/rust-ci.yml` 的每个 job"都有——**也是 5/6，不是 6/6**。该文件 6 个 job（`changed`、`general`、`cargo_shear`、`argument_comment_lint_package`、`argument_comment_lint_prebuilt`、`results`）里只有 5 处 `uses: ./.github/actions/check-clean-worktree`（`:58`、`:85`、`:110`、`:166`、`:221`），**纯聚合 job `results` 没有**（它不产生任何文件，也就无从查起）。
 >
 > 准确表述：**pre-merge 校验类工作流的实质性 job 末尾都查工作区干净；postmerge 全量与发布链路不查。**
 
@@ -248,23 +248,23 @@ postmerge-ci.yml       （on: push main）—— 不阻断合并
 
 | 类别 | 工作流 | 备注 |
 | ---- | ---- | ---- |
-| **Bazel** | `bazel.yml` | PR 主校验路径；Windows gnullvm 按 4 片分 shard；含 `verify-release-build` |
-| **Cargo 快检查** | `rust-ci.yml` | 见 §4.2 |
-| **Cargo 全量（postmerge）** | `rust-ci-full.yml`、`rust-ci-full-nextest-platform.yml` | 见 §4.2、`testing_guide.md` §10 |
-| **发布 — Rust** | `rust-release.yml`、`rust-release-windows.yml`、`rust-release-zsh.yml`、`rust-release-argument-comment-lint.yml` | 见 §5 |
-| **发布 — 其他** | `r2-release.yml`、`rusty-v8-release.yml`、`python-runtime-release.yml`、`python-runtime-build.yml`、`python-sdk-release.yml` | |
-| **SDK** | `sdk.yml` | |
-| **仓库检查** | `repo-checks.yml`、`blob-size-policy.yml`、`cargo-deny.yml`、`codespell.yml` | 均由 `blocking-ci.yml` 调用 |
-| **V8 覆盖 canary** | `v8-canary.yml` | **不是实验性工作流**，见下 |
-| **models.json 定时刷新** | `rust-release-prepare.yml` | **与发布无关**，见 §5.1 |
-| **社区自动化** | `cla.yml`、`close-stale-contributor-prs.yml`、`issue-deduplicator.yml`、`issue-labeler.yml`、`issue-translator.yml` | |
+| **Bazel** | `.github/workflows/bazel.yml` | PR 主校验路径；Windows gnullvm 按 4 片分 shard；含 `verify-release-build` |
+| **Cargo 快检查** | `.github/workflows/rust-ci.yml` | 见 §4.2 |
+| **Cargo 全量（postmerge）** | `.github/workflows/rust-ci-full.yml`、`.github/workflows/rust-ci-full-nextest-platform.yml` | 见 §4.2、`testing_guide.md` §10 |
+| **发布 — Rust** | `.github/workflows/rust-release.yml`、`.github/workflows/rust-release-windows.yml`、`.github/workflows/rust-release-zsh.yml`、`.github/workflows/rust-release-argument-comment-lint.yml` | 见 §5 |
+| **发布 — 其他** | `.github/workflows/r2-release.yml`、`.github/workflows/rusty-v8-release.yml`、`.github/workflows/python-runtime-release.yml`、`.github/workflows/python-runtime-build.yml`、`.github/workflows/python-sdk-release.yml` | |
+| **SDK** | `.github/workflows/sdk.yml` | |
+| **仓库检查** | `.github/workflows/repo-checks.yml`、`.github/workflows/blob-size-policy.yml`、`.github/workflows/cargo-deny.yml`、`.github/workflows/codespell.yml` | 均由 `.github/workflows/blocking-ci.yml` 调用 |
+| **V8 覆盖 canary** | `.github/workflows/v8-canary.yml` | **不是实验性工作流**，见下 |
+| **models.json 定时刷新** | `.github/workflows/rust-release-prepare.yml` | **与发布无关**，见 §5.1 |
+| **社区自动化** | `.github/workflows/cla.yml`、`.github/workflows/close-stale-contributor-prs.yml`、`.github/workflows/issue-deduplicator.yml`、`.github/workflows/issue-labeler.yml`、`.github/workflows/issue-translator.yml` | |
 
 **三条纠正：**
 
-1. **`v8-canary.yml` 不是"实验性"工作流。** 它的触发器是 `workflow_call` + `pull_request: {}` + `workflow_dispatch`——**每个 PR 都会跑**，同时被 `postmerge-ci.yml` 调用。它是 rusty-v8 的覆盖 canary，是否跑重活由 `.github/scripts/v8_canary_changes.py` 判断（yml 顶部注释说明：不能用触发器级 path filter，因为 `pull_request` 与 `workflow_call` 不能共享 path filter，所以脚本是唯一的判定来源）。
-2. **`close-stale-contributor-prs.yml` 与受邀制规则无关。** 它是每天 `cron: "0 6 * * *"` 跑一次，把**超过 `DAYS_INACTIVE = 14` 天没有更新**（`:24-25`）的 PR 关掉。关闭评论的措辞也是 "no updates for more than 14 days...feel free to reopen"。**它是陈旧 PR 清理，不是未受邀 PR 的自动关闭。**
+1. **`.github/workflows/v8-canary.yml` 不是"实验性"工作流。** 它的触发器是 `workflow_call` + `pull_request: {}` + `workflow_dispatch`——**每个 PR 都会跑**，同时被 `.github/workflows/postmerge-ci.yml` 调用。它是 rusty-v8 的覆盖 canary，是否跑重活由 `.github/scripts/v8_canary_changes.py` 判断（yml 顶部注释说明：不能用触发器级 path filter，因为 `pull_request` 与 `workflow_call` 不能共享 path filter，所以脚本是唯一的判定来源）。
+2. **`.github/workflows/close-stale-contributor-prs.yml` 与受邀制规则无关。** 它是每天 `cron: "0 6 * * *"` 跑一次，把**超过 `DAYS_INACTIVE = 14` 天没有更新**（`:24-25`）的 PR 关掉。关闭评论的措辞也是 "no updates for more than 14 days...feel free to reopen"。**它是陈旧 PR 清理，不是未受邀 PR 的自动关闭。**
 
-3. **`rust-release-prepare.yml` 与发布无关**，见 §5.1。
+3. **`.github/workflows/rust-release-prepare.yml` 与发布无关**，见 §5.1。
 
 > [!CAUTION]
 > **关于上面第 2 条：本文上一稿把权限过滤的方向写反了**，说"作者具有 `admin`/`maintain`/`write` 权限的 PR 会被跳过"。**恰恰相反：这类作者的 PR 正是被关掉的那一批。** 依据见下方代码（`.github/workflows/close-stale-contributor-prs.yml:69-73`，E3）。
@@ -287,9 +287,9 @@ for (const pr of prs) {                 // :41 起的主循环，此处省略前
 
 其余仍然成立的观察：
 
-- **Windows 有独立的发布工作流**（`rust-release-windows.yml`），与 §2.1 的补丁情况一致
-- **`blob-size-policy.yml`** 说明仓库对大文件入库有策略约束
-- **`cargo-deny.yml`** 做依赖许可证/安全审计
+- **Windows 有独立的发布工作流**（`.github/workflows/rust-release-windows.yml`），与 §2.1 的补丁情况一致
+- **`.github/workflows/blob-size-policy.yml`** 说明仓库对大文件入库有策略约束
+- **`.github/workflows/cargo-deny.yml`** 做依赖许可证/安全审计
 - 发布链路按产物拆分：Rust 二进制、R2（对象存储）、rusty-v8、Python runtime、Python SDK 各自独立
 
 ---
@@ -302,28 +302,28 @@ for (const pr of prs) {                 // :41 起的主循环，此处省略前
 
 | tag 形态 | 触发的工作流 |
 | ---- | ---- |
-| `rust-v*.*.*` | `rust-release.yml`（主发布链路） |
-| `codex-zsh-v*.*.*` | `rust-release-zsh.yml` |
-| `python-v*` | `python-sdk-release.yml` |
-| `rusty-v8-v*.*.*` | `rusty-v8-release.yml` |
+| `rust-v*.*.*` | `.github/workflows/rust-release.yml`（主发布链路） |
+| `codex-zsh-v*.*.*` | `.github/workflows/rust-release-zsh.yml` |
+| `python-v*` | `.github/workflows/python-sdk-release.yml` |
+| `rusty-v8-v*.*.*` | `.github/workflows/rusty-v8-release.yml` |
 
-`rust-release.yml` 头部注释给出的标准动作就是：
+`.github/workflows/rust-release.yml` 头部注释给出的标准动作就是：
 
 ```bash
 git tag -a rust-v0.1.0 -m "Release 0.1.0"
 git push origin rust-v0.1.0
 ```
 
-**版本一致性由 `tag-check` job 强制**（`rust-release.yml` 第一个 job，步骤名 "Validate tag matches Cargo.toml version"）：必须是 tag ref、必须匹配 `^rust-v[0-9]+\.[0-9]+\.[0-9]+(-(alpha…|beta…))?$`、且 `rust-v` 之后的版本号必须等于 `codex-rs/Cargo.toml` 里的 version。该正则需与 `.github/scripts/publish_r2_release.py` 的 `VERSION_RE` 保持同步。
+**版本一致性由 `tag-check` job 强制**（`.github/workflows/rust-release.yml` 第一个 job，步骤名 "Validate tag matches Cargo.toml version"）：必须是 tag ref、必须匹配 `^rust-v[0-9]+\.[0-9]+\.[0-9]+(-(alpha…|beta…))?$`、且 `rust-v` 之后的版本号必须等于 `codex-rs/Cargo.toml` 里的 version。该正则需与 `.github/scripts/publish_r2_release.py` 的 `VERSION_RE` 保持同步。
 
 > [!IMPORTANT]
-> **纠正第一版**：第一版把"发布版本号的确定与打标流程"指向了 `rust-release-prepare.yml`。**这个工作流和发布毫无关系。**
+> **纠正第一版**：第一版把"发布版本号的确定与打标流程"指向了 `.github/workflows/rust-release-prepare.yml`。**这个工作流和发布毫无关系。**
 >
 > 它只有 57 行，触发器是 `workflow_dispatch` + `cron: "0 */4 * * *"`（每 4 小时一次），做的事是：带鉴权头 curl `${OPENAI_BASE_URL}/models?client_version=99.99.99`，把结果写进 `codex-rs/models-manager/models.json`，然后用 `create-pull-request` 开一个标题为 "Update models.json" 的 PR。名字里的 "release-prepare" 有误导性。
 >
-> **真正的版本/打标逻辑在 `rust-release.yml` 的 `tag-check` job。**
+> **真正的版本/打标逻辑在 `.github/workflows/rust-release.yml` 的 `tag-check` job。**
 
-### 5.2 `rust-release.yml` 的 15 个 job
+### 5.2 `.github/workflows/rust-release.yml` 的 15 个 job
 
 | 顺序 | job | 作用 |
 | ---- | ---- | ---- |
@@ -333,10 +333,10 @@ git push origin rust-v0.1.0
 | 4 | `package-macos` | 打包 |
 | 5 | `sign-macos-dmg` | DMG 签名 |
 | 6 | `finalize-macos` | 公证（notarization）与最终校验 |
-| 7 | `build-windows` | 调用 `rust-release-windows.yml` |
-| 8 | `argument-comment-lint-release-assets` | 调用 `rust-release-argument-comment-lint.yml` |
+| 7 | `build-windows` | 调用 `.github/workflows/rust-release-windows.yml` |
+| 8 | `argument-comment-lint-release-assets` | 调用 `.github/workflows/rust-release-argument-comment-lint.yml` |
 | 9 | `release` | 汇总产物、生成 checksum manifest、创建 GitHub Release |
-| 10 | `publish-r2` | 调用 `r2-release.yml`（`releases.openai.com`） |
+| 10 | `publish-r2` | 调用 `.github/workflows/r2-release.yml`（`releases.openai.com`） |
 | 11 | **`publish-dotslash`** | 发布 DotSlash 清单 |
 | 12 | **`publish-npm`** | 发布 `@openai/codex` |
 | 13 | `deploy-dev-website` | |
@@ -377,7 +377,7 @@ git push origin rust-v0.1.0
 - **`pc-windows-msvc`**（Windows 产物，由 `build-windows` 产出，不在上面的 4 行表里）
 - 每个 target 的 **`*-symbols` 符号归档**
 - **Python runtime wheel**（`python-runtime-wheel-*`）
-- **`codex-zsh` 清单**：`rust-release.yml` 用 `env.CODEX_ZSH_RELEASE_TAG`（基线上钉在 `codex-zsh-v0.1.0`）从对应 Release 下载 `codex-zsh`，再由 `codex_package.zsh.resolve_zsh_bin` 取出该 target 的 zsh 二进制放进包内 `codex-resources/zsh/`；`rg` 也是同类随行资源
+- **`codex-zsh` 清单**：`.github/workflows/rust-release.yml` 用 `env.CODEX_ZSH_RELEASE_TAG`（基线上钉在 `codex-zsh-v0.1.0`）从对应 Release 下载 `codex-zsh`，再由 `codex_package.zsh.resolve_zsh_bin` 取出该 target 的 zsh 二进制放进包内 `codex-resources/zsh/`；`rg` 也是同类随行资源
 - `release` job 另外产出 `codex-package_SHA256SUMS` 校验清单，并把 `codex-rs/core/config.schema.json` 作为 `config-schema.json` 一并发布
 
 每个归档内的可执行文件**文件名带平台后缀**（如 `codex-x86_64-unknown-linux-musl`），解压后通常需要重命名为 `codex`。
@@ -400,7 +400,7 @@ git push origin rust-v0.1.0
 
 **下载源与回退**（`README.md:28`）：安装器默认从 `https://releases.openai.com/codex` 下载，元数据或资产不可用时**回退到 GitHub Releases**。可用 `CODEX_INSTALLER_USE_RELEASES_OPENAI_COM=false`（也接受 `0`/`no`）强制走 GitHub Releases。
 
-> 这与 `r2-release.yml` 工作流对应——`releases.openai.com` 很可能由对象存储承载。
+> 这与 `.github/workflows/r2-release.yml` 工作流对应——`releases.openai.com` 很可能由对象存储承载。
 
 ### 5.5 npm 包
 
@@ -424,22 +424,22 @@ git push origin rust-v0.1.0
 
 | 层 | 命令 | 覆盖 | 阻断合并？ |
 | ---- | ---- | ---- | ---- |
-| 统一格式化 | just fmt → `scripts/format.py` | justfile / Rust / Bazel-Starlark / Python | 是（`repo-checks.yml` 跑 `just fmt-check`） |
-| **Rust 导入粒度** | `cargo fmt -- --config imports_granularity=Item --check` | Rust | 是（`rust-ci.yml` 的 `general` job） |
-| **未用依赖检测** | `cargo shear --deny-warnings`（cargo-shear@1.11.2） | Cargo 依赖 | 是（`rust-ci.yml` 的 `cargo_shear` job） |
-| JS/MD/YAML 格式化 | `pnpm run format` → prettier | `*.json`、`*.md`、`docs/*.md`、`.github/workflows/*.yml`、`**/*.js` | 是（`repo-checks.yml`） |
-| Rust lint | `just clippy` / `just fix -p <crate>` | Rust | PR 上由 `bazel.yml` 的 clippy job 阻断；完整 Cargo clippy 矩阵在 postmerge |
-| 自定义 lint | `just argument-comment-lint` | Dylint，实现在 `tools/argument-comment-lint`（**workspace 之外的独立 crate**） | 是（`rust-ci.yml`，Linux/macOS/Windows 三平台） |
-| 仓库硬规则 | `repo-checks.yml` 的一批 Python 校验脚本 | 见 §4.3 | 是 |
-| 拼写 | CI `codespell.yml` | 全仓 | 是 |
-| 依赖审计 | CI `cargo-deny.yml` | Cargo 依赖 | 是 |
+| 统一格式化 | just fmt → `scripts/format.py` | justfile / Rust / Bazel-Starlark / Python | 是（`.github/workflows/repo-checks.yml` 跑 `just fmt-check`） |
+| **Rust 导入粒度** | `cargo fmt -- --config imports_granularity=Item --check` | Rust | 是（`.github/workflows/rust-ci.yml` 的 `general` job） |
+| **未用依赖检测** | `cargo shear --deny-warnings`（cargo-shear@1.11.2） | Cargo 依赖 | 是（`.github/workflows/rust-ci.yml` 的 `cargo_shear` job） |
+| JS/MD/YAML 格式化 | `pnpm run format` → prettier | `*.json`、`*.md`、`docs/*.md`、`.github/workflows/*.yml`、`**/*.js` | 是（`.github/workflows/repo-checks.yml`） |
+| Rust lint | `just clippy` / `just fix -p <crate>` | Rust | PR 上由 `.github/workflows/bazel.yml` 的 clippy job 阻断；完整 Cargo clippy 矩阵在 postmerge |
+| 自定义 lint | `just argument-comment-lint` | Dylint，实现在 `tools/argument-comment-lint`（**workspace 之外的独立 crate**） | 是（`.github/workflows/rust-ci.yml`，Linux/macOS/Windows 三平台） |
+| 仓库硬规则 | `.github/workflows/repo-checks.yml` 的一批 Python 校验脚本 | 见 §4.3 | 是 |
+| 拼写 | CI `.github/workflows/codespell.yml` | 全仓 | 是 |
+| 依赖审计 | CI `.github/workflows/cargo-deny.yml` | Cargo 依赖 | 是 |
 
 > [!IMPORTANT]
 > **`imports_granularity=Item`（第一版未提）**：本仓库的 rustfmt 检查带了非默认配置，要求 **每个 import 一行一个 item**。默认 `cargo fmt` 通过不代表 CI 通过——`just fmt` 会带上同样的配置，所以正常流程用 `just fmt` 即可。
 >
 > **`cargo shear`（第一版未提）**：会检测 `Cargo.toml` 中声明但未被使用的依赖，`--deny-warnings` 意味着**留下一个多余依赖就会挂**。删代码时尤其容易踩到。
 
-> `tools/argument-comment-lint/` 有自己的 `Cargo.toml`，**不属于 `codex-rs` workspace**。它有两个驱动方式：Bazel（`--config=argument-comment-lint`）与预构建脚本（`run-prebuilt-linter.py`）。
+> `tools/argument-comment-lint/` 有自己的 `Cargo.toml`，**不属于 `codex-rs` workspace**。它有两个驱动方式：Bazel（`--config=argument-comment-lint`）与预构建脚本（`tools/argument-comment-lint/run-prebuilt-linter.py`）。
 
 ### 6.1 `just fmt` 的真实工具依赖（第一版未提）
 
@@ -465,7 +465,7 @@ git push origin rust-v0.1.0
 
 四者都有**机器校验**：schema fixtures 有配套测试，Bazel 锁有 CI 检查。忘了跑就会失败。
 
-> 兜底机制是 `.github/actions/check-clean-worktree`——它挂在 **`blocking-ci.yml` 聚合的那 8 个 pre-merge 校验工作流**的实质性 job 末尾（不是"每个 CI job"，口径与实测见 §4.3）。只要 CI 里跑一遍生成命令后工作区变脏，这一步就红。所以**生成物必须提交进同一个 change**（见 §4.3）。
+> 兜底机制是 `.github/actions/check-clean-worktree`——它挂在 **`.github/workflows/blocking-ci.yml` 聚合的那 8 个 pre-merge 校验工作流**的实质性 job 末尾（不是"每个 CI job"，口径与实测见 §4.3）。只要 CI 里跑一遍生成命令后工作区变脏，这一步就红。所以**生成物必须提交进同一个 change**（见 §4.3）。
 
 ---
 
@@ -495,16 +495,16 @@ git push origin rust-v0.1.0
 | ---- | ---- | ---- |
 | 各 reusable workflow 的逐 job 细节（除 §4 已展开的以外） | E1 | `.github/workflows/`（`README.md` 有编排说明） |
 | `BUILD.bazel` 的编写规范 | E1 | 各 crate 的 `BUILD.bazel`、`bazel/rules/` |
-| macOS 签名/公证链路的具体实现 | E1 | `.github/scripts/macos-signing/`、`rust-release.yml` 的 `sign-macos-*` job |
+| macOS 签名/公证链路的具体实现 | E1 | `.github/scripts/macos-signing/`、`.github/workflows/rust-release.yml` 的 `sign-macos-*` job |
 | npm 包 `@openai/codex` 的构建 | E1 | `codex-cli/` 目录、`scripts/stage_npm_packages.py` |
-| Python SDK / runtime 的发布链路 | E1 | `python-sdk-release.yml`、`python-runtime-*.yml` |
+| Python SDK / runtime 的发布链路 | E1 | `.github/workflows/python-sdk-release.yml`、`python-runtime-*.yml` |
 | RBE（远程构建执行）配置 | E1 | `rbe.bzl` |
-| `Dockerfile.bazel` 的用途 | E1 | `.github/workflows/Dockerfile.bazel` |
-| `blob-size-policy` 的具体阈值 | E1 | `blob-size-policy.yml` |
+| `.github/workflows/Dockerfile.bazel` 的用途 | E1 | `.github/workflows/Dockerfile.bazel` |
+| `blob-size-policy` 的具体阈值 | E1 | `.github/workflows/blob-size-policy.yml` |
 | benchmark 的指标与基线 | E1 | `just bench`、`//codex-rs:e2e-benchmarks` |
 | `.codex/skills/` 下的 14 个 skill | E1 | 见 `development_workflow.md` §2.6 与 `testing_guide.md` §8 |
 
-> 第一版列在这里的 `zstd/`（其实是文件，见 §4）与"发布打标流程指向 `rust-release-prepare.yml`"两条已在本次修订中纠正并移除。
+> 第一版列在这里的 `zstd/`（其实是文件，见 §4）与"发布打标流程指向 `.github/workflows/rust-release-prepare.yml`"两条已在本次修订中纠正并移除。
 
 ---
 

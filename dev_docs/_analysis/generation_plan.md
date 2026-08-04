@@ -317,7 +317,7 @@ codex/（仓库根）
 | 禁止向 docs 目录添加通用产品或用户文档（例外：app-server API 文档） | AGENTS.md 顶部规则列表（docs/ 条目） | 本体系产物落在仓库根 `dev_docs/`，禁止放入 `docs/` | 禁止把 dev_docs 内容迁移进 `docs/` | confirmed |
 | 外部代码贡献仅限受邀（未受邀 PR 直接关闭） | `docs/contributing.md:3-17` | `development_workflow.md` 必须写明该治理前提；质量建议一律标注为"长期建议"而非待办修复 | AI 不得自行发起面向上游的 PR 流程建议 | confirmed |
 | 禁止继续向 `codex-core` 堆叠新功能，应新建 crate | AGENTS.md「## The codex-core crate」 | `crate_map.md` + `core_agent_loop.md` 必须给出"新代码该放哪个 crate"的决策指引 | 新增功能前必须先评估是否可放入 core 之外的 crate | confirmed |
-| Rust 模块目标 <500 LoC，>800 LoC 应新建模块；高触碰大文件点名清单 | AGENTS.md 顶部规则列表（Avoid large modules 条目） | `development_workflow.md` 必须列出点名文件并给出实测行数对照 | AI 不得继续在 `tui/src/chatwidget.rs`、`chat_composer.rs` 等文件堆叠新方法 | confirmed |
+| Rust 模块目标 <500 LoC，>800 LoC 应新建模块；高触碰大文件点名清单 | AGENTS.md 顶部规则列表（Avoid large modules 条目） | `development_workflow.md` 必须列出点名文件并给出实测行数对照 | AI 不得继续在 `codex-rs/tui/src/chatwidget.rs`、`codex-rs/tui/src/bottom_pane/chat_composer.rs` 等文件堆叠新方法 | confirmed |
 | 单次变更 ≤800 行（复杂逻辑 ≤500 行） | AGENTS.md「### Change size guidance (800 lines)」 | `development_workflow.md` 记录变更规模门槛与拆分策略 | AI 产出的改动需自检规模并主动提出分阶段方案 | confirmed |
 | 必须同时支持 Linux / macOS / Windows（除非显式 OS 专属） | AGENTS.md「## Platform Support」 | 所有涉及路径、进程、沙箱的文档必须给出三平台差异说明 | 不得引入单平台方案而不标注 | confirmed |
 | 依赖变更需同步刷新 `MODULE.bazel.lock`（CI 校验漂移） | AGENTS.md 顶部规则列表（Bazel 锁条目） | `build_and_release.md` 必须写明 Cargo/Bazel 双锁同步流程 | 改 `Cargo.toml`/`Cargo.lock` 必须同 PR 更新 Bazel 锁 | confirmed |
@@ -357,18 +357,18 @@ codex/（仓库根）
 | 模块名称 | 目录位置 | 主要文件 | 实测代码量 | 关联技术 |
 | -------- | -------- | -------- | ---------- | -------- |
 | CLI 入口与子命令分发 | `codex-rs/cli` | `src/main.rs`、`src/lib.rs` | 26,629 行 | clap / clap_complete / arg0 dispatch |
-| 智能体核心 | `codex-rs/core` | `src/lib.rs`、`src/codex_thread.rs`、`src/client.rs`、`src/compact.rs` | 296,963 行 | 会话、turn、上下文管理、compact |
-| 工具与执行 | `codex-rs/core/src/tools`、`codex-rs/tools`、`codex-rs/core/src/unified_exec`、`codex-rs/shell-command` | `core/src/exec.rs`、`core/src/exec_policy.rs` | 见 core | 工具注册、命令规范化、执行策略 |
-| 沙箱与审批 | `codex-rs/sandboxing`、`codex-rs/linux-sandbox`、`codex-rs/windows-sandbox-rs`、`codex-rs/execpolicy`、`codex-rs/shell-escalation` | `sandboxing/src/manager.rs`、`seatbelt_base_policy.sbpl`、`landlock.rs`、`bwrap.rs` | 19,173 行（仅 windows-sandbox-rs） | Seatbelt / Landlock / bubblewrap / Windows |
-| 交互式 TUI | `codex-rs/tui` | `src/app.rs`、`src/chatwidget.rs`、`src/bottom_pane/chat_composer.rs`、`styles.md` | 238,439 行 | ratatui / insta 快照 |
-| 非交互执行 | `codex-rs/exec`、`codex-rs/exec-server`、`codex-rs/exec-server-protocol` | `exec/src/lib.rs` | 9,621 + 39,311 行 | `codex exec`、跨 OS 执行服务 |
-| 应用服务端 (App Server) | `codex-rs/app-server`、`app-server-protocol`、`app-server-daemon`、`app-server-client`、`app-server-transport` | `app-server/README.md`、`app-server-protocol/src/protocol/v2.rs` | 128,364 + 30,946 行 | JSON-RPC v2 / ts-rs schema 生成 |
-| 配置系统 | `codex-rs/config`、`codex-rs/core/src/config` | `config/src/config_toml.rs`、`config/src/types.rs`、`config/src/state.rs`、`core/src/config/mod.rs` | 21,034 行 | config.toml / CODEX_HOME / profile 分层 |
-| 鉴权与模型提供方 | `codex-rs/login`、`model-provider-info`、`model-provider`、`models-manager`、`chatgpt`、`keyring-store`、`aws-auth` | `login/src/server.rs`、`model-provider-info/src/lib.rs` | 13,798 行（login） | OAuth / API key / device code / keyring |
+| 智能体核心 | `codex-rs/core` | `src/lib.rs`、`codex-rs/core/src/codex_thread.rs`、`src/client.rs`、`src/compact.rs` | 296,963 行 | 会话、turn、上下文管理、compact |
+| 工具与执行 | `codex-rs/core/src/tools`、`codex-rs/tools`、`codex-rs/core/src/unified_exec`、`codex-rs/shell-command` | `codex-rs/core/src/exec.rs`、`codex-rs/core/src/exec_policy.rs` | 见 core | 工具注册、命令规范化、执行策略 |
+| 沙箱与审批 | `codex-rs/sandboxing`、`codex-rs/linux-sandbox`、`codex-rs/windows-sandbox-rs`、`codex-rs/execpolicy`、`codex-rs/shell-escalation` | `codex-rs/sandboxing/src/manager.rs`、`codex-rs/sandboxing/src/seatbelt_base_policy.sbpl`、`landlock.rs`、`bwrap.rs` | 19,173 行（仅 windows-sandbox-rs） | Seatbelt / Landlock / bubblewrap / Windows |
+| 交互式 TUI | `codex-rs/tui` | `src/app.rs`、`codex-rs/tui/src/chatwidget.rs`、`codex-rs/tui/src/bottom_pane/chat_composer.rs`、`codex-rs/tui/styles.md` | 238,439 行 | ratatui / insta 快照 |
+| 非交互执行 | `codex-rs/exec`、`codex-rs/exec-server`、`codex-rs/exec-server-protocol` | `codex-rs/exec/src/lib.rs` | 9,621 + 39,311 行 | `codex exec`、跨 OS 执行服务 |
+| 应用服务端 (App Server) | `codex-rs/app-server`、`app-server-protocol`、`app-server-daemon`、`app-server-client`、`app-server-transport` | `codex-rs/app-server/README.md`、`app-server-protocol/src/protocol/v2.rs` | 128,364 + 30,946 行 | JSON-RPC v2 / ts-rs schema 生成 |
+| 配置系统 | `codex-rs/config`、`codex-rs/core/src/config` | `codex-rs/config/src/config_toml.rs`、`codex-rs/config/src/types.rs`、`codex-rs/config/src/state.rs`、`codex-rs/core/src/config/mod.rs` | 21,034 行 | config.toml / CODEX_HOME / profile 分层 |
+| 鉴权与模型提供方 | `codex-rs/login`、`model-provider-info`、`model-provider`、`models-manager`、`chatgpt`、`keyring-store`、`aws-auth` | `codex-rs/login/src/server.rs`、`codex-rs/model-provider-info/src/lib.rs` | 13,798 行（login） | OAuth / API key / device code / keyring |
 | 会话持久化与回放 | `codex-rs/rollout`、`rollout-trace`、`thread-store`、`state`、`message-history` | `rollout/src/`、`thread-store/src/` | 13,940 + 13,257 + 20,404 + 19,744 行 | SQLite / rollout 文件 / resume·fork·archive |
 | MCP 集成 | `codex-rs/codex-mcp`、`mcp-server`、`rmcp-client`、`ext/mcp` | `codex-mcp/src/mcp_connection_manager.rs` | 14,560 + 19,361 行 | Model Context Protocol 双向 |
-| 扩展与插件 | `codex-rs/ext/*`（12 个）、`core-plugins`、`plugin`、`skills`、`core-skills` | `core-plugins/src/manager.rs`、`skills/src/assets/samples/` | 37,038 行（core-plugins） | 扩展 API / 插件市场 / Skills |
-| 可观测性 | `codex-rs/otel`、`analytics`、`feedback`、`response-debug-context` | `otel/src/config.rs`、`analytics/src/client.rs` | 12,116 行（analytics） | OTLP / Statsig / 本地埋点 |
+| 扩展与插件 | `codex-rs/ext/*`（12 个）、`core-plugins`、`plugin`、`skills`、`core-skills` | `codex-rs/core-plugins/src/manager.rs`、`skills/src/assets/samples/` | 37,038 行（core-plugins） | 扩展 API / 插件市场 / Skills |
+| 可观测性 | `codex-rs/otel`、`analytics`、`feedback`、`response-debug-context` | `codex-rs/otel/src/config.rs`、`codex-rs/analytics/src/client.rs` | 12,116 行（analytics） | OTLP / Statsig / 本地埋点 |
 | 网络与代理 | `codex-rs/http-client`、`websocket-client`、`network-proxy`、`responses-api-proxy`、`uds`、`stdio-to-uds` | `network-proxy/src/` | 17,064 行（network-proxy） | HTTP / WS / UDS / 反向代理 |
 | SDK | `sdk/typescript`、`sdk/python`、`sdk/python-runtime` | `sdk/typescript/src/`、`sdk/python/src/openai_codex/` | 10 个 TS 手写文件 / 17 个 Python 文件 | jest / pytest / tsup |
 | 打包与分发 | `codex-cli`、`scripts/codex_package`、`.github/workflows/*release*` | `codex-cli/bin/codex.js`、`codex-cli/scripts/build_npm_package.py` | 367 行 JS | npm / Homebrew / GitHub Releases |
@@ -417,7 +417,7 @@ codex/（仓库根）
 
 4. **三平台原生沙箱**
 
-   - **识别依据**: `codex-rs/sandboxing/src/` 同时包含 `seatbelt.rs`、`landlock.rs`、`bwrap.rs`、`windows.rs`，以及 3 个策略文件 `seatbelt_base_policy.sbpl`、`seatbelt_network_policy.sbpl`、`restricted_read_only_platform_defaults.sbpl`；另有独立 crate `linux-sandbox`、`windows-sandbox-rs`、`bwrap`
+   - **识别依据**: `codex-rs/sandboxing/src/` 同时包含 `seatbelt.rs`、`landlock.rs`、`bwrap.rs`、`windows.rs`，以及 3 个策略文件 `codex-rs/sandboxing/src/seatbelt_base_policy.sbpl`、`codex-rs/sandboxing/src/seatbelt_network_policy.sbpl`、`codex-rs/sandboxing/src/restricted_read_only_platform_defaults.sbpl`；另有独立 crate `linux-sandbox`、`windows-sandbox-rs`、`bwrap`
    - **影响范围**: 所有命令执行路径
    - **实现方式**: 按平台选择沙箱后端，配合 `execpolicy` 与审批预设（`utils/approval-presets`）
 
@@ -505,8 +505,8 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 
 ### 2.3 沙箱策略模式
 
-- **来源文件**: `codex-rs/sandboxing/src/manager.rs`、`seatbelt.rs`、`landlock.rs`、`bwrap.rs`、`windows.rs`、`policy_transforms.rs` 及 3 个 `.sbpl` 策略文件
-- **待提取要点**: 平台分派、策略转换、违规检测（`violation.rs`、`denial.rs`）
+- **来源文件**: `codex-rs/sandboxing/src/manager.rs`、`seatbelt.rs`、`landlock.rs`、`bwrap.rs`、`windows.rs`、`codex-rs/sandboxing/src/policy_transforms.rs` 及 3 个 `.sbpl` 策略文件
+- **待提取要点**: 平台分派、策略转换、违规检测（`codex-rs/sandboxing/src/violation.rs`、`codex-rs/sandboxing/src/denial.rs`）
 - **落地文档**: `tools_and_sandbox.md`
 
 ### 2.4 集成测试模式
@@ -524,7 +524,7 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 
 ### 2.6 TUI 样式与快照模式
 
-- **来源文件**: `codex-rs/tui/styles.md`、`codex-rs/tui/src/wrapping.rs`、`line_utils.rs`、AGENTS.md「## TUI style conventions」至「### Snapshot tests」各节
+- **来源文件**: `codex-rs/tui/styles.md`、`codex-rs/tui/src/wrapping.rs`、`codex-rs/tui/src/render/line_utils.rs`、AGENTS.md「## TUI style conventions」至「### Snapshot tests」各节
 - **待提取要点**: ratatui Stylize 助手优先、禁止使用 `.white()`、`textwrap::wrap`、`word_wrap_lines`、insta 快照工作流（`cargo insta pending-snapshots` / `show` / `accept`）
 - **口径更正**: 本条一直把 insta 快照工作流列为「需从上游提取到 `tui_guide.md`」的既有事实，但首版交付的 `testing_guide.md` 却把它写成「上游无任何记载、做法未知」并登记为 accepted issue AI-004。两者矛盾，**以本条为准**：AGENTS.md 的「### Snapshot tests」一节已完整记载该流程，且额外给出一条硬要求——任何影响用户可见 UI（含新增 UI）的改动都必须附带对应的 insta 快照覆盖。AI-004 已撤销（见 `health_check_report.md` H13）。
 - **落地文档**: `tui_guide.md`
@@ -533,7 +533,7 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 
 ## 📚 第三阶段：子文档规划（待审核）
 
-> 分层依据：CLI 工具项目配置（`core/project_types/cli_tool.md` 推荐 `cli_usage.md` / `installation.md` / `plugin_system.md` / `configuration.md` / `contributing.md`）+ 超大型 Rust monorepo 的实际需要（新增 crate 地图、核心运行时、协议、沙箱等）。
+> 分层依据：CLI 工具项目配置（`core/project_types/cli_tool.md` 推荐 `cli_usage.md` / `installation.md` / `plugin_system.md` / `configuration.md` / `docs/contributing.md`）+ 超大型 Rust monorepo 的实际需要（新增 crate 地图、核心运行时、协议、沙箱等）。
 
 ### 3.1 必需子文档清单（P0，第 1 批）
 
@@ -572,7 +572,7 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 - [ ] `dev_docs/core_agent_loop.md` — 智能体核心循环
 
   - **推荐理由**: codex-core（296,963 行）是理解项目的最大障碍，且 AGENTS.md「### Model visible context」 对模型可见上下文有 6 条硬约束，必须成文
-  - **内容来源**: `codex-rs/core/src/lib.rs`、`codex_thread.rs`、`client.rs`、`client_common.rs`、`compact*.rs`、`context/`、`context_manager/`、`session/`、`tasks/`
+  - **内容来源**: `codex-rs/core/src/lib.rs`、`codex-rs/core/src/codex_thread.rs`、`client.rs`、`codex-rs/core/src/client_common.rs`、`compact*.rs`、`context/`、`context_manager/`、`session/`、`tasks/`
   - **预计行数**: 500-650
 
 - [ ] `dev_docs/tools_and_sandbox.md` — 工具执行、审批与沙箱
@@ -674,7 +674,7 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 | 开源维护/贡献流程（受邀制 + CLA） | `docs/contributing.md`、`docs/CLA.md`、`LICENSE`、`.github/workflows/cla.yml` | 贡献治理前提必须前置说明，避免文档给出与维护者规则冲突的行动建议 | 合并到 `development_workflow.md` |
 | AI 代理硬规范 | `AGENTS.md`（22,519 字节） | 决定 AI 编码禁忌章节与 AI_RULES 内容 | 拆分到 `development_workflow.md`（流程）+ `crate_map.md`（core 减负）+ `tui_guide.md`（TUI 约定）+ `app_server_protocol.md`（API 约定）+ 主文档「AI 编码禁忌」 |
 | 用户手册/使用指南 | `docs/getting-started.md`、`docs/exec.md`、`docs/slash_commands.md`、`docs/skills.md`、外部站点 developers.openai.com | 面向用户的使用说明**不重复造轮子**，只做索引 | 主文档「文档索引」章节链接 `docs/` 与外部站点；不生成独立 `cli_usage.md`/`installation.md`，其开发者视角内容并入 `architecture_overview.md` 与 `build_and_release.md` |
-| 自托管/部署运维 | `.devcontainer/`、`codex-cli/scripts/run_in_container.sh`、`init_firewall.sh`、`flake.nix` | 容器与 Nix 开发环境说明 | 合并到 `development_workflow.md` |
+| 自托管/部署运维 | `.devcontainer/`、`codex-cli/scripts/run_in_container.sh`、`codex-cli/scripts/init_firewall.sh`、`flake.nix` | 容器与 Nix 开发环境说明 | 合并到 `development_workflow.md` |
 | 外部 API/数据授权 | `README.md`、`codex-rs/login/`、`codex-rs/model-provider-info/`、`docs/authentication.md` | Provider、授权、数据边界 | 单独文档 `auth_and_providers.md` |
 | 沙箱与安全模型 | `docs/sandbox.md`、`docs/execpolicy.md`、`SECURITY.md`、`codex-rs/sandboxing/` | 安全边界必须独立成文 | 单独文档 `tools_and_sandbox.md` |
 | 插件/扩展生态 | `docs/skills.md`、`codex-rs/ext/`、`core-plugins/`、`skills/` | 扩展开发说明 | 单独文档 `mcp_and_extensions.md` |
@@ -737,7 +737,7 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
    - **影响**: 文档时效性衰减快
    - **缓解措施**: ①所有文档记录基线 commit；②`verified_at` 严格填写；③后续使用框架路径 C（`@commit` 增量更新）维护
 
-3. **AGENTS.md 与实际代码的张力**: 规范要求 Rust 模块 <500 LoC，实测 `chat_composer.rs` 12,616 行
+3. **AGENTS.md 与实际代码的张力**: 规范要求 Rust 模块 <500 LoC，实测 `codex-rs/tui/src/bottom_pane/chat_composer.rs` 12,616 行
 
    - **影响**: 若文档只复述规范会误导；若只描述现状会削弱规范
    - **缓解措施**: 文档中同时给出「规范要求」与「实测现状」两栏，并明确标注这些是**历史遗留的高触碰文件，新代码不得继续堆入**
@@ -797,7 +797,7 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 | OTLP / Statsig 遥测在 release 构建下的默认开关与关闭方式 | E3：`codex-rs/otel/src/config.rs:16,90,113` | 读取 `OtelSettings` / `StatsigMetricsSettings` 完整定义与 `provider.rs` 初始化链路，追溯 config.toml 键名 | 第 4 批 | `observability.md` |
 | analytics 采集开关与投递目的地的分离边界 | E3：`codex-rs/analytics/src/client.rs` | 已完成：`CaptureFile` 分支同时受 `cfg(debug_assertions)` 与捕获文件环境变量约束，二者缺一即落到 `Self::Http`；"network delivery is disabled" 只是该分支内的日志文案，**不是**编译期全局常量 | 第 4 批（已闭合） | `observability.md` |
 | 134 个 crate 的实际依赖分层（谁依赖 core，谁被 core 依赖） | E2：`codex-rs/Cargo.toml` `[workspace.dependencies]` | 逐 crate 读取 `Cargo.toml` 的 `[dependencies]` 并生成依赖图 | 第 1 批 | `crate_map.md` |
-| 四层扩展机制（ext / core-plugins / skills / MCP）之间的关系与优先级 | E1：目录存在性 | 读取 `ext/extension-api/src/lib.rs`、`core-plugins/src/manager.rs`、`skills/src/lib.rs` 的公开 API | 第 3 批 | `mcp_and_extensions.md` |
+| 四层扩展机制（ext / core-plugins / skills / MCP）之间的关系与优先级 | E1：目录存在性 | 读取 `codex-rs/ext/extension-api/src/lib.rs`、`codex-rs/core-plugins/src/manager.rs`、`skills/src/lib.rs` 的公开 API | 第 3 批 | `mcp_and_extensions.md` |
 | app-server ↔ exec-server 跨 OS 分离的实际传输实现 | E2：AGENTS.md「## Platform Support」 + crate 存在性 | 读取 `exec-server-protocol/src/`、`app-server-transport/src/`、`uds/src/` | 第 2 批 | `architecture_overview.md` |
 | `CODEX_HOME` 的实际解析顺序 | E3：`codex-rs/core/src/config/mod.rs:4578`、`codex-rs/utils/home-dir/src/lib.rs:13` 两处同名函数 | 读取两处实现，确认调用关系与是否重复定义 | 第 2 批 | `config_system.md` |
 | `docs/` 15 篇文档中哪些是实质内容、哪些仅为外链占位 | E4：`wc -l docs/config.md` = 15 行、`codex-rs/config.md` = 6 行、`docs/sandbox.md` 仅 3 行外链 | 逐篇 `wc -l` + 抽读 | 第 1 批 | `AI_Coding_Context.md` 文档索引 |
@@ -860,7 +860,7 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 | 单次变更 ≤800 行 | E2 | AGENTS.md「### Change size guidance (800 lines)」 | 读取 | 已确认 |
 | 三平台支持强制要求 | E2 | AGENTS.md「## Platform Support」 | 读取 | 已确认 |
 | Cargo/Bazel 双锁需同步 | E2 | AGENTS.md 顶部规则列表（Bazel 锁条目） | 读取 | 已确认 |
-| `chat_composer.rs` 12,616 行 | E4 | `git ls-files "*.rs" \| xargs wc -l \| sort -rn` | 命令执行 | 已确认 |
+| `codex-rs/tui/src/bottom_pane/chat_composer.rs` 12,616 行 | E4 | `git ls-files "*.rs" \| xargs wc -l \| sort -rn` | 命令执行 | 已确认 |
 | insta 快照 681 个 | E4 | `git ls-files "*.snap" \| wc -l` | 命令执行 | 已确认 |
 | `*_tests.rs` 457 个 | E4 | `git ls-files "*_tests.rs" \| wc -l` | 命令执行 | 已确认 |
 | analytics 为 opt-out 语义；**网络投递并非「当前关闭」** | E3 | `codex-rs/analytics/src/client.rs` 的 `AnalyticsEventsDestination::from_base_url_and_capture_file` | 读取完整分支 | **已更正**：写本地文件的 `CaptureFile` 分支需同时满足「debug 构建」且「捕获文件环境变量已设置且非空」；环境变量未设时，debug 构建同样落到 `Self::Http` 走网络。原记「网络投递当前关闭」是只读了日志文案得出的错误结论（`health_check_report.md` H7） |
@@ -883,7 +883,7 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 | `[workspace] members` 显式项数 | 128 | `codex-rs/Cargo.toml` `[workspace] members` 计数 | 本文 1.1、3.2 节 |
 | `[workspace.dependencies]` path 映射数 | 128 | `codex-rs/Cargo.toml` `[workspace.dependencies]` 中含 `path =` 的条目计数 | 本文 1.4 节 |
 | `codex-rs/` 下子 crate 清单数 | 134 | `git ls-files "codex-rs/**/Cargo.toml" \| wc -l`（不含 workspace 根清单） | 本文 1.1 节 |
-| CI 工作流数 | 27 | `git ls-files ".github/workflows/*.yml" ".github/workflows/*.yaml" \| wc -l`（`README.md`、`Dockerfile.bazel`、`zstd` 为非 yml 条目，不计入；第 3 批复核时由 29 更正为 27） | 本文 1.3 节 |
+| CI 工作流数 | 27 | `git ls-files ".github/workflows/*.yml" ".github/workflows/*.yaml" \| wc -l`（`README.md`、`.github/workflows/Dockerfile.bazel`、`zstd` 为非 yml 条目，不计入；第 3 批复核时由 29 更正为 27） | 本文 1.3 节 |
 | 测试目录数 / 测试文件数 | 39 / 631 | `semantic_review_checker.scan_test_topology`（全深度递归，识别 `tests`/`test`/`__tests__`/`spec` 等目录名） | 本文"测试资产扫描结果"章节 |
 | insta 快照数 | 681 | `git ls-files "*.snap" \| wc -l` | 本文 1.2 节 |
 | `*_tests.rs` 数 | 457 | `git ls-files "*_tests.rs" \| wc -l` | 本文 1.2 节 |
@@ -1168,7 +1168,7 @@ _（待用户填写）_
 
 1. **本方案的「关键事实记录」表本身留了错**。「CLI 子命令 23 个……已确认」在全部正式文档改用「27 个变体」之后仍未同步，导致首版验收报告中「四处全部已同步更正」的断言为假。**元文件也在验收范围内**，不能只查正式文档。
 2. **「5 项 checker 全绿」被当成了「内容正确」**。这 5 个 checker 不做跨文档数值对账，也不校验「标题声明的计数」与「表格实际行数」是否相符；本轮 15 个 HIGH 全部落在其覆盖范围之外，其中 4 项属于 checker 的结构性盲区。
-3. **证据等级越权是主要失误模式**：拿文件名列表下依赖结论（ext 依赖 8/12 被写成 12/12），拿类型定义与文件名下机制结论（Landlock 已废弃却被写成默认路径）。对应的硬规则已写入 `rules/combined/AI_RULES.md` §5.3。
+3. **证据等级越权是主要失误模式**：拿文件名列表下依赖结论（ext 依赖 8/12 被写成 12/12），拿类型定义与文件名下机制结论（Landlock 已废弃却被写成默认路径）。对应的硬规则已写入 `dev_docs/rules/combined/AI_RULES.md` §5.3。
 
 ---
 

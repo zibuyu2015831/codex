@@ -11,7 +11,7 @@ verified_at: 2026-08-03
 # 可观测性与遥测边界
 
 > **基线 commit**: `bb5054fe47abe73ecbbd454751066a28c89f4bb9`
-> **证据等级**: 默认值判定为 **E3**（读取 `unwrap_or`、`resolve_exporter`、`build_provider` 实现）；配置键判定为 E2（`config/src/types.rs` + 生成的 `config.schema.json`）；投递链路细节部分为 E1
+> **证据等级**: 默认值判定为 **E3**（读取 `unwrap_or`、`resolve_exporter`、`build_provider` 实现）；配置键判定为 E2（`codex-rs/config/src/types.rs` + 生成的 `codex-rs/core/config.schema.json`）；投递链路细节部分为 E1
 
 > [!IMPORTANT]
 > **这篇文档解决了第二个长期挂账问题。** 前两轮的 `_analysis` 与第 1 批文档都写着「遥测的默认开关尚未完整核实（E3 部分证据），不给出 release 构建是否默认上报的结论」。本文完成了核查，结论见 §1。
@@ -53,7 +53,7 @@ let metrics_exporter = config.metrics_exporter.unwrap_or(OtelExporterKind::Stats
 
 `codex-rs/core/src/config/otel.rs` 只决定"配置解析后的值"。真正的装配点是 **`codex-rs/core/src/otel_init.rs` 的 `build_provider`**（`:16`），指标要额外过两道关：
 
-**第一道：analytics 开关（`otel_init.rs:70-77`）**
+**第一道：analytics 开关（`codex-rs/core/src/otel_init.rs:70-77`）**
 
 ```rust
 let metrics_exporter = if config
@@ -74,12 +74,12 @@ let metrics_exporter = if config
 
 | 调用方 | 传入值 | 位置 |
 | ---- | ---- | ---- |
-| TUI | **`true`** | `tui/src/lib.rs:1157` |
-| `codex exec` | **`true`** | `exec/src/lib.rs:163`（`DEFAULT_ANALYTICS_ENABLED`）→ `:501` |
-| `codex mcp-server` | **`true`** | `mcp-server/src/lib.rs:57` → `:88` |
-| **app-server** | **`false`** | `app-server/src/main.rs:108`（注释：*"Analytics are disabled by default for app-server. Users have to explicitly opt in"*，见 `cli/src/main.rs:544` 附近的同名参数说明） |
-| **remote-control** | **`false`** | `cli/src/remote_control_cmd.rs:137` |
-| **exec-server 遥测** | **`false`** | `cli/src/exec_server_telemetry.rs:6` → `:31` |
+| TUI | **`true`** | `codex-rs/tui/src/lib.rs:1157` |
+| `codex exec` | **`true`** | `codex-rs/exec/src/lib.rs:163`（`DEFAULT_ANALYTICS_ENABLED`）→ `:501` |
+| `codex mcp-server` | **`true`** | `codex-rs/mcp-server/src/lib.rs:57` → `:88` |
+| **app-server** | **`false`** | `codex-rs/app-server/src/main.rs:108`（注释：*"Analytics are disabled by default for app-server. Users have to explicitly opt in"*，见 `codex-rs/cli/src/main.rs:544` 附近的同名参数说明） |
+| **remote-control** | **`false`** | `codex-rs/cli/src/remote_control_cmd.rs:137` |
+| **exec-server 遥测** | **`false`** | `codex-rs/cli/src/exec_server_telemetry.rs:6` → `:31` |
 
 > [!IMPORTANT]
 > **修订说明（原文错误）**：初版把"指标默认外发"写成了全局结论。实际上这是 **TUI / exec / mcp-server 的行为**；在 **app-server 与 remote-control 路径下，用户不显式开启 analytics 就不会有 OTEL 指标外发**（metrics exporter 被置为 `None`）。
@@ -116,14 +116,14 @@ OtelExporter::Statsig => {
 
 | 项 | 位置 | 说明 |
 | ---- | ---- | ---- |
-| 指标端点常量 | `otel/src/config.rs:9` | 指向 `https://ab.chatgpt.com/otlp/v1/metrics` |
-| 鉴权请求头名常量 | `otel/src/config.rs:10` | 一个 Statsig 专用的自定义头 |
-| 客户端凭据常量 | `otel/src/config.rs:11` | **值不在本文复述** |
+| 指标端点常量 | `codex-rs/otel/src/config.rs:9` | 指向 `https://ab.chatgpt.com/otlp/v1/metrics` |
+| 鉴权请求头名常量 | `codex-rs/otel/src/config.rs:10` | 一个 Statsig 专用的自定义头 |
+| 客户端凭据常量 | `codex-rs/otel/src/config.rs:11` | **值不在本文复述** |
 
 > [!NOTE]
 > 第三项是**编译进二进制的客户端可分发凭据**，不是服务端密钥。**本文档按脱敏规范只记录位置与用途，不复制常量名、请求头名与值。** 需要时直接看源码对应行。
 
-### 四种导出器类型（`otel/src/config.rs:88`）
+### 四种导出器类型（`codex-rs/otel/src/config.rs:88`）
 
 ```rust
 pub enum OtelExporter {
@@ -205,7 +205,7 @@ fn analytics_capture_file_from_env() -> Option<PathBuf> {
 > 也就是说，第 1 轮把这句日志当作"网络投递当前关闭"的证据是**读窄了**；初版把它修正成"debug 专属"，则是**修偏了**——正确的限定条件是**捕获文件模式专属**。
 
 > [!TIP]
-> **本地开发时如果不希望 analytics 出网**，靠"跑 debug 构建"是不够的。要么显式设置捕获文件环境变量（见 `analytics/src/analytics_capture.rs` 中的环境变量常量），要么在 config.toml 里写 `[analytics] enabled = false`（见 §5）。
+> **本地开发时如果不希望 analytics 出网**，靠"跑 debug 构建"是不够的。要么显式设置捕获文件环境变量（见 `codex-rs/analytics/src/analytics_capture.rs` 中的环境变量常量），要么在 config.toml 里写 `[analytics] enabled = false`（见 §5）。
 
 ---
 
@@ -225,17 +225,17 @@ fn analytics_capture_file_from_env() -> Option<PathBuf> {
 >
 > 两条通路对 debug 构建的处理**并不一致**：
 >
-> - **OTEL/Statsig 是无条件降级**——`cfg!(debug_assertions)` 直接 `return OtelExporter::None`（`otel/src/config.rs:19-21`）。
-> - **analytics 是有条件降级**——只有设置了捕获文件环境变量才转本地；**默认情况下 debug 构建照样发网络**（`analytics/src/client.rs:98-99` + `:122-133`）。
+> - **OTEL/Statsig 是无条件降级**——`cfg!(debug_assertions)` 直接 `return OtelExporter::None`（`codex-rs/otel/src/config.rs:19-21`）。
+> - **analytics 是有条件降级**——只有设置了捕获文件环境变量才转本地；**默认情况下 debug 构建照样发网络**（`codex-rs/analytics/src/client.rs:98-99` + `:122-133`）。
 >
 > 所以「debug 不产生外发流量」只对 OTEL 成立，对 analytics **不成立**。
 
 ---
 
-## 5. 相关配置键（E2：读 `config/src/types.rs` 与生成的 `config.schema.json`）
+## 5. 相关配置键（E2：读 `codex-rs/config/src/types.rs` 与生成的 `codex-rs/core/config.schema.json`）
 
 > [!CAUTION]
-> **修订说明（原文错误）**：初版多处把 **`analytics_enabled` 当成配置键**。**它不是配置键**，只是 `Config` 结构体的内部字段名（`core/src/config/mod.rs:1082`）。
+> **修订说明（原文错误）**：初版多处把 **`analytics_enabled` 当成配置键**。**它不是配置键**，只是 `Config` 结构体的内部字段名（`codex-rs/core/src/config/mod.rs:1082`）。
 >
 > 真实的 config.toml 键是 **`[analytics]` 配置块下的 `enabled`**：
 >
@@ -249,14 +249,14 @@ fn analytics_capture_file_from_env() -> Option<PathBuf> {
 >
 > 生成的 `codex-rs/core/config.schema.json` 顶层只有 `analytics`（93 个顶层键中**没有** `analytics_enabled`），且顶层 `additionalProperties: false`。
 >
-> `[feedback] enabled` 同理（`config/src/types.rs:226-229`）。
+> `[feedback] enabled` 同理（`codex-rs/config/src/types.rs:226-229`）。
 
 > [!CAUTION]
 > **结论不变，但机制说错了，这里更正。**
 >
 > 上一稿写「在 config.toml 里写 `analytics_enabled = false` 会被当作未知键**拒绝**」。**"不生效"是对的，"被拒绝"是错的**——默认情况下它是被**静默忽略**的。
 >
-> 关键在于属性的**命名空间**（`config/src/config_toml.rs:148-150`、`config/src/types.rs:217-218`）：
+> 关键在于属性的**命名空间**（`codex-rs/config/src/config_toml.rs:148-150`、`codex-rs/config/src/types.rs:217-218`）：
 >
 > ```rust
 > #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, JsonSchema)]
@@ -264,9 +264,9 @@ fn analytics_capture_file_from_env() -> Option<PathBuf> {
 > pub struct ConfigToml { ... }
 > ```
 >
-> `#[schemars(...)]` **只影响生成的 JSON Schema**（让 `config.schema.json` 带上 `additionalProperties: false`），**对 serde 的反序列化没有任何约束**。这里**没有** `#[serde(deny_unknown_fields)]`，所以 `toml::from_str` 遇到不认识的键会照常成功，把它丢掉。
+> `#[schemars(...)]` **只影响生成的 JSON Schema**（让 `codex-rs/core/config.schema.json` 带上 `additionalProperties: false`），**对 serde 的反序列化没有任何约束**。这里**没有** `#[serde(deny_unknown_fields)]`，所以 `toml::from_str` 遇到不认识的键会照常成功，把它丢掉。
 >
-> 真正会报错的是**另一条可选路径**：`config/src/strict_config.rs` 基于 `serde_ignored` 收集被忽略的字段并转成 `ConfigError`，而它只在 `strict_config == true` 时启用。该开关来自 CLI 的 `--strict-config`，**声明处即写明默认关闭**（如 `cli/src/main.rs:286-287` 的 `#[arg(long = "strict-config", default_value_t = false)]`，各子命令同款）；`config/src/state.rs:35` 的默认值也是 `false`。
+> 真正会报错的是**另一条可选路径**：`codex-rs/config/src/strict_config.rs` 基于 `serde_ignored` 收集被忽略的字段并转成 `ConfigError`，而它只在 `strict_config == true` 时启用。该开关来自 CLI 的 `--strict-config`，**声明处即写明默认关闭**（如 `codex-rs/cli/src/main.rs:286-287` 的 `#[arg(long = "strict-config", default_value_t = false)]`，各子命令同款）；`codex-rs/config/src/state.rs:35` 的默认值也是 `false`。
 >
 > **所以对绝大多数用户而言：写错配置键既不会生效、也不会有任何提示。** 想要拼写错误变成硬错误，得自己带上 `--strict-config`。
 >
@@ -274,7 +274,7 @@ fn analytics_capture_file_from_env() -> Option<PathBuf> {
 
 ### 5.1 顶层键
 
-`config.schema.json` 顶层键中与本文相关的：
+`codex-rs/core/config.schema.json` 顶层键中与本文相关的：
 
 | 键 | 说明 |
 | ---- | ---- |
@@ -297,14 +297,14 @@ enabled = false
 metrics_exporter = "none"
 ```
 
-OTEL 配置块内的字段（由 `core/src/config/otel.rs` 消费）：`log_user_prompt`、`environment`、`exporter`、`trace_exporter`、`metrics_exporter`、`span_attributes`、`tracestate`。
+OTEL 配置块内的字段（由 `codex-rs/core/src/config/otel.rs` 消费）：`log_user_prompt`、`environment`、`exporter`、`trace_exporter`、`metrics_exporter`、`span_attributes`、`tracestate`。
 
 配置层级与优先级见 [`config_system.md`](./config_system.md) §1。
 
 ### 5.2 两条通路是**耦合**的，不是独立的
 
 > [!CAUTION]
-> **修订说明（原文方向反了）**：初版的 TIP 写「仅设其一不够——两条通路是独立的」。**实际方向相反**：`otel_init.rs:70-77` 显示 **analytics 开关是 OTEL metrics 的上游门禁**——`[analytics] enabled = false` 会**连带**把 `metrics_exporter` 强制为 `OtelExporter::None`，无论 `[otel] metrics_exporter` 配成什么。
+> **修订说明（原文方向反了）**：初版的 TIP 写「仅设其一不够——两条通路是独立的」。**实际方向相反**：`codex-rs/core/src/otel_init.rs:70-77` 显示 **analytics 开关是 OTEL metrics 的上游门禁**——`[analytics] enabled = false` 会**连带**把 `metrics_exporter` 强制为 `OtelExporter::None`，无论 `[otel] metrics_exporter` 配成什么。
 
 耦合关系表：
 
@@ -323,20 +323,20 @@ OTEL 配置块内的字段（由 `core/src/config/otel.rs` 消费）：`log_user
 
 | crate | 行数 | 职责 |
 | ---- | ---: | ---- |
-| `codex-otel` | 6,979 | OTEL：`provider.rs`、`otlp.rs`、`targets.rs`、`trace_context.rs`、`events/`、`metrics/` |
+| `codex-otel` | 6,979 | OTEL：`provider.rs`、`codex-rs/otel/src/otlp.rs`、`codex-rs/otel/src/targets.rs`、`trace_context.rs`、`events/`、`metrics/` |
 | `codex-analytics` | 12,116 | 埋点采集与投递 |
 | `codex-hooks` | 11,795 | 钩子机制（`just write-hooks-schema` 生成 schema） |
 | `codex-feedback` | 1,147 | 用户反馈（`feedback/upload` 协议方法） |
 | `codex-response-debug-context` | 166 | 响应调试上下文 |
-| `codex-state` | 19,744 | 含 `telemetry.rs`、`audit.rs`、`log_db.rs` |
+| `codex-state` | 19,744 | 含 `telemetry.rs`、`audit.rs`、`codex-rs/state/src/log_db.rs` |
 | `codex-rollout-trace` | 13,257 | **会话追踪落盘**，见 §6.3 |
 
-### 6.1 遥测的装配点：`core/src/otel_init.rs`（E3）
+### 6.1 遥测的装配点：`codex-rs/core/src/otel_init.rs`（E3）
 
 这个文件是**主线**上把配置变成实际导出器的入口，初版完全没有提及（§1.1 与 §5.2 两处错误都源于它）。它导出三个函数：
 
 > [!NOTE]
-> **勘误：不要写成"唯一入口"。** `OtelProvider::from(&OtelSettings { .. })` 在生产代码里有**两个**调用点：`core/src/otel_init.rs:83`（本节讲的这个）和 **`windows-sandbox-rs/src/wfp_setup.rs:49`**（其余命中都在 `otel/tests/` 下）。后者的代码注释解释了为什么必须绕开 core 的构造器：
+> **勘误：不要写成"唯一入口"。** `OtelProvider::from(&OtelSettings { .. })` 在生产代码里有**两个**调用点：`codex-rs/core/src/otel_init.rs:83`（本节讲的这个）和 **`codex-rs/windows-sandbox-rs/src/wfp_setup.rs:49`**（其余命中都在 `otel/tests/` 下）。后者的代码注释解释了为什么必须绕开 core 的构造器：
 >
 > > *"The setup helper cannot call codex-core's OTEL builder because core depends on this crate, so the parent process passes only the resolved Statsig environment in the elevation payload. Other exporters are intentionally omitted from this helper path."*
 >
@@ -357,7 +357,7 @@ OTEL 配置块内的字段（由 `core/src/config/otel.rs` 消费）：`log_user
 let runtime_metrics = config.features.enabled(Feature::RuntimeMetrics);
 ```
 
-**`Feature::RuntimeMetrics`（`features/src/lib.rs:140`）是第三个影响"发什么"的开关**，与 `[analytics] enabled`、`[otel] metrics_exporter` 并列。它走 feature flag 体系而不是普通配置键，因此不在 `config.schema.json` 顶层键里。
+**`Feature::RuntimeMetrics`（`codex-rs/features/src/lib.rs:140`）是第三个影响"发什么"的开关**，与 `[analytics] enabled`、`[otel] metrics_exporter` 并列。它走 feature flag 体系而不是普通配置键，因此不在 `codex-rs/core/config.schema.json` 顶层键里。
 
 ### 6.2 SQLite → OTEL 指标通道（E3）
 
@@ -381,7 +381,7 @@ pub type DbTelemetryHandle = Arc<dyn DbTelemetry>;
 
 进程级单例（`OnceLock`），**首次安装生效，重复安装被忽略**。含义：**本地 SQLite 的操作计数与耗时会作为 OTEL 指标外发**，其外发与否跟随 §1.1 的 metrics 开关。
 
-> **未验证**（E1）：具体上报了哪些计数器名与标签维度。入口是 `rollout/src/state_db.rs:238` 起。
+> **未验证**（E1）：具体上报了哪些计数器名与标签维度。入口是 `codex-rs/rollout/src/state_db.rs:238` 起。
 
 ### 6.3 `codex-rollout-trace`：会话追踪落盘（E1，仅按目录与模块名）
 
@@ -389,10 +389,10 @@ pub type DbTelemetryHandle = Arc<dyn DbTelemetry>;
 
 | 模块 | 名字暗示的职责 |
 | ---- | ---- |
-| `payload.rs` / `raw_event.rs` / `protocol_event.rs` | 事件载荷与原始事件 |
-| `writer.rs` | 写出 |
-| `bundle.rs` | trace bundle（与 `codex debug trace-reduce` 子命令对应，见 [`experimental_surfaces.md`](./experimental_surfaces.md)） |
-| `inference.rs` / `mcp.rs` / `tool_dispatch.rs` / `code_cell.rs` / `compaction.rs` / `thread.rs` | 各类事件的记录 |
+| `payload.rs` / `codex-rs/rollout-trace/src/raw_event.rs` / `codex-rs/rollout-trace/src/protocol_event.rs` | 事件载荷与原始事件 |
+| `codex-rs/rollout-trace/src/writer.rs` | 写出 |
+| `codex-rs/rollout-trace/src/bundle.rs` | trace bundle（与 `codex debug trace-reduce` 子命令对应，见 [`experimental_surfaces.md`](./experimental_surfaces.md)） |
+| `inference.rs` / `mcp.rs` / `codex-rs/rollout-trace/src/tool_dispatch.rs` / `code_cell.rs` / `compaction.rs` / `thread.rs` | 各类事件的记录 |
 | `model/`（4 个文件） | `conversation.rs`、`runtime.rs`、`session.rs` |
 | `reducer/` | 把事件流归约成状态 |
 
@@ -446,17 +446,17 @@ just log        # 实时查看 state SQLite 中的日志
 | 未覆盖项 | 当前证据 | 建议入口 |
 | ---- | ---- | ---- |
 | 具体上报了哪些指标名与维度 | E1 | `otel/src/metrics/`、`otel/src/events/` |
-| analytics 事件的字段结构 | E1 | `analytics/src/events.rs`、`analytics_capture.rs` |
-| OTEL provider 的初始化与关闭时序 | E1 | `otel/src/provider.rs`、`provider_shutdown_tests.rs` |
-| `targets.rs` 的过滤规则 | E1 | `otel/src/targets.rs` |
-| 认证环境遥测的字段 | E1 | `login/src/auth_env_telemetry.rs` |
+| analytics 事件的字段结构 | E1 | `codex-rs/analytics/src/events.rs`、`codex-rs/analytics/src/analytics_capture.rs` |
+| OTEL provider 的初始化与关闭时序 | E1 | `codex-rs/otel/src/provider.rs`、`codex-rs/otel/src/provider_shutdown_tests.rs` |
+| `codex-rs/otel/src/targets.rs` 的过滤规则 | E1 | `codex-rs/otel/src/targets.rs` |
+| 认证环境遥测的字段 | E1 | `codex-rs/login/src/auth_env_telemetry.rs` |
 | hooks 的事件模型 | E1 | `codex-hooks`（11,795 行） |
-| audit 记录的内容与保留策略 | E1 | `state/src/audit.rs` |
-| analytics 捕获文件的环境变量名、位置与格式 | E1 | `analytics/src/analytics_capture.rs` |
-| SQLite 遥测上报的计数器名与标签 | E1 | `rollout/src/state_db.rs:238` 起 |
+| audit 记录的内容与保留策略 | E1 | `codex-rs/state/src/audit.rs` |
+| analytics 捕获文件的环境变量名、位置与格式 | E1 | `codex-rs/analytics/src/analytics_capture.rs` |
+| SQLite 遥测上报的计数器名与标签 | E1 | `codex-rs/rollout/src/state_db.rs:238` 起 |
 | rollout-trace 的落盘位置、格式与内容边界 | E1 | `codex-rs/rollout-trace/src/writer.rs`、`payload.rs` |
-| `Feature::RuntimeMetrics` 打开后额外发什么 | E1 | `otel/src/metrics/`、`features/src/lib.rs:140` |
-| `[feedback] enabled` 关闭后影响哪些表面 | E1 | `codex-feedback`、`config/src/types.rs:226` |
+| `Feature::RuntimeMetrics` 打开后额外发什么 | E1 | `otel/src/metrics/`、`codex-rs/features/src/lib.rs:140` |
+| `[feedback] enabled` 关闭后影响哪些表面 | E1 | `codex-feedback`、`codex-rs/config/src/types.rs:226` |
 
 ---
 

@@ -70,19 +70,19 @@ verified_at: 2026-08-03
 | 设计模块可见性 | 顶部规则列表 | `Prefer private modules` |
 | 控制 crate 对外 API | `### Crate API surface` | `Keep crate API surfaces as small as possible` |
 | 改配置类型 | 顶部规则列表 | `just write-config-schema` |
-| 改 MCP 工具调用 | 顶部规则列表 | `mcp_connection_manager.rs` |
+| 改 MCP 工具调用 | 顶部规则列表 | `mcp_connection_manager.rs` ⚠️ 该路径在上游规则中已陈旧，实际文件是 `codex-rs/codex-mcp/src/connection_manager.rs` <!-- ref-exempt: 左侧为 AGENTS.md 原文关键词，其不可解析正是本行要指出的问题 --> |
 | 改 Cargo 依赖 | 顶部规则列表 | `just bazel-lock-update` |
 | 用 `include_str!` / `sqlx::migrate!` | 顶部规则列表 | `compile_data` |
 | 写辅助方法 | 顶部规则列表 | `referenced only once` |
 | 加追踪 | 顶部规则列表 | `#[tracing::instrument` |
 | 拆分/新增模块 | 顶部规则列表 | `Avoid large modules`、`high-touch files` |
-| 改 `chatwidget.rs` | 顶部规则列表 | `keep chatwidget.rs focused on orchestration` |
+| 改 `codex-rs/tui/src/chatwidget.rs` | 顶部规则列表 | `keep chatwidget.rs focused on orchestration` |
 | 跑测试与 lint | 顶部规则列表 | `just fmt`、`just test -p`、`just fix -p <project>` |
 | 往 `codex-core` 加东西 | `## The codex-core crate` | `resist adding code to codex-core` |
 | 往模型上下文里塞内容 | `### Model visible context` | `ContextualUserFragment`、`No unbounded items` |
 | 改外部集成面（破坏性变更） | `### Breaking changes` | `rawResponseItem/*` |
 | 估算变更规模 | `### Change size guidance (800 lines)` | `should not exceed 800 lines` |
-| 写 TUI 样式 | `## TUI style conventions` → `codex-rs/tui/styles.md` | `See ` + `styles.md` |
+| 写 TUI 样式 | `## TUI style conventions` → `codex-rs/tui/styles.md` | `See ` + `codex-rs/tui/styles.md` |
 | 写 TUI 代码 | `## TUI code conventions` / `### TUI Styling (ratatui)` | `Stylize`、`Avoid hardcoded white` |
 | 在 TUI 里做文本换行 | `### Text wrapping` | `word_wrap_lines`、`prefix_lines` |
 | 改 app-server 协议（整体） | `## App-server API Development Best Practices` 及其 `### Core Rules` / `### Client->server request payloads (*Params)` / `### Development Workflow` | `app-server v2`、`ts(export_to = "v2/")`、`ts(optional = nullable)` |
@@ -163,14 +163,14 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 > | 案例 | 当时的推断 | 推断依据 | 实际 |
 > | ---- | ---- | ---- | ---- |
 > | ext 依赖 | 「12 个 `ext/*` **全部**依赖 `extension-api`」 | `grep -rl` 出来的**文件名列表** | **8/12**。3 个不依赖，第 4 个是 `extension-api` 自身被误计入 |
-> | Linux 沙箱 | 「Linux 沙箱用 Landlock」 | `Cargo.toml` 里的**依赖名** + 一个叫 `landlock.rs` 的**文件名** | 该机制已废弃，默认路径是 bwrap；Landlock 只作 legacy 回退 |
+> | Linux 沙箱 | 「Linux 沙箱用 Landlock」 | `Cargo.toml` 里的**依赖名** + 一个叫 `landlock.rs` 的**文件名** | 该机制已废弃，默认路径是 bwrap；Landlock 只作 legacy 回退 | <!-- ref-exempt: 复述致错线索，泛指依赖名与文件名本身 -->
 >
 > 由此定两条硬规则：
 >
 > 1. **依赖类断言**：必须区分 `[dependencies]` 与 `[dev-dependencies]`（以及 `target.*` 段），并以 `cargo metadata` 为准，**不得用 `grep` 数文件名**。写结论时注明取自哪个 section。
 > 2. **机制类断言**：要说某机制「正在生效」，必须找到它的**构造点与调用方**，只找到类型定义、常量或同名文件不够。类型存在 ≠ 类型被构造 ≠ 该路径是默认路径。
 >
-> 另一先例：四条扩展路径的关系曾被标为 E1 留白，直到第 3 批读了 `Cargo.toml` 才得出结论——**结果与最初的直觉推断并不一致**（见 `mcp_and_extensions.md` §1）。
+> 另一先例：四条扩展路径的关系曾被标为 E1 留白，直到第 3 批读了各 crate 的 `Cargo.toml` 才得出结论 <!-- ref-exempt: 泛指多个 crate 的清单文件 -->——**结果与最初的直觉推断并不一致**（见 `mcp_and_extensions.md` §1）。
 
 ### 5.4 其他
 
@@ -207,7 +207,7 @@ python3 dev_docs/_analysis/cross_doc_consistency_checker.py --verify-repo
 > - **跨文档数值对账**——同一个事实在 A 文档写 20、B 文档写 27，5 项照样全绿；
 > - **同一文档内「标题声明的计数」与「表格实际行数」是否相符**——标题写「20 个 crate」而下面的表列了 23 行，5 项照样全绿。
 >
-> 实证：第二轮独立审查查出的 4 项 HIGH 级不一致，**全部是在 5 项 checker 通体绿灯的状态下漏过去的**（见 `_analysis/health_check_report.md` 的「跨文档矛盾」小节）。
+> 实证：第二轮独立审查查出的 4 项 HIGH 级不一致，**全部是在 5 项 checker 通体绿灯的状态下漏过去的**（见 `dev_docs/_analysis/health_check_report.md` 的「跨文档矛盾」小节）。
 
 > [!TIP]
 > 上述两个盲区已由 `dev_docs/_analysis/cross_doc_consistency_checker.py` 补上，它还多做一件事：

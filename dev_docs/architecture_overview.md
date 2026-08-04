@@ -27,7 +27,7 @@ verified_at: 2026-08-03
 > - 校验脚本：`.github/scripts/verify_tui_core_boundary.py`，文件头注释即 `"""Verify codex-tui does not depend on or import codex-core directly."""`——**注意 `directly`**；脚本同时禁止 `Cargo.toml` 出现 `codex-core` 依赖，以及源码出现 `codex_core::` / `use codex_core` / `extern crate codex_core`。
 > - 由 `.github/workflows/repo-checks.yml` 执行（`run: python3 .github/scripts/verify_tui_core_boundary.py`）。
 > - **例外一（再导出）**：`codex-app-server-client` 显式再导出 core 的配置类型（`pub mod legacy_core { pub mod config { pub use codex_core::config::*; } }`），TUI 在 93 处、40 个文件中使用。校验脚本的报错文案也点名这是被认可的过渡通道，所以该边界约束的是**依赖边与 import**，而非「core 能力必须经协议方法抵达」。详见 [`tui_guide.md`](./tui_guide.md) §0.2。
-> - **例外二（传递链接）**：门禁**不管**传递依赖。`codex-cloud-config`（`Cargo.toml:16`）与 `codex-utils-oss`（`Cargo.toml:11`）都直接依赖 `codex-core`，而 `tui/src/lib.rs:41`、`:66-67` 正在用这两个 crate；`codex-app-server-client` 本身也直接依赖 `codex-core`。所以**编译产物里 `codex-core` 是链进 TUI 的**。E4 复核见 §2 的 CAUTION。
+> - **例外二（传递链接）**：门禁**不管**传递依赖。`codex-cloud-config`（`Cargo.toml:16`）与 `codex-utils-oss`（`Cargo.toml:11`）都直接依赖 `codex-core`，而 `codex-rs/tui/src/lib.rs:41`、`:66-67` 正在用这两个 crate；`codex-app-server-client` 本身也直接依赖 `codex-core`。所以**编译产物里 `codex-core` 是链进 TUI 的**。E4 复核见 §2 的 CAUTION。
 > - **正确路径**：`codex-tui` → `codex-app-server-client` → `codex-app-server` + `codex-core`。同进程用 `InProcessAppServerClient`，连远端 app-server 用 `RemoteAppServerClient`（均导出自 `codex-rs/app-server-client/src/lib.rs`）。
 > - 在 TUI 中"顺手加一行 `use codex_core::...`"会直接挂 CI，无论功能是否正确。
 >
@@ -91,8 +91,8 @@ graph TB
 > > [!CAUTION]
 > > **本文上一稿这里有两处不准确，一并更正：**
 > >
-> > 1. **"`tui/Cargo.toml` 只声明 `codex-app-server-client`"是错的。** 该文件的 `[dependencies]` 段里就有 **42 条 `codex-*` 依赖**（全文件含 `[dev-dependencies]` 共 45 条，`grep -cE '^codex-' codex-rs/tui/Cargo.toml`；均写作 `{ workspace = true }`）。`cargo metadata` 解析后 `codex-tui` 的直接普通依赖有 92 个包。真正成立的说法只是「其中不含 `codex-core`」。
-> > 2. **"TUI 不链接 `codex-core`"也是过度解读。** CI 脚本的文档注释原文是 `does not depend on or import codex-core **directly**`。传递地看，`codex-core` 照样会被链进 TUI：`codex-rs/cloud-config/Cargo.toml:16` 和 `codex-rs/utils/oss/Cargo.toml:11` 都直接依赖 `codex-core`，而 `tui/src/lib.rs:41` 用了 `codex_cloud_config::`、`:66-67` 用了 `codex_utils_oss::`；`codex-app-server-client` 本身也直接依赖 `codex-core`。E4 复核：在 `cargo metadata` 的普通依赖图上做 BFS，`codex-tui → codex-app-server-client → codex-core` 可达。
+> > 1. **"`codex-rs/tui/Cargo.toml` 只声明 `codex-app-server-client`"是错的。** 该文件的 `[dependencies]` 段里就有 **42 条 `codex-*` 依赖**（全文件含 `[dev-dependencies]` 共 45 条，`grep -cE '^codex-' codex-rs/tui/Cargo.toml`；均写作 `{ workspace = true }`）。`cargo metadata` 解析后 `codex-tui` 的直接普通依赖有 92 个包。真正成立的说法只是「其中不含 `codex-core`」。
+> > 2. **"TUI 不链接 `codex-core`"也是过度解读。** CI 脚本的文档注释原文是 `does not depend on or import codex-core **directly**`。传递地看，`codex-core` 照样会被链进 TUI：`codex-rs/cloud-config/Cargo.toml:16` 和 `codex-rs/utils/oss/Cargo.toml:11` 都直接依赖 `codex-core`，而 `codex-rs/tui/src/lib.rs:41` 用了 `codex_cloud_config::`、`:66-67` 用了 `codex_utils_oss::`；`codex-app-server-client` 本身也直接依赖 `codex-core`。E4 复核：在 `cargo metadata` 的普通依赖图上做 BFS，`codex-tui → codex-app-server-client → codex-core` 可达。
 > >
 > > **准确表述：无直接依赖边、无直接导入（CI 强制）；`codex-core` 仍经多条中间 crate 传递性链接，且其配置类型通过 `codex_app_server_client::legacy_core` 再导出。** 详见 [`tui_guide.md`](./tui_guide.md) §0.1-§0.2。
 
@@ -260,8 +260,8 @@ IDE 扩展 / 桌面端 / TypeScript SDK
 | 平台 | 机制 | 实现位置 |
 | ---- | ---- | ---- |
 | macOS | Seatbelt | `codex-rs/sandboxing/src/seatbelt.rs` + 3 个 `.sbpl` 策略文件 |
-| **Linux（默认，唯一在跑的路径）** | **bubblewrap（文件系统）+ seccomp（系统调用）+ `no_new_privs`** | 调用侧 `codex-rs/sandboxing/src/bwrap.rs`；执行侧 `codex-linux-sandbox`（8,224 行）的 `linux_run_main.rs` / `landlock.rs`；bwrap 二进制来自 `codex-bwrap` crate（`codex-rs/bwrap`，151 行 Rust 壳）与**仓库内 vendored 的 bubblewrap C 源码 `codex-rs/vendor/bubblewrap/`（`git ls-files` 口径 50 个跟踪条目，`find -type f` 口径 49——差的一个是符号链接 `LICENSE` → `COPYING`；含 `vendor/BUILD.bazel` 则为 51 / 50）** |
-| Linux（已废弃回退） | Landlock | 仅在显式打开 `[features].use_legacy_landlock` 时启用。CLI 开关 `--use-legacy-landlock` 为 `hide = true, default_value_t = false`（`linux_run_main.rs:110`）；`codex-features` 将其标为 `Stage::Deprecated`，`codex-rs/core/tests/suite/deprecation_notice.rs` 断言提示语"`[features].use_legacy_landlock` is deprecated and will be removed soon." |
+| **Linux（默认，唯一在跑的路径）** | **bubblewrap（文件系统）+ seccomp（系统调用）+ `no_new_privs`** | 调用侧 `codex-rs/sandboxing/src/bwrap.rs`；执行侧 `codex-linux-sandbox`（8,224 行）的 `codex-rs/linux-sandbox/src/linux_run_main.rs` / `landlock.rs`；bwrap 二进制来自 `codex-bwrap` crate（`codex-rs/bwrap`，151 行 Rust 壳）与**仓库内 vendored 的 bubblewrap C 源码 `codex-rs/vendor/bubblewrap/`（`git ls-files` 口径 50 个跟踪条目，`find -type f` 口径 49——差的一个是符号链接 `LICENSE` → `COPYING`；含 `codex-rs/vendor/BUILD.bazel` 则为 51 / 50）** |
+| Linux（已废弃回退） | Landlock | 仅在显式打开 `[features].use_legacy_landlock` 时启用。CLI 开关 `--use-legacy-landlock` 为 `hide = true, default_value_t = false`（`codex-rs/linux-sandbox/src/linux_run_main.rs:110`）；`codex-features` 将其标为 `Stage::Deprecated`，`codex-rs/core/tests/suite/deprecation_notice.rs` 断言提示语"`[features].use_legacy_landlock` is deprecated and will be removed soon." |
 | Windows | 原生沙箱 | `codex-rs/sandboxing/src/windows.rs`、`codex-windows-sandbox`（19,173 行） |
 
 > [!CAUTION]
@@ -273,7 +273,7 @@ IDE 扩展 / 桌面端 / TypeScript SDK
 >    > `//! Landlock helpers remain available here as legacy/backup utilities.`
 >
 >    同文件里的 `install_filesystem_landlock_rules_on_current_thread` 明确注明 "**currently unused** because filesystem sandboxing is performed via bubblewrap"。
-> 2. **不存在"失败回退到 Landlock"**。`linux_run_main.rs:217` 的 `if !use_legacy_landlock { ... }` 分支注释写着 "This path **never falls back** to legacy Landlock on failure."；默认路径调用 `apply_permission_profile_to_current_thread(..., /*apply_landlock_fs*/ false, ...)`。
+> 2. **不存在"失败回退到 Landlock"**。`codex-rs/linux-sandbox/src/linux_run_main.rs:217` 的 `if !use_legacy_landlock { ... }` 分支注释写着 "This path **never falls back** to legacy Landlock on failure."；默认路径调用 `apply_permission_profile_to_current_thread(..., /*apply_landlock_fs*/ false, ...)`。
 > 3. **文件指错**。`codex-rs/sandboxing/src/landlock.rs` 里**没有任何 landlock 调用**，它只是拼装 `codex-linux-sandbox` 子进程命令行（含在 legacy 模式下追加 `--use-legacy-landlock`）。真正的 `landlock` crate 依赖只出现在 `codex-rs/linux-sandbox/Cargo.toml`（以及 `codex-rs/protocol/Cargo.toml` 的类型定义处）。
 >
 > **正确心智模型：Linux = bwrap 管文件系统 + seccomp 管系统调用 + `no_new_privs`；Landlock 是待删除的 legacy 开关。**
@@ -359,7 +359,7 @@ README 描述 Codex "runs locally on your computer"，指的是**智能体进程
 > **所以正确的说法是：交互式/一次性执行类前台二进制（TUI、exec、mcp-server）默认开，被集成的服务端形态（app-server、remote-control、exec-server 遥测）默认关。**
 >
 > > [!NOTE]
-> > **勘误**：本文上一稿写的"'指标默认外发'是 TUI 特有的行为"是错的——它把一个三对三的分野收窄成了一个特例。`exec/src/lib.rs:163` 与 `mcp-server/src/lib.rs:57` 都有 `const DEFAULT_ANALYTICS_ENABLED: bool = true;`，且均位于各自 `#[cfg(test)]` 块之外。可用 `grep -rn "DEFAULT_ANALYTICS_ENABLED" codex-rs/ --include=*.rs` 一次看全。以 [`observability.md`](./observability.md) §1.2 的六行表为准。
+> > **勘误**：本文上一稿写的"'指标默认外发'是 TUI 特有的行为"是错的——它把一个三对三的分野收窄成了一个特例。`codex-rs/exec/src/lib.rs:163` 与 `codex-rs/mcp-server/src/lib.rs:57` 都有 `const DEFAULT_ANALYTICS_ENABLED: bool = true;`，且均位于各自 `#[cfg(test)]` 块之外。可用 `grep -rn "DEFAULT_ANALYTICS_ENABLED" codex-rs/ --include=*.rs` 一次看全。以 [`observability.md`](./observability.md) §1.2 的六行表为准。
 >
 > 另外 `Statsig` 在 **debug 构建下会降级为 `None`**，不发任何数据。完整证据与配置键见 [`observability.md`](./observability.md) §1-§3。
 
