@@ -1,7 +1,7 @@
 ---
 title: 02 启动：从敲下命令到会话转起来
-summary: 跟随一次真实执行走完 codex 的启动链路，覆盖 main 函数的 argv0 分发机制及其两个真实用途、clap 声明式命令行解析与 Option 子命令为何等于默认 TUI、配置的四层叠加与 CODEX_HOME 解析的不对称行为、会话创建时 tokio spawn 点火的十余行关键代码，以及 SessionIo 承载的两条 channel 四个端点如何在类型层面锁死前端与内核的边界。
-keywords: codex | startup | arg0-dispatch | clap | config-layering | codex-home | session-spawn | channel | tx-rx
+summary: 跟随一次真实执行走完 codex 的启动链路，覆盖 main 函数的 argv0 分发机制及其两个真实用途、clap 声明式命令行解析与 Option 子命令为何等于默认 TUI、配置的四层叠加与 CODEX_HOME 解析的不对称行为、会话创建时 tokio spawn 点火的十余行关键代码，以及 SessionIo 承载的两条 channel 四个端点如何在类型层面锁死前端与内核的边界、上行有界 512 与下行无界这一背压取舍的意图与代价。
+keywords: codex | startup | arg0-dispatch | clap | config-layering | codex-home | session-spawn | channel | async-channel | backpressure | tx-rx
 scope: 从进程启动到智能体会话开始运转的完整链路
 related_files: codex-rs/cli/src/main.rs | codex-rs/core/src/session/mod.rs | codex-rs/core/src/session/handlers.rs | codex-rs/utils/home-dir/src/lib.rs
 dependencies: 无（本目录文档自包含，不依赖 dev_docs 其余文档）
@@ -65,9 +65,17 @@ async def _inner(arg0_paths):
 arg0_dispatch_or_else(_inner)
 ```
 
-`move` 关键字表示"把外面用到的变量的**所有权**搬进闭包"。因为这个闭包要被丢到异步运行时上跑，可能比当前函数活得久，所以不能只借用。
+`move` 关键字表示"把外面用到的变量**整个搬进**这个匿名函数里"。
 
-> **注意 `main` 本身不是 `async fn`。** 异步运行时（tokio）是在 `arg0_dispatch_or_else` 内部启动的。Rust 的 async 需要一个运行时来驱动，不像 Python 那样内建——这是常见困惑点。
+> **这里有两个 Rust 专有词，一次讲清，后面各篇都要用：**
+>
+> Rust 规定**每个值在任一时刻只有一个"主人"**，这叫**所有权**。别人想用，要么**借用**（临时看一眼，用完还回去，主人不变），要么由主人**交出所有权**（东西归你了，我不能再用）。
+>
+> 这段代码为什么必须"搬"而不能"借"？因为这个匿名函数要被丢到后台跑，**可能比当前这个函数活得还久**——当前函数返回之后，它借的东西就没了。所以只能把东西直接给它。
+
+> **注意 `main` 本身不是 `async fn`。** 异步运行时（tokio）是在 `arg0_dispatch_or_else` 内部才启动的。
+>
+> 真正建 runtime 的那几行在 `codex-rs/arg0/src/lib.rs:285`，用的是 `Builder::new_multi_thread()`。Rust 的 async 需要一个第三方运行时来驱动，不像 Python 那样内建——这是常见困惑点，[01](./01-coordinates.md) §2 补课有完整说明。
 
 ---
 
@@ -198,11 +206,15 @@ Ok((session, io))
 
 ### `Arc::clone(&session)`
 
-复制一个**指向同一个 Session 的引用计数指针**。**不复制数据**，只是计数 +1。
+**这里没有复制任何数据**，只是多拿了一个"指向同一个 `Session` 的把手"，并把"现在有几个人拿着它"这个计数 +1。等所有把手都被丢弃、计数归零，`Session` 才真正被销毁。
 
-为什么需要？因为下一行要把它**搬进**一个后台任务，而当前函数自己还要继续用 `session`。
+**`Arc` 就是这个"可以多人共拿的把手"**，全称 atomically reference counted（可跨线程安全计数的引用）。上一节刚说过"每个值只有一个主人"——`Arc` 正是为了绕开这条限制而存在的：**主人是 `Arc` 自己，大家共同持有它**。
 
-> **Rust 小注**：Python 里所有对象都自带引用计数，"两个地方指向同一个东西"是默认行为。Rust 要求你显式写出来——这就是源码里满眼 `Arc<Session>`、`Arc<TurnContext>` 的原因。`Arc::clone` 很便宜，不要看到 `clone` 就以为在深拷贝。
+为什么这里需要？因为下一行要把它**搬进**一个后台任务（搬走就不能再用了），而当前函数自己还要继续用 `session`。
+
+> **Rust 小注**：Python 里所有对象都自带这套计数，"两个地方指向同一个东西"是默认行为，你根本感觉不到。Rust 要求你显式写出来——这就是源码里满眼 `Arc<Session>`、`Arc<TurnContext>` 的原因。
+>
+> **`Arc::clone` 很便宜**（就是个计数 +1），**不要看到 `clone` 就以为在深拷贝一整个对象**。这是从 Python/Java 过来最容易误判性能的一处。
 
 ### `tokio::spawn(async move { ... })` ← 点火在这一行
 
@@ -246,12 +258,34 @@ pub(crate) struct SessionIo {
 Rust 的 channel 是**成对创建**的，一次拿到两头：
 
 ```rust
-let (tx, rx) = channel();   // tx 用来发，rx 用来收
+let (tx, rx) = async_channel::bounded(512);   // tx 用来发，rx 用来收
 ```
 
 Python 的 `asyncio.Queue` 是一个对象两头都能用；Rust 把它**拆成两个值**——这样所有权系统能保证"发送端在这里、接收端在那里"，不会有人拿着队列又发又收。
 
 命名规则就是 **`方向_载荷`**：`tx_sub` = "发 Submission 的那一端"，`rx_event` = "收 Event 的那一端"。
+
+> **用的是 `async_channel` 这个第三方 crate，不是 `tokio::sync::mpsc`**——虽然整个项目跑在 tokio 上。别把两者记混了，[01](./01-coordinates.md) §2 补课里有两者的差异。
+
+### 这两条 channel 的创建：一有界、一无界
+
+两条 channel 在同一处创建（`codex-rs/core/src/session/mod.rs:556-557`），**容量选择是不对称的**：
+
+```rust
+let (tx_sub, rx_sub) = async_channel::bounded(SUBMISSION_CHANNEL_CAPACITY); // 512
+let (tx_event, rx_event) = async_channel::unbounded();
+```
+
+| 方向 | 容量 | 满了怎样 | 意图 |
+| ---- | ---- | ---- | ---- |
+| 前端 → 内核（`Submission`） | **有界 512** | 发送方挂起，**背压** | 前端投递再快也撑不爆内核 |
+| 内核 → 前端（`Event`） | **无界** | 不会满 | **内核绝不因界面渲染慢而阻塞** |
+
+`SUBMISSION_CHANNEL_CAPACITY` 定义在同文件 `:485`。
+
+> **这是本篇第二个值得抄的设计**（第一个是下面的类型守边界）。做类似产品时必须提前定：**哪个方向允许阻塞对方**。定反了的症状很典型——模型明明在跑，界面整个僵住。
+>
+> 无界的代价是内存：前端长时间不消费，事件会堆积。codex 赌"前端总在消费"。你的前端如果可能离线（IDE 断连、网络前端），这个赌注不成立，得换"有界 + 丢弃最旧"。
 
 ### 四个端点的分布
 
@@ -336,6 +370,8 @@ graph TD
 
 **两个任务，一对 channel，一个共享的 Session。就这么简单。**
 
+> ⚠️ **这张图画的是"内核对外的形状"，不是默认 TUI 的完整链路。** 上面这套 `SessionIo` 是所有前端共同的落点；默认 TUI 抵达它之前还隔着一个**进程内 app-server**（同进程、仍是内存 channel、走 JSON-RPC 消息形态）。`codex exec` 则更接近图上这个直连形态。两跳的细节见 [10](./10-frontends-and-extensions.md) §1–§2。
+
 这个设计有三个直接后果，都很重要：
 
 ### ① 前端和内核完全解耦
@@ -363,6 +399,8 @@ graph TD
 | 智能体从哪一行开始转？ | `codex-rs/core/src/session/mod.rs` 里的 `tokio::spawn` |
 | 会话对外有几个口子？ | 两个：`tx_sub` 进，`rx_event` 出 |
 | `tx` / `rx` 什么意思？ | transmit / receive，channel 的两头 |
+| 两条 channel 容量一样吗？ | **不一样**：上行有界 512（背压），下行无界（内核不被卡） |
+| 用的是 tokio 的 channel 吗？ | **不是**，是 `async_channel` crate |
 | 前端为什么不能直接调内核？ | 它手里只有 channel 端点，类型上就调不到 |
 
 ---

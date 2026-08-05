@@ -183,7 +183,11 @@ pub(crate) fn build_prompt(
 
 ## 4. 传输层：一个协议，两条通道
 
-### `WireApi` 只有一个变体
+### `WireApi` 只有一种
+
+> **`wire`（直译"线"）在这里指"数据真正在网络上传输时长什么样"**——请求体的字段怎么排、响应怎么组织。所以 **`wire API` = 和模型服务对话时用的那套报文格式**。
+>
+> 之所以要专门起个词，是因为它和"你代码里的数据结构"是两回事：内部结构可以随便改，**wire 格式一改就和对方对不上了**。
 
 ```rust
 pub enum WireApi {
@@ -200,6 +204,10 @@ pub enum WireApi {
 > 对自建项目的启示：**统一到一个 wire 协议是有价值的**。支持两种意味着所有能力都要做两遍适配。
 
 ### 但传输有两条：WebSocket 与 HTTP SSE
+
+> **`SSE` 全称 Server-Sent Events（服务端推送事件）**，是 HTTP 上一种单向流式返回的标准做法：**连接建立后不一次性返回结果，而是服务端有一段就推一段，客户端边收边处理，直到服务端说结束。**
+>
+> 模型"一个字一个字往外吐"就是靠它。和 WebSocket 的区别在于 **SSE 只能服务端往客户端推**（单向），WebSocket 两边都能发（双向）——所以下面才会说"SSE 够用，WebSocket 是优化"。
 
 `ModelClientSession::stream`（`codex-rs/core/src/client.rs:1800`）的逻辑：
 

@@ -282,8 +282,10 @@ Python 里没有直接对应——最接近的是 `importlib.resources`，但那
 [02](./02-startup.md) §5 讲过，这里补充**为什么**：
 
 ```rust
-let (tx, rx) = channel();      // 一次拿到两头
+let (tx, rx) = async_channel::bounded(512);   // 一次拿到两头
 ```
+
+> **注意 crate 名**：codex 用的是 `async_channel`（第三方、MPMC、不绑运行时），**不是** `tokio::sync::mpsc`（MPSC、绑 tokio）。整个项目跑在 tokio 上，但 channel 不是 tokio 的——这两件事不冲突，因为 `async_channel` 只依赖 `Future`，任何运行时都能驱动。
 
 Python 的 `asyncio.Queue` 是**一个对象**，谁拿到都能又发又收。Rust 拆成两个值，是因为：
 
@@ -302,9 +304,22 @@ Python 的 `asyncio.Queue` 是**一个对象**，谁拿到都能又发又收。R
 >
 > 挡不住存心绕过的人，但能挡住手滑。
 
+### 顺带：有界与无界的 Python 对照
+
+[02](./02-startup.md) §5 讲的那个不对称，Python 里是同一个类的两种构造：
+
+| codex | Python 等价 | 满了的行为 |
+| ---- | ---- | ---- |
+| `async_channel::bounded(512)` | `asyncio.Queue(maxsize=512)` | `await q.put()` 挂起——**这就是背压** |
+| `async_channel::unbounded()` | `asyncio.Queue()`（默认无上限） | 不会满，只会吃内存 |
+
+**Python 版本一样能做出这个设计**，唯一区别是 Rust 用两个不同的构造函数、Python 用一个参数。**别因为它只是个参数就不当回事**——这一个参数决定了"谁能卡住谁"。
+
 ---
 
 ## 9. `FuturesOrdered` 与 tokio 的心智模型
+
+> **先对齐一个前提**：Python 的 `asyncio` 是标准库，`import` 就有；**Rust 的 `async`/`await` 只是语法，运行时要自己选、自己写进依赖**。tokio 是这个位置上的事实标准。所以下表左边不是"Rust 的标准做法"，是"tokio 的做法"——换成 `async-std` 名字就变了。完整说明见 [01](./01-coordinates.md) §2 补课。
 
 [05](./05-inside-a-turn.md) §3 出现过：
 
