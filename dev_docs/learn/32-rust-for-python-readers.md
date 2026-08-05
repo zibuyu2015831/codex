@@ -332,7 +332,7 @@ Python 的 `asyncio.Queue` 是**一个对象**，谁拿到都能又发又收。R
 
 ## 9. `FuturesOrdered` 与 tokio 的心智模型
 
-> **先对齐一个前提**：Python 的 `asyncio` 是标准库，`import` 就有；**Rust 的 `async`/`await` 只是语法，运行时要自己选、自己写进依赖**。tokio 是这个位置上的事实标准。所以下表左边不是"Rust 的标准做法"，是"tokio 的做法"——换成 `async-std` 名字就变了。完整说明见 [01](./01-coordinates.md) §2 补课。
+> **先对齐一个前提**：Python 的 `asyncio` 是标准库，`import` 就有；**Rust 的 `async`/`await` 只是语法，运行时要自己选、自己写进依赖**。tokio 是这个位置上的事实标准。所以下表左边不是"Rust 的标准做法"，是"tokio 的做法"——换成 `async-std` 名字就变了。完整说明、以及 **tokio 的异步任务与 Python 协程的逐项对照（含"asyncio 单线程 / tokio 多线程"这处关键差别）**，见 [01](./01-coordinates.md) §2 补课。
 
 [05](./05-inside-a-turn.md) §3 出现过：
 

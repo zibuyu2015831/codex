@@ -1,7 +1,7 @@
 ---
 title: 01 坐标系：codex 是什么形状的程序
-summary: 从进程视角而非代码视角建立对 codex 的第一层理解，说明运行时真实存在的进程数量与边界、模型不在本机这一前提、每条命令独立子进程加沙箱的执行方式（含 fork 与 exec 分两步的用意及沙箱的安装位），补课讲清进程图上 channel 与 tokio 两个前置概念（内存通道与三条边的代价量级、序列化的定义与不做序列化的收益、上行有界下行无界的背压取舍、tokio 作为 Rust 生态第三方运行时的定位与 task 非线程的开销对比），并厘清编译期与运行时这组对照、说明 134 个 crate 属于编译期划分而非运行时组件、各 crate 的行数分布与复杂度集中点，最后厘清 27 个子命令与 5 种前端形态这两个不同维度的常见混淆。
-keywords: codex | architecture | process-model | channel | backpressure | tokio | async-runtime | serialization | fork-exec | sandbox | compile-time-vs-runtime | crate-count | subcommand | frontend | mental-model
+summary: 从进程视角而非代码视角建立对 codex 的第一层理解，说明运行时真实存在的进程数量与边界、模型不在本机这一前提、每条命令独立子进程加沙箱的执行方式（含 fork 与 exec 分两步的用意及沙箱的安装位），补课讲清进程图上 channel 与 tokio 两个前置概念（内存通道与三条边的代价量级、序列化的定义与不做序列化的收益、上行有界下行无界的背压取舍、tokio 作为 Rust 生态第三方运行时的定位、task 非线程的开销对比、以及 tokio 异步任务与 Python 协程的逐项对照与"asyncio 单线程 vs tokio 多线程"这处关键差别及其如何导出 Send/Sync 约束），并厘清编译期与运行时这组对照、说明 134 个 crate 属于编译期划分而非运行时组件、各 crate 的行数分布与复杂度集中点，最后厘清 27 个子命令与 5 种前端形态这两个不同维度的常见混淆。
+keywords: codex | architecture | process-model | channel | backpressure | tokio | async-runtime | coroutine | asyncio-comparison | send-sync | serialization | fork-exec | sandbox | compile-time-vs-runtime | crate-count | subcommand | frontend | mental-model
 scope: codex 的运行时进程形态与代码组织的整体坐标系
 related_files: codex-rs/cli/src/main.rs | codex-rs/core/Cargo.toml | codex-rs/tui/Cargo.toml | codex-rs/Cargo.toml
 dependencies: 无（本目录文档自包含，不依赖 dev_docs 其余文档）
@@ -229,7 +229,31 @@ let (tx_event, rx_event) = async_channel::unbounded();                      // �
 | 谁来安排它什么时候跑 | **操作系统**（程序管不着） | **tokio 自己**（就是普通代码，不惊动操作系统） |
 | 开几万个 | 机器躺平 | 很轻松 |
 
-codex 建的是一个**多线程 runtime**（`codex-rs/arg0/src/lib.rs:285-290`）：
+**那它像 Python 里的什么？——像协程，而且像得几乎可以直接对号入座。**
+
+| Rust / tokio | Python / asyncio | 两边共同的含义 |
+| ---- | ---- | ---- |
+| `async fn foo()` | `async def foo()` | 声明一个"可以中途让出"的函数 |
+| 调用它拿到的 `Future` | 调用它拿到的协程对象 | **调用本身不执行任何代码**，只拿到一个"待推进的东西"。两边都是惰性的：没人推它就永远不动 |
+| `.await` | `await` | "我这儿要等了，先让别人跑"——**让出的是执行权，不是整个程序** |
+| `tokio::spawn(fut)` | `asyncio.create_task(coro)` | 丢给运行时后台跑，自己不等它 |
+| tokio 运行时 | asyncio 事件循环 | 真正推着这些东西往前走的引擎 |
+
+连"为什么要有它"都是同一个理由：**一个任务在等网络/等文件的那几十毫秒里，让别的任务把线程用起来，而不是干等。** 你在 Python 里对 asyncio 建立的所有直觉，读 codex 时基本都能直接搬过来。
+
+> 更细的语法对照（`FuturesOrdered` 对 `asyncio.gather` 之类）在 [32](./32-rust-for-python-readers.md) §9。
+
+**唯一一处对不上、而且很关键的差别：并行度。**
+
+| | Python `asyncio` | tokio 多线程运行时 |
+| ---- | ---- | ---- |
+| 协程/task 跑在几个线程上 | **1 个** | **N 个**（N ≈ CPU 核数） |
+| 同一时刻真正在执行的有几个 | **1 个** | **N 个** |
+| 一个任务里写了个死循环会怎样 | **整个事件循环卡死**，所有协程一起停 | 只占住 1 个工作线程，其余照常（但也别这么写，该用 `spawn_blocking`） |
+
+这个差别有个直接后果，也是 Rust 异步代码里最劝退的那部分的来源：**task 会被运行时在线程之间搬来搬去**，所以它携带的数据必须能安全地跨线程传递——这就是你后面会反复撞见的 `Send` / `Sync` 两个约束（[04](./04-three-loops.md) §4）。**Python 里没有这两个词，是因为 asyncio 根本不存在"跨线程"这回事，编译器自然也没什么可检查的。**
+
+codex 建的正是这种**多线程 runtime**（`codex-rs/arg0/src/lib.rs:285-290`）：
 
 ```rust
 let mut builder = tokio::runtime::Builder::new_multi_thread();
@@ -511,6 +535,7 @@ grep -rn --include=Cargo.toml -A3 '^\[\[bin\]\]' codex-rs | grep 'name ='
 | 为什么一有界一无界？ | 前端别撑爆内核（背压）；内核别被慢界面卡住 |
 | `tokio` 是什么？是 Rust 语法吗？ | **不是。** Rust 只给 `async`/`await` 语法，不给运行时；tokio 是第三方运行时，生态位同 asyncio |
 | "异步任务"是线程吗？ | 不是。用户态调度，比线程轻几个数量级，非测试代码里 131 个 spawn 点 |
+| tokio 的异步任务像 Python 的协程吗？ | **像，几乎可以逐项对号入座**（`async fn`↔`async def`、`.await`↔`await`、`tokio::spawn`↔`create_task`）。**只有一处对不上：asyncio 跑在 1 个线程上，tokio 默认跑在 N 个线程上**——`Send`/`Sync` 这两个约束就是从这儿来的 |
 | 模型在哪？ | 远端。codex 不含模型 |
 | 134 个 crate 都在运行吗？ | 不是，那是编译期的抽屉 |
 | 复杂度集中在哪？ | core（29.7 万行）和 tui（23.8 万行），占一半以上 |
