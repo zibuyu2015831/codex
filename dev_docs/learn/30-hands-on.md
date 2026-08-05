@@ -55,7 +55,7 @@ just test -p codex-core # 只跑 codex-core 的测试
 
 ### 编译很慢怎么办
 
-第一次全量编译在普通笔记本上要**十几分钟**。之后靠增量编译，但改到 `codex-core` 或 `codex-protocol` 时仍会波及一大片（这正是 [01](./01-coordinates.md) §4 说的"134 个抽屉"的代价与收益）。
+第一次全量编译在普通笔记本上要**十几分钟**。之后靠**增量编译**——只重新编译改动波及到的那部分，其余沿用上次的结果——但改到 `codex-core` 或 `codex-protocol` 时仍会波及一大片（这正是 [01](./01-coordinates.md) §4 说的"134 个抽屉"的代价与收益）。
 
 **几个实用做法：**
 
@@ -71,6 +71,10 @@ just test -p codex-core # 只跑 codex-core 的测试
 > （AGENTS.md 里那条"偶尔要用 `--all-features`"的建议**已经陈旧**，见 `dev_docs/rules/combined/AI_RULES.md` §3.5 的 S2。）
 
 ### 格式与 lint
+
+> **`lint`（直译"衣服上的绒毛"）指的是一类工具：不运行你的程序，只读源码，挑出"能编译通过、但写法可疑"的地方**——没用到的变量、恒为真的条件、有更好写法的表达式。Rust 生态里这个工具叫 **`clippy`**。
+>
+> **它和编译错误的区别是：编译错误是"这段代码不成立"，lint 是"这段代码成立，但你多半不是这个意思"。** codex 把好几条架构约束直接做成了 lint 规则（[32](./32-rust-for-python-readers.md) §10），所以在这个仓库里 **lint 不过 = CI 红灯**，不是可选的建议。
 
 ```bash
 just fmt          # 格式化（Rust + Bazel + Python 一起）
@@ -296,9 +300,13 @@ just clippy                 # lint
 | ---- | ---- |
 | 改了 `ConfigToml` | `just write-config-schema` |
 | 改了 Cargo 依赖 | `just bazel-lock-update` |
-| 改了用户可见 UI | **补 `insta` 快照**（AGENTS.md 里是 Requirement，最常被漏） |
+| 改了用户可见 UI | **补 `insta` 快照**（见下；AGENTS.md 里是 Requirement，最常被漏） |
 | 新增 `include_str!` | 往 `BUILD.bazel` 的 `compile_data` 里补（Bazel 不会自动让源码树文件可见） |
 | 改了 `codex-rs/tui` | **不能出现 `codex_core`**，连注释和字符串字面量里都不行（见下） |
+
+> **`insta` 快照测试是什么**：不用手写"我期望输出是这样"，而是**第一次跑的时候把实际输出整个存成一个文件（快照），以后每次跑都和它比对**。界面渲染结果这种"逐字段断言写不动"的东西特别适合它。
+>
+> 改了 UI 之后测试会挂，因为输出和旧快照对不上——这时用 `cargo insta review` 逐个看差异，**确认是你有意改的就接受，成为新快照**。所以"补快照"不是补测试代码，是**审阅并接受新的输出**。[31](./31-testing-an-agent.md) §5 讲了它的取舍。
 
 > ⚠️ **TUI 那条边界是字面量级检查。** `.github/scripts/verify_tui_core_boundary.py` 用逐行正则扫 `codex-rs/tui/**/*.rs`（含 `tests/`），**不做语法解析**——你在注释里写一句 `// 这里以前用 codex_core::Foo` 也会挂 CI。
 >

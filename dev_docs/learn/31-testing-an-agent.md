@@ -167,9 +167,13 @@ let ev = wait_for_event(&codex, |e| matches!(e, EventMsg::ExecApprovalRequest(_)
 >
 > 常见错误是把超时设成 30 秒"以防万一"。结果是一个死锁 bug 让整个测试套件跑 20 分钟才失败，大家就把这个测试标记成 flaky 跳过了。
 >
+> （**`flaky`（直译"片状剥落的"）是测试领域的固定说法，指"时好时坏、同样的代码有时过有时挂"的测试。** 它的杀伤力不在于它自己不可靠，而在于**它会训练团队忽略红灯**——一旦大家习惯了"挂了就重跑一次"，真正的 bug 也会被这么放过去。）
+>
 > 假模型 + 1 秒超时 = **死锁立刻暴露**。
 
-还有一个 `wait_for_event_match`，谓词返回 `Option<T>`，命中时直接把值取出来——省掉"先等到再 match 一遍"的样板。
+还有一个 `wait_for_event_match`，**谓词**返回 `Option<T>`，命中时直接把值取出来——省掉"先等到再 match 一遍"的样板。
+
+> **`谓词`（predicate）是个从逻辑学借来的词，在代码里的意思很简单：一个"传进去一个东西、返回 true 或 false"的小函数。** 上面 `|e| matches!(e, EventMsg::ExecApprovalRequest(_))` 就是一个谓词——它回答"这个事件是不是我要等的那个"。Python 里 `filter()` 的第一个参数就是谓词。
 
 ---
 

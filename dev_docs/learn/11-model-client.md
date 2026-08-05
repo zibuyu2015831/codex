@@ -63,6 +63,8 @@ grep -rn "gpt_5_codex_prompt" --include=*.rs --include=*.toml --include=*.bazel 
 
 **在 `codex-rs/models-manager/models.json` 里，按模型 slug 一条一条存着。**
 
+> **`slug` 是个来自内容管理系统的词，指"一个短的、只含字母数字和连字符、用来当标识符的名字"**——比如博客文章 URL 末尾那截。这里就是模型的标识名（`gpt-5.2-codex` 这种）。**看到 slug 直接读成"短标识名"即可。**
+
 ```bash
 python3 -c "
 import json; d=json.load(open('codex-rs/models-manager/models.json'))
@@ -375,6 +377,10 @@ if !err.is_retryable() { return Err(err); }
 
 > **为什么需要粘性路由？** 因为服务端可能缓存了这个 turn 的上下文（KV cache）。换一台机器，缓存失效，延迟和成本都上去了。
 >
+> **`KV cache` 是大模型推理里的一个术语**，你不需要懂它的数学，只需要知道这个效果：**模型处理一段很长的输入时，会把中间计算结果缓存下来；下次如果输入的开头部分和上次一样，这部分就不用重算了。**
+>
+> 而一个 turn 里的连续几次请求，**恰恰就是"前面全一样、末尾多了一点"**（历史没变，只是又追加了一条工具结果）。所以命中缓存的收益极大——**这也是为什么各家 provider 都对"缓存命中的输入 token"打很大折扣。**
+>
 > **对自建项目**：如果你自己部署推理服务，**turn 级粘性路由是一个巨大的性能杠杆**。这也解释了为什么 `ModelClientSession` 的生命周期必须精确对齐 turn——短了丢缓存，长了跨 turn 串状态。
 
 ---
@@ -397,7 +403,7 @@ class ModelClient:
             except Exception as e:
                 if not is_retryable(e) or attempt == self.provider.stream_max_retries:
                     raise
-                await asyncio.sleep(backoff(attempt))
+                await asyncio.sleep(backoff(attempt))   # 退避：每失败一次，下次等更久
 
     async def _stream_once(self, prompt):
         async with httpx.AsyncClient() as c:
@@ -432,9 +438,11 @@ class ModelClient:
 
 ### 一个容易漏的设计
 
-> **把"请求发出去的完整内容"能 dump 出来。**
+> **把"请求发出去的完整内容"能原样打印出来（dump）。**
 
-codex 有 `codex-rs/core/src/prompt_debug.rs` 专门干这个。
+> **`dump`（转储）在这里就是"把某个东西当前的完整内容，原封不动地倒出来给人看"**——不加工、不摘要、不省略。之所以强调"原样"，是因为一旦你在打印时做了任何整理，就可能恰好把出问题的那个字段整理掉了。
+
+codex 有 `codex-rs/core/src/prompt_debug.rs` 专门干这个，配套命令是 `codex debug prompt-input`（[30](./30-hands-on.md) §3 会实际跑一次）。
 
 调模型的 bug 有 80% 是"发出去的东西和你以为的不一样"——少了一段指令、工具 schema 写错、历史顺序颠倒。**没有 dump 能力，你只能靠猜。** 这个功能十几行，第一天就该有。
 

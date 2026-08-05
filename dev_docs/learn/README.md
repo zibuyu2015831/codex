@@ -109,6 +109,8 @@ verified_at: 2026-08-05
 
 **行号会漂移。** 正文给出的 `文件:行号` 基于某一时刻的代码状态。**行号对不上时以符号名为准**——用 `rg 'fn 函数名'` 重新定位，不要以为文档错了就放弃。
 
+> **`rg` 是什么**：[ripgrep](https://github.com/BurntSushi/ripgrep) 的命令名，一个更快、默认递归、默认跳过 `.gitignore` 里那些文件的 `grep`。本教程的复现命令里 `rg` 和 `grep` 都会出现，**没装 `rg` 的话换成 `grep -rn` 基本等价**。
+
 **代码片段有删节。** 为便于阅读，正文中的 Rust 代码普遍省略了错误处理、tracing 标注和部分参数。要看完整实现请去源码。
 
 ---
@@ -126,6 +128,22 @@ verified_at: 2026-08-05
 | 决策篇 20–23 | 打算 fork 的话，需要**能读** Rust（不要求会写） |
 
 **卡在语法上时**：查 [32 Python 程序员读 codex 的 Rust 地图](./32-rust-for-python-readers.md)。它把散落各篇的 Rust 小注收拢成一张对照表，**不是 Rust 教程，是"读 codex 时会绊住你的那些东西"**。
+
+### 专有名词的处理方式
+
+**本教程不设独立的术语表，而是在每个词第一次出现的地方就地解释。** 这样你顺着读就行，不需要来回翻。
+
+被就地解释的是这三类词：
+
+| 类别 | 例子 | 在哪一篇首次解释 |
+| ---- | ---- | ---- |
+| **Rust / tokio 专有** | `crate`、`trait`、`Arc`、`panic`、`drop`、`Send`、`workspace`、`tokio`、序列化 | [01](./01-coordinates.md) §1–§4、[02](./02-startup.md) §1、§4 |
+| **codex 项目专有** | `rollout`、`turn`、`Guardian`、`skills`、`world state`、`wire API` | [04](./04-three-loops.md) §1、[05](./05-inside-a-turn.md) §2、[09](./09-persistence.md) §0 |
+| **偏专业的通用词** | `token`、上下文窗口、`fork`/`exec`、系统调用、`SSE`、`jsonl`、正交、启发式、幂等、`DSL`、`MDM` | [01](./01-coordinates.md) §2、[08](./08-context.md) §1、[09](./09-persistence.md) §0 等 |
+
+**一般 CS 词汇（进程、枚举、结构体、JSON、CI、MCP…）不作解释**，默认你能看懂。
+
+> **读到一个没解释的词，说明它属于最后这类，或者是我们漏了。** 后者请直接提出来。
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 title: 08 上下文管理与压缩
-summary: 讲解 codex 如何在有限上下文窗口下维持长对话，包括上下文预算的三个消耗方向、压缩的手动（CompactTask）与自动（run_turn 内联）两条入口及其为何不能合并、八个压缩相关文件与三级路径选择（token 预算 / 远程 v2 / 远程 v1 / 本地）的判据与默认行为、远程压缩仅在特定 provider 可用带来的能力差异、上下文历史与磁盘记录必须分离的理由，以及自建项目实现压缩时的最小方案与常见陷阱。
+summary: 讲解 codex 如何在有限上下文窗口下维持长对话，先定义 token 与上下文窗口这两个贯穿全篇的计量概念，再说明上下文预算的三个消耗方向、压缩的手动（CompactTask）与自动（run_turn 内联）两条入口及其为何不能合并、八个压缩相关文件与三级路径选择（token 预算 / 远程 v2 / 远程 v1 / 本地）的判据与默认行为、远程压缩仅在特定 provider 可用带来的能力差异、上下文历史与磁盘记录必须分离的理由，以及自建项目实现压缩时的最小方案与常见陷阱。
 keywords: codex | context-window | compaction | compact | token-budget | remote-compaction | summarization | context-manager
 scope: codex-core 的上下文历史管理与压缩路径选择
 related_files: codex-rs/core/src/context_manager/history.rs | codex-rs/core/src/compact.rs | codex-rs/core/src/tasks/compact.rs | codex-rs/core/src/compact_token_budget.rs | codex-rs/core/src/compact_remote_v2.rs | codex-rs/core/src/session/turn.rs
@@ -15,6 +15,14 @@ verified_at: 2026-08-05
 ---
 
 ## 1. 问题是什么
+
+> **本篇有两个词几乎每段都出现，先花三十秒定下来。**
+>
+> **`token`（词元）**：模型不是按字符、也不是按单词读文本的，而是先把文本切成一个个小片段，每个片段叫一个 token。**粗略的换算：英文大约 4 个字符 ≈ 1 个 token，中文大约 1 个汉字 ≈ 1～2 个 token。** 本教程不译这个词——业界一律说 token，而且**模型按 token 计费、按 token 限长**，它是这个领域事实上的计量单位。
+>
+> **`上下文窗口`（context window）**：**模型一次能"看见"的 token 总量上限**。注意它是一个**硬性上限**，不是性能建议——多一个 token 都不行，超了就是直接报错。而且这个额度是**输入和输出共用**的：系统提示、全部历史对话、工具输出、以及模型这次要生成的内容，全都挤在同一个窗口里。
+>
+> **本篇整篇讲的就是一件事：这个窗口装不下了怎么办。**
 
 模型的上下文窗口是有限的。而一次真实的编码任务会产生大量内容：
 
@@ -115,6 +123,8 @@ if should_roll_over {
 | `codex-rs/core/src/context/` | **写什么给模型**——上下文片段的构造器 |
 | `codex-rs/core/src/context_manager/` | **记什么下来**——历史、归一化、增量更新 |
 
+> **`归一化`（normalize）在这里的意思是：把形式各异但含义相同的东西，统一改写成同一种标准形态再存。** 比如同一条工具结果，有的来路带着多余的包装字段、有的字段顺序不同——先归一化，后面所有比较、去重、拼装才不会因为"长得不一样"而出错。[31](./31-testing-an-agent.md) §5 讲测试时还会用到同一个词。
+
 `context_manager/` 有 4 个生产文件，但入口面非常窄——`codex-rs/core/src/context_manager/mod.rs` 全文 8 行，只放行一个 `ContextManager`（定义在 `codex-rs/core/src/context_manager/history.rs`）、一个子模块 `updates`、加三个自由函数（细节见 [05](./05-inside-a-turn.md) §5 — ① 组上下文：两个容易混淆的目录）：
 
 | 函数 | 用途 |
@@ -153,6 +163,8 @@ if should_roll_over {
 | `codex-rs/core/src/compact_remote_v2_attempt.rs` | v2 的内部辅助 |
 | `codex-rs/core/src/compact_remote_request.rs` | v2 的请求构造辅助 |
 | `codex-rs/core/src/compact_tests.rs` | 测试 |
+
+> **下面开始频繁出现 `provider` 这个词**：它指**模型服务的提供方**——OpenAI、Azure、你本机跑的 Ollama，各算一个 provider。本教程不译它（译成"供应商"反而更容易和商务语境混淆）。**关键认知是：不同 provider 的能力不一样**，某些功能只有特定 provider 才有——这一节讲的"远程压缩"就是第一个例子。
 
 **8 个文件看着吓人，但路径选择就是一棵三层判定树。**
 
@@ -304,6 +316,8 @@ async def maybe_compact(history, budget):
 
 | 你现在应该能回答 | 答案 |
 | ---- | ---- |
+| `token` 是什么？ | 模型读文本的最小单位（英文约 4 字符、中文约 1 汉字算一个）。**计费和限长都按它算** |
+| 上下文窗口是什么？ | 模型一次能看见的 token 上限。**硬性上限，输入输出共用一个额度** |
 | 上下文最大的消耗来源？ | **工具输出**，不是对话 |
 | 压缩是函数还是任务？ | **两条路**：手动（`Op::Compact`）走 `CompactTask`；**自动压缩是 `run_turn` 内联调的函数**，因为压完要 `continue` 回同一个 turn |
 | 有几条压缩路径？ | 四条实现，靠两个开关 + provider 能力三级判定。**判定树被手动/自动各写了一遍** |

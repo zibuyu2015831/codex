@@ -1,7 +1,7 @@
 ---
 title: 05 一个 turn 的内部
 summary: 逐行展开 run_turn，说明内核实际是五层嵌套循环而非三层及各层的退出条件、run_turn 前置阶段与主循环的两段式结构、采样前压缩这一反直觉设计、needs_follow_up 才是 turn 的真正终止条件、工具调用循环实为流式事件循环且工具以 FuturesOrdered 并发派发、上下文拼装的两个易混目录的分工、流式解析状态机与计划模式的耦合、session 子系统 23 个生产文件的职责划分与星型枢纽结构。
-keywords: codex | run-turn | nested-loops | sampling-request | needs-follow-up | futures-ordered | turn-context | step-context | streaming-parser | plan-mode | session-modules
+keywords: codex | run-turn | nested-loops | sampling-request | sampling-glossary | hook | rollout | needs-follow-up | futures-ordered | turn-context | step-context | streaming-parser | plan-mode | session-modules
 scope: codex-core 中单个 turn 的完整执行过程、五层循环嵌套与 session 子系统结构
 related_files: codex-rs/core/src/session/turn.rs | codex-rs/core/src/session/turn_context.rs | codex-rs/core/src/session/step_context.rs | codex-rs/core/src/session/mod.rs | codex-rs/core/src/context_manager/history.rs
 dependencies: 无（本目录文档自包含，不依赖 dev_docs 其余文档）
@@ -54,6 +54,12 @@ graph TD
     style L5 fill:#e1d5e7,stroke:#9673a6
     style L6 fill:#d5e8d4,stroke:#82b366,stroke-width:2px
 ```
+
+> **图里冒出来一个词：`sampling`（采样）。** 它在源码里的出现频率很高（`run_sampling_request`、`run_pre_sampling_compact`……），但它的意思和"抽样调查"那个采样没关系。
+>
+> **在大模型这个领域，"采样"就是"让模型生成一次内容"。** 叫这个名字是因为模型每吐一个字，本质上都是在一堆候选里**按概率抽一个出来**，一路抽到底就成了一段回答。
+>
+> **所以看到 `sampling` 直接读成"问模型一次"就对了**：`run_sampling_request` = "发起一次模型请求"，`run_pre_sampling_compact` = "在问模型之前先压缩一下"。本教程后面继续用"调模型"这个说法，源码里则一律是 `sampling`——**知道这两个是同一件事即可。**
 
 **每一层的退出条件都不一样**，这是本篇最该带走的东西：
 
@@ -110,6 +116,16 @@ graph TD
     style OUT fill:#d5e8d4,stroke:#82b366
 ```
 
+> **前置阶段那六步里有三个陌生词，先各给一句话，正文后面会再展开：**
+>
+> | 词 | 一句话 | 哪里细讲 |
+> | ---- | ---- | ---- |
+> | **world state**（世界状态） | codex 给模型准备的一份"现在的处境"快照——工作目录里有什么、改过哪些文件、当前权限是什么 | [05](./05-inside-a-turn.md) §5 |
+> | **skills**（技能） | 一批预先写好的提示词包，按需要拼进这次的输入里。**它不是代码，就是文本** | [10](./10-frontends-and-extensions.md) §4 |
+> | **plugins**（插件） | 可安装/卸载的能力包，能往主流程里塞工具和指令 | [10](./10-frontends-and-extensions.md) §4 |
+>
+> **还有一个贯穿全篇的词：`hook`（钩子）。** 它是**预留在流程固定位置上的挂载点**——"turn 开始时""turn 要结束时"这些时刻，允许挂上一段自定义逻辑，流程走到那里就顺便把它执行掉。所以下面会看到"**stop hook 可以把一个本来要结束的 turn 重新拉起来**"：那段挂上去的逻辑有权说"再来一轮"。
+
 ### ⚠️ 一个反直觉的地方：压缩在 turn **开始前**就跑一次
 
 前置阶段第一件事是 `run_pre_sampling_compact`——**还没问模型，先看要不要压缩**。
@@ -151,13 +167,15 @@ let mut in_flight: FuturesOrdered<BoxFuture<'static, CodexResult<ResponseInputIt
     = FuturesOrdered::new();
 
 let outcome = loop {
-    let event = stream.next().await;       // ← 从模型的 SSE 流里取下一个事件
+    let event = stream.next().await;       // ← 从模型的 SSE 流里取下一个事件（SSE 见下方注）
     match event {
         ResponseEvent::OutputItemDone(item) => { /* 可能派发一个工具调用 */ }
         // …其余事件类型
     }
 };
 ```
+
+> **`SSE` 全称 Server-Sent Events（服务端推送事件）**，是 HTTP 上一种"**服务端有一段就推一段、客户端边收边处理**"的标准做法。模型"一个字一个字往外吐"就是靠它。本篇你只要知道 `stream.next().await` 取的是"模型刚吐出来的下一小块"即可，[11](./11-model-client.md) §4 讲它怎么建立、怎么在断了之后重连。
 
 **关键在 `in_flight`：工具调用是"派发进一个并发集合"，不是"调用完等它返回"。**
 
@@ -379,7 +397,13 @@ turn 结束后，产生的内容要写回两个地方：
 | **内存中的上下文历史** | 下一轮要用（`context_manager/`） |
 | **磁盘上的 rollout** | 会话记录，可回放可恢复（见 [09](./09-persistence.md)） |
 
-**这两条是分开的**——内存历史会被压缩、截断、归一化；磁盘 rollout 是**完整的事实记录**，不做压缩（默认配置下）。
+> **`rollout` 是 codex 自己造的一个词，不是通用术语，第一次见到很容易误解。**
+>
+> 它**不是**"发布上线"（rollout 的常见含义），也不是"回滚"。**在 codex 里，一个 rollout = 一次会话从头到尾的完整事件流水账，一行一条，按发生顺序落在磁盘上。**
+>
+> 你可以把它想成**这次会话的录像带**：你说了什么、模型回了什么、跑了哪些命令、结果是什么，全都按顺序记着。`codex resume` 能把昨天的会话接着往下聊，靠的就是把这盘带子重放一遍。存在哪、长什么样，[09](./09-persistence.md) 全篇都在讲这个。
+
+**这两条是分开的**——内存历史会被压缩、截断、归一化（**"归一化"= 把形式各异但含义相同的记录统一改写成同一种标准形态**）；磁盘 rollout 是**完整的事实记录**，不做压缩（默认配置下）。
 
 > **这个分离很重要，值得抄。** 如果你把"喂给模型的历史"和"存下来的记录"混成一个东西，压缩之后就再也恢复不出原始过程了。
 
@@ -420,6 +444,9 @@ turn 结束后，产生的内容要写回两个地方：
 
 | 你现在应该能回答 | 答案 |
 | ---- | ---- |
+| 源码里的 `sampling` 是什么？ | **就是"问模型一次"**。叫采样是因为模型逐字生成时在按概率抽取候选 |
+| `hook` 是什么？ | 流程固定位置上的挂载点。**stop hook 有权把一个本要结束的 turn 重新拉起来** |
+| `rollout` 是什么？ | 一次会话完整的磁盘流水账，**codex 自造词**，详见 [09](./09-persistence.md) |
 | 内核到底有几层循环？ | **五层**。[04](./04-three-loops.md) 的三层是对的抽象，改 `codex-rs/core/src/session/turn.rs` 时要知道下面还有两层 |
 | 一个 turn 干几件事？ | 抽象说四件：组上下文 → 调模型 → 用工具 → 写回历史 |
 | turn 什么时候结束？ | `needs_follow_up == false`（模型没留待续调用 **且** 没有排队输入）**且** stop hook 不拦截 |

@@ -416,7 +416,7 @@ git log --oneline HEAD..upstream/main -- codex-rs/protocol codex-rs/core/src/ses
 | **攒着不 merge** | 半年后冲突到无法处理 | 每 2–4 周一次 |
 | **规范只写文档** | 三个月后全被绕过 | 变成 CI |
 | **遥测端点没改** | 用户数据发往上游 | M3 抓包验证 |
-| **`core` 想按目录砍** | 发现是 411 个平铺模块，卡住 | 从 `Op` 入口倒推 |
+| **`core` 想按目录砍** | 17 个子目录能整块切，但顶层还平铺着 112 个文件，砍到那里卡住 | 顶层部分从 `Op` 入口倒推，见 [22](./22-load-bearing-and-cuts.md) §5 |
 
 ---
 
