@@ -1,7 +1,7 @@
 ---
 title: Codex CLI 开发文档体系主文档
 summary: openai/codex 仓库 dev_docs 开发文档体系的入口，提供项目概览、关键目录速查、12 条场景快速导航、文档索引、开发流程规范、核心代码模式、命名规范、业务模块映射、AI 编码禁忌清单与常见任务速查；本轮随 16 篇下游文档定稿对齐，修正 TUI 边界为「字面量级语法边界而非语义边界」、ext 进入 ExtensionRegistry 的是 8 个、Windows 默认无沙箱、Linux 沙箱的全盘写权限早退分支、遥测两条通路的缺省语义相反，并补入「读注释不读实现」「正则口径陷阱」「Stage::Removed ≠ 不可用」「上游记载 ≠ 当前可执行」四条新禁忌。
-keywords: codex | main-doc | navigation | ai-coding-context | taboos | uncovered-scope
+keywords: codex | main-doc | navigation | ai-coding-context | taboos | uncovered-scope | branch-policy | docs-only | merge-sync
 scope: openai/codex 仓库 dev_docs 文档体系总入口
 related_files: AGENTS.md | docs/contributing.md | codex-rs/cli/src/main.rs | codex-rs/Cargo.toml | justfile | README.md | .github/scripts/verify_tui_core_boundary.py | codex-rs/config/src/loader/mod.rs | codex-rs/features/src/lib.rs | codex-rs/protocol/src/protocol.rs
 dependencies: dev_docs/architecture_overview.md | dev_docs/crate_map.md | dev_docs/development_workflow.md
@@ -18,6 +18,41 @@ verified_at: 2026-08-05
 ---
 
 ## ⚠️ 阅读前必读
+
+> [!CAUTION]
+> **`zibuyu` 分支是纯文档分支：只增删改 `dev_docs/`，不得改动 codex 的任何源码。**
+>
+> 该分支的唯一目的是**学习与查验 codex 的架构和源码**，与上游代码演进解耦。`codex-rs/`、`sdk/`、`.github/`、`justfile`、根 `docs/` 等一律不动。
+>
+> 复核命令（应输出 `0`）：
+>
+> ```bash
+> git diff --name-only "$(git merge-base HEAD origin/main)" HEAD -- . ':(exclude)dev_docs' | wc -l
+> ```
+>
+> **需要改源码时，不要在本分支动手**——切回主分支并基于主分支新建分支再实现：
+>
+> ```bash
+> git switch main && git pull && git switch -c <你的分支名>
+> ```
+>
+> 这条规则对**人和 AI 代理同时生效**，且跨设备生效：换一台机器 clone 本仓库、切到 `zibuyu` 分支后，仍以本节为准。
+
+> [!IMPORTANT]
+> **每次 merge 主分支之后，必须同步修订 `dev_docs/`。**
+>
+> 本分支需要不定时 merge 主分支（`origin/main`）以跟上上游。**merge 不是终点，同步文档才是**——本体系大量引用 `path:line`、crate 数、字段数、枚举变体数这类易漂移的事实，上游代码一动，这些断言就会**静默失效**（不报错、不冲突，只是变成假的）。
+>
+> merge 后的标准动作：
+>
+> 1. 取出上游改动范围：`git diff --stat <merge 前的 origin/main> origin/main`
+> 2. 映射到受影响的文档：16 篇专题 + 本文 + [`dev_docs/rules/combined/AI_RULES.md`](./rules/combined/AI_RULES.md)（映射关系见下方「🚀 文档索引」与「🏢 业务模块映射」）
+> 3. 逐篇回源核验并修订，同步更新各文的 `verified_at` 与本文的**基线 commit**
+> 4. 过门禁：`bash dev_docs/_analysis/gate.sh`（脱敏 / 引用可解析性 / 跨文档对账与断言账本）
+>
+> > 门禁全绿是**必要条件，不是充分条件**。`dev_docs/_analysis/gate.sh` 自己写明了这一点：它只覆盖结构、引用与已登记数值，断言是否与源码相符只能靠独立复核。实测基准是每轮修复会引入 6~7 个新的 HIGH 级事实错误，而它们全部是在门禁全绿状态下被独立代理发现的。方法论见 [`dev_docs/_analysis/generation_plan.md`](./_analysis/generation_plan.md)。
+>
+> 当前状态：基线 commit 与 `origin/main` 顶端**一致**（`bb5054fe47`，`git rev-list --count bb5054fe47..origin/main` = 0），即尚无待同步的上游改动。
 
 > [!CAUTION]
 > **仓库自带的 AGENTS.md 优先级高于本文档体系的任何内容。**
