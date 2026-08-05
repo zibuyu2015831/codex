@@ -1,9 +1,9 @@
 ---
 title: 08 上下文管理与压缩
-summary: 讲解 codex 如何在有限上下文窗口下维持长对话，包括上下文预算的三个消耗方向、压缩作为一种 SessionTask 的定位、八个压缩相关文件与三级路径选择（token 预算 / 远程 v2 / 远程 v1 / 本地）的判据与默认行为、远程压缩仅在特定 provider 可用带来的能力差异、上下文历史与磁盘记录必须分离的理由，以及自建项目实现压缩时的最小方案与常见陷阱。
+summary: 讲解 codex 如何在有限上下文窗口下维持长对话，包括上下文预算的三个消耗方向、压缩的手动（CompactTask）与自动（run_turn 内联）两条入口及其为何不能合并、八个压缩相关文件与三级路径选择（token 预算 / 远程 v2 / 远程 v1 / 本地）的判据与默认行为、远程压缩仅在特定 provider 可用带来的能力差异、上下文历史与磁盘记录必须分离的理由，以及自建项目实现压缩时的最小方案与常见陷阱。
 keywords: codex | context-window | compaction | compact | token-budget | remote-compaction | summarization | context-manager
 scope: codex-core 的上下文历史管理与压缩路径选择
-related_files: codex-rs/core/src/context_manager/history.rs | codex-rs/core/src/compact.rs | codex-rs/core/src/tasks/compact.rs | codex-rs/core/src/compact_token_budget.rs | codex-rs/core/src/compact_remote_v2.rs
+related_files: codex-rs/core/src/context_manager/history.rs | codex-rs/core/src/compact.rs | codex-rs/core/src/tasks/compact.rs | codex-rs/core/src/compact_token_budget.rs | codex-rs/core/src/compact_remote_v2.rs | codex-rs/core/src/session/turn.rs
 dependencies: 无（本目录文档自包含，不依赖 dev_docs 其余文档）
 verified_at: 2026-08-05
 ---
@@ -37,24 +37,74 @@ codex 选第三种。
 
 ---
 
-## 2. 压缩是一种任务，不是一个函数
+## 2. ⚠️ 压缩有**两条**入口：手动是任务，自动是内联函数
 
-这是本篇第一个值得学的设计。
+> **本节已重写。** 上一版写的是「压缩是一种任务，不是一个函数」。**这只说对了一半**——手动压缩确实是任务，但**自动压缩是 `run_turn` 内部直接调的函数**，不经过任务层。两条路走的代码不一样。
 
-**压缩不是"在某个地方顺手调一下"，而是一种正式的 `SessionTask`**——和普通对话、代码评审平级（见 [04](./04-three-loops.md) §4）。
+```mermaid
+graph TD
+    subgraph M["① 手动压缩：走任务层"]
+      M1["用户敲 /compact<br/>→ Op::Compact"]
+      M2["codex-rs/core/src/session/handlers.rs:458<br/>spawn_task(.., CompactTask)"]
+      M3["CompactTask::run<br/>kind = TaskKind::Compact"]
+      M4["run_*_compact_task(..)"]
+      M1 --> M2 --> M3 --> M4
+    end
 
-它的实现是 `CompactTask`，`kind()` 返回 `TaskKind::Compact`，`span_name()` 是 `"session_task.compact"`。
+    subgraph A["② 自动压缩：内联在 turn 里"]
+      A1["run_turn 发现快超了"]
+      A2["run_auto_compact(..)<br/>codex-rs/core/src/session/turn.rs:1147"]
+      A3["run_inline_*_auto_compact_task(..)"]
+      A1 --> A2 --> A3
+    end
 
-### 为什么要做成任务
+    style M fill:#dae8fc,stroke:#6c8ebf
+    style A fill:#fff2cc,stroke:#d6b656,stroke-width:2px
+```
+
+**函数名里就写着这件事**：每个压缩实现都同时导出两个入口——
+
+| 入口 | 谁调 | 例子 |
+| ---- | ---- | ---- |
+| `run_*_compact_task` | 任务层 | 例如 `codex-rs/core/src/compact.rs` 里的 `run_compact_task` |
+| `run_inline_*_auto_compact_task` | turn 内联 | 例如 `codex-rs/core/src/compact.rs:112` 里的 `run_inline_auto_compact_task` |
+
+连指标都区分：`emit_compact_metric(.., /*manual*/ true)` vs `/*manual*/ false`。
+
+### 为什么自动压缩不能做成任务
+
+这是本节真正的知识点。
+
+**因为自动压缩发生在一个 turn 的中间，压完还要接着跑同一个 turn。**
+
+任务是平级的——起一个 `CompactTask` 意味着当前 turn 结束了。但自动压缩的场景是："模型刚说完要调一个工具，但上下文满了" —— 你压完之后必须**回到原来那个 turn 继续**，把工具调用做完。
+
+看 `run_turn` 里的写法就明白了（见 [05](./05-inside-a-turn.md) §2 — `run_turn` 的真实形状）：
+
+```rust
+if should_roll_over {
+    run_auto_compact(...).await?;   // 内联压缩
+    can_drain_pending_input = !model_needs_follow_up;
+    continue;                        // ← 回到主循环，turn 没结束
+}
+```
+
+那个 `continue` 就是关键。**如果压缩是一个任务，这里没法 `continue`。**
+
+### 手动压缩为什么又必须是任务
+
+反过来，用户主动敲 `/compact` 时，四条理由都成立：
 
 | 理由 | 说明 |
 | ---- | ---- |
-| **压缩本身要调模型** | 让模型总结历史，这是一次真实的 API 调用，可能失败、可能超时 |
+| **压缩本身要调模型** | 让模型总结历史，是一次真实的 API 调用，可能失败、可能超时 |
 | **要能被中断** | 用户可以取消 |
 | **要有独立的生命周期事件** | 前端要显示"正在压缩…" |
-| **要能被显式触发** | 有一个 `Op::Compact`，用户可以手动要求压缩 |
+| **要能被显式触发** | 有一个 `Op::Compact` 对应它 |
 
-> **如果做成普通函数调用，上面四条全都做不到。** 这是 [04](./04-three-loops.md) 里"任务层为什么必要"的一个具体例证。
+> **给自建项目的启示**：**"自动触发"和"用户触发"往往需要两条代码路径，即使做的是同一件事。** 差别不在业务逻辑，在**生命周期归属**——一个要能打断当前流程并接上，一个要作为独立单元被观测和取消。
+>
+> 一上来就想"复用一个函数搞定"，做到一半会发现打断/恢复语义对不上。codex 的做法是**共享底层实现，分开上层入口**。
 
 ---
 
@@ -65,7 +115,7 @@ codex 选第三种。
 | `codex-rs/core/src/context/` | **写什么给模型**——上下文片段的构造器 |
 | `codex-rs/core/src/context_manager/` | **记什么下来**——历史、归一化、增量更新 |
 
-`context_manager/` 的入口面非常窄：一个 `ContextManager`（定义在 `codex-rs/core/src/context_manager/history.rs`）加三个自由函数：
+`context_manager/` 有 4 个生产文件，但入口面非常窄——`codex-rs/core/src/context_manager/mod.rs` 全文 8 行，只放行一个 `ContextManager`（定义在 `codex-rs/core/src/context_manager/history.rs`）、一个子模块 `updates`、加三个自由函数（细节见 [05](./05-inside-a-turn.md) §5 — ① 组上下文：两个容易混淆的目录）：
 
 | 函数 | 用途 |
 | ---- | ---- |
@@ -104,7 +154,13 @@ codex 选第三种。
 | `codex-rs/core/src/compact_remote_request.rs` | v2 的请求构造辅助 |
 | `codex-rs/core/src/compact_tests.rs` | 测试 |
 
-**8 个文件看着吓人，但路径选择只需要读一个约 40 行的函数**（在 `codex-rs/core/src/tasks/compact.rs`）：
+**8 个文件看着吓人，但路径选择就是一棵三层判定树。**
+
+⚠️ **这棵树被写了两遍**——手动一遍（`codex-rs/core/src/tasks/compact.rs`），自动一遍（`codex-rs/core/src/session/turn.rs:1147` 的 `run_auto_compact`），判据完全相同，只有调的函数名不同（`run_*_compact_task` vs `run_inline_*_auto_compact_task`），以及指标里的 `manual` 标志相反。
+
+> **这是一处真实的重复。** 加一条新的压缩路径要改两个地方，漏一个就会出现"手动压缩用新路径、自动压缩还走老路径"的诡异行为。**看到这种成对的判定树，记得在你自己的项目里把它抽成一个函数 + 一个 `manual: bool` 参数。**
+
+树长这样，以 `codex-rs/core/src/tasks/compact.rs` 为准（自动压缩那份同构）：
 
 ```mermaid
 graph TD
@@ -179,7 +235,7 @@ codex 的处理方式值得抄：**优先用服务端能力，没有就降级到
 
 ## 7. ⚠️ 一个关键原则：内存历史 ≠ 磁盘记录
 
-这一点在 [05](./05-inside-a-turn.md) §6 提过，这里强调一遍，因为压缩让它变得极其重要：
+这一点在 [05](./05-inside-a-turn.md) §9 — ④ 写回历史 提过，这里强调一遍，因为压缩让它变得极其重要：
 
 | | 内存中的上下文历史 | 磁盘上的 rollout |
 | ---- | ---- | ---- |
@@ -249,8 +305,8 @@ async def maybe_compact(history, budget):
 | 你现在应该能回答 | 答案 |
 | ---- | ---- |
 | 上下文最大的消耗来源？ | **工具输出**，不是对话 |
-| 压缩是函数还是任务？ | **任务**——要调模型、要能中断、要有生命周期事件 |
-| 有几条压缩路径？ | 四条，靠两个开关 + provider 能力三级判定 |
+| 压缩是函数还是任务？ | **两条路**：手动（`Op::Compact`）走 `CompactTask`；**自动压缩是 `run_turn` 内联调的函数**，因为压完要 `continue` 回同一个 turn |
+| 有几条压缩路径？ | 四条实现，靠两个开关 + provider 能力三级判定。**判定树被手动/自动各写了一遍** |
 | 默认走哪条？ | OpenAI/Azure → 远程 v2；其他 → 本地 |
 | 内存历史和磁盘记录是一回事吗？ | **不是**。前者被压缩，后者是完整事实 |
 | 压缩能在任意位置切吗？ | **不能**，必须在用户轮次边界 |

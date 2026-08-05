@@ -1,6 +1,6 @@
 ---
 title: 10 前端与扩展面
-summary: 讲解 codex 的前端接入方式与能力扩展路径，包括 TUI 不得直接依赖 core 这一 CI 强制边界的准确含义与传递链接的事实、app-server 作为 JSON-RPC 服务端与协议先行的类型生成链路、五种进程形态的差异、四条扩展路径（内建扩展/插件/Skills/MCP）的实测关系与三个不遵守主扩展点的例外案例，以及自建项目选择扩展机制时的取舍建议。
+summary: 讲解 codex 的前端接入方式与能力扩展路径，包括 TUI 不得直接依赖 core 这一 CI 强制边界的准确含义与传递链接的事实、app-server 作为 JSON-RPC 服务端与协议先行的类型生成链路、五种进程形态的差异、extension-api 的 13 个 contributor trait 与 4 个 capability trait 的划分、四条扩展路径（内建扩展/插件/Skills/MCP）的实测关系与三个不遵守主扩展点的例外案例，以及自建项目选择扩展机制时的取舍建议。
 keywords: codex | tui | app-server | json-rpc | extension-api | plugin | skills | mcp | ci-boundary | protocol-first
 scope: codex 的前端接入方式与四条扩展路径
 related_files: codex-rs/tui/Cargo.toml | codex-rs/app-server-client/Cargo.toml | codex-rs/ext/extension-api/src/contributors.rs | codex-rs/core-plugins/Cargo.toml | .github/scripts/verify_tui_core_boundary.py
@@ -181,13 +181,26 @@ codex 有 5 个前端 + 一个 TypeScript SDK + 一个桌面端。**手工同步
 
 ## 5. ⚠️ 扩展点不是准入条件
 
-**`ext/extension-api` 是主扩展点**（13 个扩展 trait），但**不是 `ext/` 目录的准入条件**。
+**`ext/extension-api` 是主扩展点**，但**不是 `ext/` 目录的准入条件**。
 
-实测：12 个 `ext/*` crate 里，只有 **8 个**依赖 `extension-api`。
+它一共定义 **17 个 `pub trait`**，分两类：
 
-> **本文档体系第一版说"12 个全部依赖"，证据是一条 grep。那条 grep 的命中里包含 `ext/extension-api` 自己**（它的包名行就含这个字符串）——**crate 不可能依赖自己**。逐文件核对后是 8/11（11 = 12 减去扩展点自身）。
+| 类别 | 数量 | 位置 |
+| ---- | ---: | ---- |
+| **contributor trait**（扩展往主流程里"贡献"东西） | **13** | `codex-rs/ext/extension-api/src/contributors.rs` 12 个 + `codex-rs/ext/extension-api/src/user_instructions.rs` 1 个 |
+| **capability trait**（主流程反过来提供给扩展的能力） | 4 | `codex-rs/ext/extension-api/src/capabilities/` 下 |
+
+> 复现：`rg -n 'pub trait ' codex-rs/ext/extension-api/src/`。**"13 个扩展点"指的是 contributor 那一类**，说"扩展 trait 有 13 个"时要带上这个口径。
+
+实测：12 个 `ext/*` crate 里，只有 **8 个**依赖 `extension-api`（逐份直读各 crate 清单的 `[dependencies]` 段，非 grep 计数）。不依赖的 3 个是 `ext/agent`、`ext/connectors`、`ext/items`；剩下 1 个是 `extension-api` 自己。
+
+> **本文档体系第一版说"12 个全部依赖"。** 那是一次**未取证的归纳**——把"`ext/` 下有 12 个 crate"直接当成了"12 个都依赖它"。
 >
-> **教训：用 grep 统计"谁依赖 X"时，X 自己总会命中。**
+> ⚠️ **连这条勘误的错因本身也曾被写错。** 上一版说错因是"grep 把 `ext/extension-api` 自己数进去了"。**这个解释站不住**：按那个口径只会得到 9，而 `agent`/`connectors`/`items` 三份清单里该字符串出现 **0 次**，grep 口径解释不了 12 → 8 这个差额。真实错因就是最朴素的那个——**没查，直接归纳了**。
+>
+> （这条修订与仓库规范 `dev_docs/rules/combined/AI_RULES.md` §5.3 的记载保持一致。）
+>
+> **教训**：依赖类断言必须逐份读 `[dependencies]` 段，不能 `grep -rl` 数文件名。
 
 ### 三个例外各是什么
 
@@ -281,7 +294,7 @@ codex 同时是**两边**：
 | 有几种进程形态？ | 五种，包括"TUI 连远端 core" |
 | TUI 能用 core 吗？ | **不能直接依赖/import**（CI 强制），但 core 会传递性链接进去 |
 | 协议类型怎么跨语言同步？ | Rust 是唯一事实源，TS 自动生成 |
-| `ext/` 里都实现扩展 API 吗？ | **不是**，只有 8/11。目录约定不等于契约 |
+| `ext/` 里都实现扩展 API 吗？ | **不是**，12 个里只有 8 个依赖它。目录约定不等于契约 |
 | 有几条扩展路径？ | 四条：内建扩展、插件、Skills、MCP |
 | 只做一条选哪个？ | **MCP 客户端**，投入产出比最高 |
 | 什么时候做插件系统？ | 最后。过早做是典型过度设计 |

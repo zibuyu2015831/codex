@@ -1,6 +1,6 @@
 ---
 title: 22 承重墙与削减地图
-summary: 给出 fork codex 时的禁改清单与可砍清单，包括 protocol 作为被 70 个 crate 依赖的契约层为何是最大承重墙及如何在其上安全开门、config 与 utils 与持久化三层的不可动理由、按功能块整理的可整块删除清单与各自的前置条件与行数、core 内部 411 个平铺模块无法按目录切片这一最大技术痛点的应对方法，以及删除操作的依赖反查命令与验证方式。
+summary: 给出 fork codex 时的禁改清单与可砍清单，包括 protocol 作为被 70 个 crate 依赖的契约层为何是最大承重墙及如何在其上安全开门、config 与 utils 与持久化三层的不可动理由、按功能块整理的可整块删除清单与各自的前置条件与行数、core 内部 112 个顶层平铺文件与 17 个子目录的真实结构及两者应分别采用的削减手法（含对上一版 411 平铺模块结论的修订复盘），以及删除操作的依赖反查命令与验证方式。
 keywords: codex | fork | load-bearing | cut-list | protocol | dependency-reverse-lookup | flat-module | trimming
 scope: fork codex 时的禁改清单、可砍清单与削减方法
 related_files: codex-rs/protocol/src/protocol.rs | codex-rs/core/Cargo.toml | codex-rs/Cargo.toml | codex-rs/core/src/session/rollout_reconstruction.rs | codex-rs/utils
@@ -118,7 +118,7 @@ graph LR
 | crate | 为什么不能动 |
 | ---- | ---- |
 | `codex-config` | 配置装载是所有东西的前置。改了它，所有 crate 的初始化路径都变 |
-| `utils/*`（23 个） | L0 层。其中 `utils-absolute-path` 单个被 **55 个 crate** 依赖 |
+| `utils/*`（23 个） | L0 层。其中 `utils-absolute-path` 单个被 **55 个 crate** 依赖（含 dev-deps 口径；只算 `[dependencies]` 是 **49**） |
 | `codex-state` | SQLite 层，5 个库 + 55 个迁移文件。动它要写迁移 |
 | `codex-rollout` | 会话事实源。格式一改，历史会话全部读不出 |
 | `codex-thread-store` | 会话操作面，建在上面两个之上 |
@@ -132,7 +132,7 @@ graph LR
 graph TD
     U["utils/* 23 个 crate<br/>合计 15,570 行"]
     U --> N1["依赖任一 utils/* 的 crate：<br/>含内部互依 76 个<br/>剔除 utils 自身后 69 个"]
-    U --> N2["其中 utils-absolute-path<br/>单个被 55 个 crate 依赖"]
+    U --> N2["其中 utils-absolute-path<br/>单个被 55 个 crate 依赖<br/>（含 dev-deps；纯生产 49）"]
 
     style U fill:#f8cecc,stroke:#b85450,stroke-width:2px
 ```
@@ -232,37 +232,91 @@ graph LR
 
 ---
 
-## 5. 🔴 最大的痛点：`core` 内部无法按目录切
+## 5. 🟡 真正的痛点：`core` 的顶层是一片平地
 
 这是 fork codex 最难的一件事，值得单独一节。
 
-### 问题
+> ⚠️ **本节是一次重大修订。** 上一版写的是「`core/src/` 下是 **411 个平铺模块**，嵌套模块数为 0」，并据此得出「不能按目录切」的结论。**这个结论是错的**，错因见本节末尾的复盘。真实结构如下。
 
-`codex-core` 的 `src/` 下是 **411 个平铺模块**，嵌套模块数为 0。
+### 真实结构：112 个顶层文件 + 17 个子目录<!-- no-count-check -->
+
+| 口径 | 数值 | 复现命令 |
+| ---- | ---: | ---- |
+| `core/src/` **顶层** `.rs` 文件 | **112** | `ls -1 codex-rs/core/src/*.rs \| wc -l` |
+| 其中生产模块 / 测试模块 | 75 / 37 | `ls -1 codex-rs/core/src/*.rs \| grep -c _tests.rs` |
+| `core/src/` 下的**子目录** | **17** | `ls -d codex-rs/core/src/*/ \| wc -l` |
+| `core/src/` 递归 `.rs` 总数 | **411** | `find codex-rs/core/src -name '*.rs' \| wc -l` |
+
+**那个 411 是递归总数，不是平铺模块数。** 411 − 112 = 299 个文件住在子目录里。
+
+更关键的是**行数分布**——代码的大头在子目录，不在平地上：
+
+| 位置 | 文件数 | 行数 |
+| ---- | ---: | ---: |
+| 顶层平铺 | 112 | **51,429** |
+| 17 个子目录合计 | 299 | **133,678** |
 
 ```mermaid
 graph TD
-    CORE["codex-core/src/"]
-    CORE --> M1["compact.rs"]
-    CORE --> M2["compact_remote.rs"]
-    CORE --> M3["compact_remote_v2.rs"]
-    CORE --> M4["realtime_conversation.rs<br/>2,465 行"]
-    CORE --> M5["client.rs"]
-    CORE --> M6["exec.rs"]
-    CORE --> M7["...另外 400 多个"]
-    CORE --> D1["session/ 29 文件"]
-    CORE --> D2["tools/ 26 文件"]
-    CORE --> D3["tasks/ 7 文件"]
-    CORE --> D4["...另外 13 个子目录"]
+    CORE["codex-core/src/<br/>185,107 行"]
 
-    style CORE fill:#f8cecc,stroke:#b85450,stroke-width:2px
+    subgraph FLAT["顶层平地：112 文件 / 51,429 行 ← 真正的痛点"]
+      M1["compact.rs + compact_*.rs<br/>共 8 个，全在根上"]
+      M2["client.rs 2,446 行"]
+      M3["exec.rs / safety.rs / skills.rs …"]
+      M4["realtime_conversation.rs 2,465 行"]
+    end
+
+    subgraph DIRS["17 个子目录：299 文件 / 133,678 行 ← 可按目录切"]
+      D1["tools/ 112 文件 39,943 行"]
+      D2["session/ 30 文件 28,824 行"]
+      D3["config/ 20 文件 27,949 行"]
+      D4["agent/ · guardian/ · context/ · unified_exec/<br/>context_manager/ · tasks/ · state/ · plugins/ …"]
+    end
+
+    CORE --> FLAT
+    CORE --> DIRS
+
+    style FLAT fill:#f8cecc,stroke:#b85450,stroke-width:2px
+    style DIRS fill:#d5e8d4,stroke:#82b366,stroke-width:2px
 ```
 
-**平铺意味着：你不能"删掉某个子目录"来去掉一个功能。** 只能逐模块判断。
+### 所以正确的结论是什么
+
+**① 相当一部分功能确实可以按目录整块切。** `guardian/`（8,294 行）、`plugins/`（1,011 行）、`unified_exec/`（5,148 行）、`apps/`、`realtime_conversation/` 都是独立子目录，删目录 + 删 `codex-rs/core/src/lib.rs` 里那一行 `mod xxx;` 就是完整的第一步。
+
+**② 痛点在顶层那 112 个文件。** 它们没有任何分组，一个功能的碎片可能散落在好几个同级文件里。最典型的是压缩——**8 个 `compact_*.rs` 平铺在根目录**（见 [08](./08-context.md) §4），你无法通过删一个目录去掉它。
+
+**③ 还有一个上一版完全没提的事实**：`codex-core` 的 296,963 行里，**111,856 行（38%）是 `core/tests/` 下的集成测试**，`core/src/` 只有 185,107 行。
+
+```
+185,107 (core/src) + 111,856 (core/tests) = 296,963 ✅ 与 crate 总行数分毫不差
+```
+
+> **对削减估算的直接影响**：你看到"core 29.7 万行"时的心理压力，有 38% 是测试代码。删功能时测试是**跟着走的**（见下面的技巧③），不构成额外的理解负担。真正要读懂的是那 18.5 万行。
+
+### 复盘：上一版为什么会错
+
+**错因是把 `find` 的递归计数当成了 `ls` 的平铺计数**，然后由"411 个平铺模块"顺推出"没有嵌套分组"。
+
+讽刺的是，**上一版自己的图里就列着 `session/ 29 文件`、`tools/ 26 文件`、`tasks/ 7 文件`、"另外 13 个子目录"**——图和正文在同一屏里互相矛盾，却过了门禁，也过了两轮复核。
+
+> **教训（比这个数字本身更值钱）**：
+>
+> **`find` 和 `ls` 数出来的是两个东西，混用时不会有任何报错。** 凡是"某目录下有 N 个模块"这类断言，必须在文里写明是哪条命令数出来的——本节的表格现在就是这么写的。
+>
+> 更普遍的一条：**当一篇文档的图和正文对不上时，先怀疑正文。** 图通常是照着实际结构画的，正文更容易是脑补的。
 
 ### 应对方法
 
-**① 从「入口」倒推，不要从「文件名」正推。**
+**① 先分清你要删的东西住在哪一边。**
+
+| 它在哪 | 怎么删 |
+| ---- | ---- |
+| **独立子目录**（`guardian/`、`plugins/`、`unified_exec/`…） | 删目录 + 删 `codex-rs/core/src/lib.rs` 里那一行 `mod xxx;`，然后跟着编译器走 |
+| **顶层平铺文件** | 没有捷径，必须从入口倒推（见②） |
+
+**② 顶层文件：从「入口」倒推，不要从「文件名」正推。**
 
 一个功能的入口通常是提交循环里的某几个 `Op` 分支。顺着它往下扒：
 
@@ -277,9 +331,11 @@ rg 'realtime_conversation' codex-rs/core/src --type rust -l
 # 3. 反查这些文件还被谁用
 ```
 
-**实时语音是个好例子**：入口是 6 个 `Op` 分支，主体是一个 2,465 行的单文件 + 一个小子目录。**边界清晰，可以整块删。**
+**实时语音是个好例子，因为它两边都占**：入口是 6 个 `Op` 分支，主体是顶层的 `codex-rs/core/src/realtime_conversation.rs`（2,465 行）**加上**同名子目录 `core/src/realtime_conversation/`（2 个文件），另外还有 `codex-rs/core/src/realtime_context.rs`、`codex-rs/core/src/realtime_prompt.rs` 散在顶层。
 
-**② 用编译器做删除验证。**
+> **这正是顶层平地的麻烦**：同一个功能的碎片，一半有目录一半没有。`rg` 按功能名搜比按目录看可靠。
+
+**③ 用编译器做删除验证。**
 
 ```mermaid
 graph LR
@@ -294,11 +350,15 @@ graph LR
 
 **这是 Rust 项目 fork 的最大红利。** 不用担心"删漏了什么运行时才发现"。
 
-**③ 先删测试，再删实现。**
+> **给 Python 背景的读者**：这一条在 Python 里是不成立的。Python 删掉一个模块，只有真的执行到那行 `import` 时才会 `ImportError`——很可能是上线之后。Rust 的模块引用在编译期全部解析，**`cargo check` 一遍就能列全所有引用点**。这是本篇所有"跟着报错走"建议的前提。
 
-`core` 里 27% 的模块是 `*_tests`。先把要删功能的测试删掉，能大幅减少后续的编译错误噪音。
+**④ 先删测试，再删实现。**
 
-**④ 用模块依赖图辅助判断。**
+`core/src` 递归 411 个 `.rs` 里有 113 个是 `*_tests.rs`（**27%**）；顶层 112 个里有 37 个（33%）。**另外还有 `core/tests/` 那 11.2 万行集成测试**。
+
+先把要删功能的测试删掉，能大幅减少后续的编译错误噪音。
+
+**⑤ 用模块依赖图辅助判断。**
 
 `dev_docs/diagrams/codex-05-session-modules.drawio.png` 是从 `core/src/session/` 自动抽取的真实依赖图。同样的方法可以对任意子目录再跑一次，看清边界。
 
@@ -379,7 +439,8 @@ graph TD
 | 最大的一刀在哪？ | `tui`（23.8 万行） |
 | 删 app-server 有什么坑？ | **TUI 依赖它**，要么一起留要么一起删 |
 | 删 analytics 有什么坑？ | **不能只删，要替换成 no-op** |
-| core 为什么最难砍？ | 411 个平铺模块，不能按目录切，只能从 `Op` 入口倒推 |
+| core 为什么最难砍？ | **顶层 112 个文件没有分组**（占 5.1 万行）；17 个子目录（13.4 万行）反而可以整块切。顶层部分只能从 `Op` 入口倒推 |
+| core 的 29.7 万行都要读吗？ | **不用**。其中 11.2 万行（38%）是 `core/tests/` 集成测试 |
 | 削减顺序？ | 独立 → 整块 → 平台 → 遥测 → 前端 → core 内部 → 协议 |
 
 ---

@@ -123,7 +123,18 @@ Rust 项目倾向后者，因为拆开有两个实打实的好处：
 | `[workspace] members` 显式条目 | 128 |
 | `codex-rs/` 下的清单文件数 | 134 |
 
-差额的 6 个是"不在 `members` 数组里、但被某个成员通过 `path` 依赖间接纳入"的 crate。
+差额的 6 个是"不在 `members` 数组里、但被某个成员通过 `path` 依赖间接纳入"的 crate。**实测就是这 6 个**：
+
+| crate 目录 | 性质 |
+| ---- | ---- |
+| `codex-rs/app-server/tests/common` | 测试辅助 |
+| `codex-rs/core/tests/common` | 测试辅助 |
+| `codex-rs/mcp-server/tests/common` | 测试辅助 |
+| `codex-rs/chatgpt` | 生产 crate |
+| `codex-rs/message-history` | 生产 crate |
+| `codex-rs/windows-sandbox-rs` | 生产 crate（平台相关） |
+
+> 有一半是**测试专用的辅助 crate**——把测试脚手架单独做成 crate 而不是塞进 `tests/` 里的普通模块，这样多个集成测试文件可以共享它。**这个手法值得记住**，[31](./31-testing-an-agent.md) 会展开。
 
 ---
 
@@ -184,7 +195,9 @@ graph TD
 - **`codex-core` 依赖 66 个内部 crate** —— 它站在 L3，需要下面三层的一切能力
 - **`codex-protocol` 被 70 个 crate 依赖** —— 它在 L2 定义了所有人共用的消息类型
 
-> 这两个数字是**含 dev-dependencies 去重**的口径。只算生产依赖的话分别是 58 和 67。**依赖类的数字必须标口径**，否则不同来源永远对不上。
+> 这两个数字是**含 dev-dependencies 去重**的口径。只算 `[dependencies]` 的话分别是 **58** 和 **66**。**依赖类的数字必须标口径**，否则不同来源永远对不上。
+>
+> 复现方式：逐份读各 crate 清单文件的 `[dependencies]` / `[dev-dependencies]` 段（本仓 workspace 含 git 依赖，`cargo metadata --offline` 会直接失败，用不了）。
 
 ### 分层是归纳，不是强制
 
@@ -266,6 +279,24 @@ graph TD
 
 **理想没能 100% 守住**——这本身是个有价值的信息：真要做"单文件交付"，沙箱和跨语言宿主这两块是最容易破功的地方。
 
+### ⚠️ 别把这张表和 `[[bin]]` 数量搞混
+
+你自己去 grep 会数出**21 个 `[[bin]]` target**：
+
+```bash
+grep -rn --include=Cargo.toml -A3 '^\[\[bin\]\]' codex-rs | grep 'name ='
+```
+
+多出来的那些是**开发期工具与测试辅助**，不进发布包，比如：`codex-write-config-schema`（生成配置 schema）、`logs_client`、`md-events`、`codex-app-server-test-notify-capture`、`codex-file-search`。
+
+**三个口径别混用**：
+
+| 口径 | 数值 | 含义 |
+| ---- | ---: | ---- |
+| `[[bin]]` target | **21** | 这个 workspace 能编出多少个可执行文件 |
+| 随正式发布交付 | **6**（+ 主程序 `codex`） | 用户装完之后硬盘上有什么 |
+| 运行时才拉起 | 2 | 不进发布清单，用到时才产生 |
+
 ---
 
 ## 本篇小结
@@ -278,7 +309,7 @@ graph TD
 | 134 个 crate 都在运行吗？ | 不是，那是编译期的抽屉 |
 | 复杂度集中在哪？ | core（29.7 万行）和 tui（23.8 万行），占一半以上 |
 | "默认 TUI" 是第 28 个子命令吗？ | 不是，是"没给子命令"的分支 |
-| "单二进制"准确吗？ | 交互入口只有一个，但**随发布另交付 6 个辅助可执行文件**（加上 2 个运行时 helper 共 8 个） |
+| "单二进制"准确吗？ | 交互入口只有一个，但**随发布另交付 6 个辅助可执行文件**（加上 2 个运行时 helper 共 8 个）。workspace 里的 `[[bin]]` target 则有 21 个，多出来的是开发期工具 |
 
 ---
 

@@ -267,7 +267,9 @@ graph TD
 | apply_patch | `codex-rs/core/src/tools/runtimes/apply_patch.rs` |
 | unified_exec | `codex-rs/core/src/tools/runtimes/unified_exec.rs` |
 
-> 有个细节：`handlers/apply_patch.lark` 是一个 **Lark 语法文件**——补丁格式有形式化文法定义，不是拿正则硬凑的。**这个选择很值得抄**：补丁格式一旦用正则解析，边界情况会没完没了。
+> 有个细节：`codex-rs/core/src/tools/handlers/apply_patch.lark` 是一个 **Lark 语法文件**——补丁格式有形式化文法定义，不是拿正则硬凑的。
+>
+> ⚠️ **但它的用途容易读反**：这份文法**不是本地解析器读的，是随工具规格发给模型的**，用于语法约束解码（本地另有一个 661 行的手写解析器）。完整说明见 [13](./13-patch-and-exec-policy.md) §1 — 先纠正一个误读：那份 `.lark` 文法不是给你的解析器用的。
 
 ---
 
@@ -321,7 +323,7 @@ async def shell_handler(args): ...
 
 不截断 → 上下文爆炸。截断了不说 → 模型基于残缺信息做决定，还以为自己看全了。
 
-codex 有专门的 `truncate_function_output_payload` 函数处理这件事（见 [05](./05-inside-a-turn.md) §2）。
+codex 有专门的 `truncate_function_output_payload` 函数处理这件事（见 [05](./05-inside-a-turn.md) §5 — ① 组上下文：两个容易混淆的目录）。
 
 ---
 

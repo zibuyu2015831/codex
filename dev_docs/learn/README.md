@@ -1,7 +1,7 @@
 ---
 title: Codex 架构学习教程 · 目录
-summary: 面向初次接触 codex 的读者与计划参照 codex 自建同类产品的团队，说明本教程的定位、两条阅读路线（理解篇 01-10 与决策篇 20-23）、每篇的内容与前置要求、本目录与 dev_docs 其余文档的独立关系，以及配套架构图的位置与使用方式。
-keywords: codex | tutorial | architecture | onboarding | fork | agent-loop | learning-path
+summary: 面向初次接触 codex 的读者与计划参照 codex 自建同类产品的团队，说明本教程的定位、四条阅读路线（理解篇 01-10、深入篇 11-13、实践篇 30-32、决策篇 20-23）、每篇的内容与前置要求、不要求读者会 Rust 这一行文前提、本目录与 dev_docs 其余文档的独立关系，以及配套架构图的位置与使用方式。
+keywords: codex | tutorial | architecture | onboarding | fork | agent-loop | learning-path | rust-for-python
 scope: dev_docs/learn/ 教程目录的导读与阅读路线
 related_files: codex-rs/cli/src/main.rs | codex-rs/core/src/session/mod.rs | codex-rs/core/src/session/handlers.rs | codex-rs/protocol/src/protocol.rs
 dependencies: 无（本目录文档自包含，不依赖 dev_docs 其余文档）
@@ -19,13 +19,15 @@ verified_at: 2026-08-05
 | 你是谁 | 从哪读起 |
 | ---- | ---- |
 | 第一次接触 codex，想搞懂它怎么工作 | [01](./01-coordinates.md) 开始，顺序读到 10 |
-| 要参照 codex 做同类产品（从零写） | 先读 01–07，再读 [20](./20-design-decisions.md) |
-| 要 fork codex 删减改造 | 先读 01–10 建立全局观，再读 [21](./21-before-you-fork.md)–[23](./23-rollout-plan.md) |
+| **不熟 Rust，怕读不动** | 直接开始。所有 Rust 语法就地解释，卡住时查 [32](./32-rust-for-python-readers.md) |
+| 想尽快有实感 | 01–06，然后**做 [30 动手篇](./30-hands-on.md)** |
+| 要参照 codex 做同类产品（从零写） | 01–07 + [11](./11-model-client.md)，再读 [20](./20-design-decisions.md) |
+| 要 fork codex 删减改造 | 01–10 建立全局观，再读 [21](./21-before-you-fork.md)–[23](./23-rollout-plan.md) |
 | 只想知道某个具体机制 | 查下面的分篇索引，直接跳 |
 
 ---
 
-## 两条路线
+## 四条路线
 
 ### 理解篇（01–10）：codex 是怎么工作的
 
@@ -37,12 +39,34 @@ verified_at: 2026-08-05
 | [02](./02-startup.md) | 启动：从敲下命令到会话转起来 | 那 0.3 秒里发生了什么 |
 | [03](./03-protocol.md) | 提交与事件：会话的对外形状 | 为什么内核对外只有两个口子 |
 | [04](./04-three-loops.md) | 三层循环：内核的心脏 | 一句话进来到底转了几圈 |
-| [05](./05-inside-a-turn.md) | 一个 turn 的内部 | 模型看到的东西是怎么拼出来的 |
+| [05](./05-inside-a-turn.md) | 一个 turn 的内部 | `run_turn` 里到底发生了什么（**实为五层嵌套**） |
 | [06](./06-tools.md) | 工具系统：注册、路由、编排 | 模型说"跑个命令"之后 |
 | [07](./07-security.md) | 安全：审批与沙箱两道防线 | 它能对我的电脑做什么 |
 | [08](./08-context.md) | 上下文管理与压缩 | 聊久了为什么不会爆 |
 | [09](./09-persistence.md) | 持久化与恢复 | `codex resume` 是怎么做到的 |
 | [10](./10-frontends-and-extensions.md) | 前端与扩展面 | IDE 怎么接？怎么加新能力？ |
+
+### 深入篇（11–13）：理解篇跳过的三块
+
+**这三篇补的是理解篇里被简化或跳过的部分**，每篇都可独立读。
+
+| 篇 | 标题 | 补什么洞 | 建议读序 |
+| ---- | ---- | ---- | ---- |
+| [11](./11-model-client.md) | 模型客户端：一次请求的一生 | 04 与 06 之间那个"调模型"黑箱：提示词从哪来、SSE、重试 | **05 之后、06 之前** |
+| [12](./12-config-and-features.md) | 配置系统与特性开关 | 02 §3 用四行讲完的配置，实为八层 | 02 之后任意时候 |
+| [13](./13-patch-and-exec-policy.md) | 补丁与执行策略 | 模型怎么安全地改代码、跑命令 | 06、07 之后 |
+
+> **[11](./11-model-client.md) 是这三篇里最重要的一篇。** 如果你要自己做一个，模型 I/O 层是唯一绕不过去、必须自己写的部分。
+
+### 实践篇（30–32）：从"读懂"到"能改"
+
+| 篇 | 标题 | 产出 |
+| ---- | ---- | ---- |
+| [30](./30-hands-on.md) | 动手篇：跑起来、看见、改一次 | **亲眼看到三层循环** + 加一个工具（只改 3 个文件） |
+| [31](./31-testing-an-agent.md) | 怎么测一个智能体 | 把不确定的模型换成可编剧的假服务 |
+| [32](./32-rust-for-python-readers.md) | Python 程序员读 codex 的 Rust 地图 | 卡住时的查询表 |
+
+> **[30](./30-hands-on.md) 建议在读完 01–06 之后就做**，不用等读完全部。读十遍工具系统不如加一个工具。
 
 ### 决策篇（20–23）：要自己做一个的话
 
@@ -61,11 +85,13 @@ verified_at: 2026-08-05
 
 | 图 | 配套篇 |
 | ---- | ---- |
-| `codex-01-topology.drawio.png` | 01、02 |
+| `codex-01-topology.drawio.png` | 01、02、10 |
 | `codex-02-layers.drawio.png` | 01、22 |
 | `codex-03-agent-loop.drawio.png` | 03、04 |
 | `codex-04-security.drawio.png` | 07 |
 | `codex-05-session-modules.drawio.png` | 05、22 |
+
+> ⚠️ **图反映的是 01–10 的结构。** 深入篇 11–13 与实践篇 30–32 是后补的，没有配套图，正文里的 mermaid 图是自足的。
 
 每张图都有 `.drawio` 源文件和 `.drawio.png` 图片两个版本。**PNG 里内嵌了 XML**，拖回 draw.io 就能编辑。
 
@@ -89,9 +115,17 @@ verified_at: 2026-08-05
 
 ## 需要的前置知识
 
-**读理解篇（01–10）**：会一门编程语言即可。涉及 Rust 语法的地方正文会随手解释，不要求你先学 Rust。
+**不要求你会 Rust。**
 
-**读决策篇（20–23）**：如果你打算 fork，需要能读 Rust。不要求会写。
+本教程默认读者**熟悉某一门语言（以 Python 为参照）但不熟 Rust**。所有 Rust 语法在出现的地方就地解释，并给出 Python 对照。
+
+| 你在读 | 需要什么 |
+| ---- | ---- |
+| 理解篇 01–10、深入篇 11–13 | 会一门编程语言即可 |
+| 实践篇 30–31 | 同上，外加能跑命令行 |
+| 决策篇 20–23 | 打算 fork 的话，需要**能读** Rust（不要求会写） |
+
+**卡在语法上时**：查 [32 Python 程序员读 codex 的 Rust 地图](./32-rust-for-python-readers.md)。它把散落各篇的 Rust 小注收拢成一张对照表，**不是 Rust 教程，是"读 codex 时会绊住你的那些东西"**。
 
 ---
 
@@ -99,10 +133,11 @@ verified_at: 2026-08-05
 
 诚实的边界，省得你在这里找：
 
-- **模型侧的东西** —— prompt 工程、模型选型、token 计费，本教程完全不涉及
-- **逐行代码讲解** —— 这是架构教程，不是代码走读。29 万行不可能逐行讲
+- **模型侧的东西** —— prompt 工程、模型选型、token 计费，本教程完全不涉及（[11](./11-model-client.md) 只讲**工程上**怎么把 prompt 组装并发出去，不讲怎么写好 prompt）
+- **逐行代码讲解** —— 这是架构教程，不是代码走读。29.7 万行不可能逐行讲
 - **上游的最新变化** —— codex 是高频更新项目，本教程描述的是某一时刻的结构。**大结构稳定，细节会漂**
-- **Rust 语言教学** —— 需要的地方随文解释，但不成体系
+- **系统的 Rust 语言教学** —— [32](./32-rust-for-python-readers.md) 是查询表，不是教程。想系统学请去看《The Rust Programming Language》
+- **认证与登录**、**遥测与数据边界**、**构建与发布** —— 这三块本教程只在需要时提一句，没有专篇
 
 ---
 

@@ -176,6 +176,10 @@ pub(crate) trait SessionTask: Send + Sync + 'static {
 
 **`TaskKind` 只有 3 个变体**：`Regular` / `Review` / `Compact`。
 
+> ⚠️ **它不在 `tasks/` 目录下。** 定义在 `codex-rs/core/src/state/turn.rs:67`，紧挨着 `RunningTask`。
+>
+> 按"任务相关的东西应该在 `tasks/` 里"去找会找不到——这类"名字和位置对不上"的情况在 codex 内核的顶层目录里很常见，原因见 [22](./22-load-bearing-and-cuts.md) §5 — 真正的痛点：`core` 的顶层是一片平地。
+
 而 `UserShellCommandTask` **复用了 `TaskKind::Regular`**，只能靠 `span_name()` 在追踪里区分：
 
 | 实现 | `kind()` | `span_name()` |
@@ -329,6 +333,7 @@ async def run_task(sub, cancel_token):
 | "模型跑时能继续打字"怎么实现的？ | 第 3 层的回环 + 输入队列 |
 | 为什么不能压成一层？ | 中断和并发输入都会失效 |
 | 第 1 层和第 2 层什么关系？ | **spawn，不是调用**。第 1 层不能被堵住 |
+| 真的只有三层吗？ | 作为**心智模型**是的。真要改 `codex-rs/core/src/session/turn.rs` 的话下面还有两层，见 [05](./05-inside-a-turn.md) §1 — 先纠正一个说法：不是"三层循环"，是五层 |
 
 ---
 
