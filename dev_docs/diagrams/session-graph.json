@@ -1,0 +1,183 @@
+{
+ "direction": "TB",
+ "nodes": [
+  {
+   "id": "handlers",
+   "label": "handlers",
+   "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;strokeWidth=2;",
+   "width": 170
+  },
+  {
+   "id": "session",
+   "label": "session",
+   "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;strokeWidth=2;",
+   "width": 170
+  },
+  {
+   "id": "mcp_runtime",
+   "label": "mcp_runtime",
+   "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;",
+   "width": 170
+  },
+  {
+   "id": "rollout_budget",
+   "label": "rollout_budget",
+   "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;",
+   "width": 170
+  },
+  {
+   "id": "input_queue",
+   "label": "input_queue",
+   "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;strokeWidth=2;",
+   "width": 170
+  },
+  {
+   "id": "token_budget",
+   "label": "token_budget",
+   "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;",
+   "width": 170
+  },
+  {
+   "id": "context_window",
+   "label": "context_window",
+   "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;",
+   "width": 170
+  },
+  {
+   "id": "turn",
+   "label": "turn",
+   "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;strokeWidth=2;",
+   "width": 170
+  },
+  {
+   "id": "turn_context",
+   "label": "turn_context",
+   "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;strokeWidth=2;",
+   "width": 170
+  },
+  {
+   "id": "time_reminder",
+   "label": "time_reminder",
+   "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;",
+   "width": 170
+  },
+  {
+   "id": "step_context",
+   "label": "step_context",
+   "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;strokeWidth=2;",
+   "width": 170
+  },
+  {
+   "id": "mcp_refresh",
+   "label": "mcp_refresh",
+   "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;",
+   "width": 170
+  },
+  {
+   "id": "world_state",
+   "label": "world_state",
+   "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;",
+   "width": 170
+  },
+  {
+   "id": "multi_agents",
+   "label": "multi_agents",
+   "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;",
+   "width": 170
+  },
+  {
+   "id": "mcp",
+   "label": "mcp",
+   "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;",
+   "width": 170
+  },
+  {
+   "id": "inject",
+   "label": "inject",
+   "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;",
+   "width": 170
+  }
+ ],
+ "edges": [
+  {
+   "source": "context_window",
+   "target": "session"
+  },
+  {
+   "source": "context_window",
+   "target": "turn_context"
+  },
+  {
+   "source": "session",
+   "target": "input_queue"
+  },
+  {
+   "source": "session",
+   "target": "mcp_refresh"
+  },
+  {
+   "source": "handlers",
+   "target": "session"
+  },
+  {
+   "source": "mcp",
+   "target": "mcp_refresh"
+  },
+  {
+   "source": "turn",
+   "target": "session"
+  },
+  {
+   "source": "inject",
+   "target": "session"
+  },
+  {
+   "source": "inject",
+   "target": "turn_context"
+  },
+  {
+   "source": "mcp_runtime",
+   "target": "session"
+  },
+  {
+   "source": "mcp_runtime",
+   "target": "mcp"
+  },
+  {
+   "source": "multi_agents",
+   "target": "session"
+  },
+  {
+   "source": "rollout_budget",
+   "target": "session"
+  },
+  {
+   "source": "rollout_budget",
+   "target": "turn_context"
+  },
+  {
+   "source": "step_context",
+   "target": "session"
+  },
+  {
+   "source": "time_reminder",
+   "target": "session"
+  },
+  {
+   "source": "time_reminder",
+   "target": "turn_context"
+  },
+  {
+   "source": "token_budget",
+   "target": "session"
+  },
+  {
+   "source": "token_budget",
+   "target": "turn_context"
+  },
+  {
+   "source": "world_state",
+   "target": "step_context"
+  }
+ ]
+}

@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="26.0.0">
+  <diagram name="分层总览">
+    <mxGraphModel dx="1400" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="2" value="Codex 分层总览：134 个 crate 的骨架" style="text;html=1;fontSize=20;fontStyle=1;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="60" y="10" width="520" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="3" value="依赖方向自上而下，越往下越通用、越稳定" style="text;html=1;fontSize=13;align=right;verticalAlign=middle;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="700" y="10" width="440" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="L5" value="L5 · 用户入口" style="swimlane;html=1;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;fontSize=13;fontStyle=1;pointerEvents=0;" vertex="1" parent="1">
+          <mxGeometry x="60" y="60" width="1080" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="cli" value="codex-cli&#xa;解析命令行，分发 27 个子命令" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="L5">
+          <mxGeometry x="400" y="45" width="280" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="L4" value="L4 · 前端 / 服务端" style="swimlane;html=1;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;fontSize=13;fontStyle=1;pointerEvents=0;" vertex="1" parent="1">
+          <mxGeometry x="60" y="220" width="1080" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="tui" value="codex-tui&#xa;238,439 行" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="L4">
+          <mxGeometry x="20" y="45" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="asc" value="app-server-client&#xa;协议化通路" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="L4">
+          <mxGeometry x="260" y="45" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="exec" value="codex-exec&#xa;非交互" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="L4">
+          <mxGeometry x="520" y="45" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="appsrv" value="codex-app-server&#xa;128,364 行" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="L4">
+          <mxGeometry x="740" y="45" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="mcpsrv" value="codex-mcp-server&#xa;4,128 行" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="L4">
+          <mxGeometry x="940" y="45" width="120" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="L3" value="L3 · 智能体核心" style="swimlane;html=1;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;fontSize=13;fontStyle=1;pointerEvents=0;" vertex="1" parent="1">
+          <mxGeometry x="60" y="450" width="1080" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="plugins" value="codex-core-plugins&#xa;37,038 行" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="L3">
+          <mxGeometry x="20" y="55" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="core" value="codex-core&#xa;296,963 行 · 依赖 66 个内部 crate&#xa;体量重心" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;strokeWidth=3;fontSize=14;fontStyle=1;" vertex="1" parent="L3">
+          <mxGeometry x="260" y="50" width="320" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="tools" value="codex-tools&#xa;6,525 行" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="L3">
+          <mxGeometry x="620" y="55" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="ext" value="ext/ 12 个 crate&#xa;仅 8 个接扩展 API" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;dashed=1;" vertex="1" parent="L3">
+          <mxGeometry x="840" y="55" width="220" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="L2" value="L2 · 协议与契约" style="swimlane;html=1;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;fontSize=13;fontStyle=1;pointerEvents=0;" vertex="1" parent="1">
+          <mxGeometry x="60" y="640" width="1080" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="proto" value="codex-protocol&#xa;被 70 个 crate 依赖&#xa;依赖重心" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=3;fontSize=14;fontStyle=1;" vertex="1" parent="L2">
+          <mxGeometry x="260" y="50" width="320" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="asproto" value="app-server-protocol&#xa;30,946 行" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="L2">
+          <mxGeometry x="620" y="55" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="esproto" value="exec-server-protocol" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="L2">
+          <mxGeometry x="840" y="55" width="220" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="extapi" value="extension-api" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="L2">
+          <mxGeometry x="20" y="55" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="L1" value="L1 · 能力基座" style="swimlane;html=1;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;fontSize=13;fontStyle=1;pointerEvents=0;" vertex="1" parent="1">
+          <mxGeometry x="60" y="830" width="1080" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="base" value="config · login · http-client · sandboxing · state · otel" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=13;" vertex="1" parent="L1">
+          <mxGeometry x="20" y="45" width="1040" height="55" as="geometry" />
+        </mxCell>
+
+        <mxCell id="L0" value="L0 · 通用工具" style="swimlane;html=1;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;fontSize=13;fontStyle=1;pointerEvents=0;" vertex="1" parent="1">
+          <mxGeometry x="60" y="990" width="1080" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="utils" value="utils/ 共 23 个 crate — 其中 utils-absolute-path 单个被 55 个 crate 依赖" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=13;" vertex="1" parent="L0">
+          <mxGeometry x="20" y="45" width="1040" height="55" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="cli" target="tui">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="cli" target="exec">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="cli" target="appsrv">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="cli" target="mcpsrv">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e5" value="CI 强制：不得直连 codex-core" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=1;dashed=1;strokeColor=#b85450;strokeWidth=2;fontSize=12;fontColor=#b85450;labelBackgroundColor=#ffffff;verticalAlign=top;" edge="1" parent="1" source="tui" target="asc">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="170" y="380" />
+              <mxPoint x="420" y="380" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.15;entryY=0;" edge="1" parent="1" source="asc" target="core">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.4;entryY=0;" edge="1" parent="1" source="exec" target="core">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.65;entryY=0;" edge="1" parent="1" source="appsrv" target="core">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.9;entryY=0;" edge="1" parent="1" source="mcpsrv" target="core">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="core" target="proto">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="note" value="L1 与 L0 被上面所有层依赖，边省略不画：全画出来只会变成一团线，而分层图要传达的是层次本身。&#xa;红虚线的准确含义：CI 只禁「直接依赖边」与「直接 import」；codex-core 仍会经 app-server-client 等中间 crate 传递性链接进 codex-tui。" style="text;html=1;fontSize=12;align=left;verticalAlign=middle;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1115" width="1080" height="60" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

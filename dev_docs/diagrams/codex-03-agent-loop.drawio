@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="26.0.0">
+  <diagram name="三层循环">
+    <mxGraphModel dx="1400" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1120" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="2" value="智能体的三层循环：一句话进来，内核里有三层嵌套在转" style="text;html=1;fontSize=20;fontStyle=1;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="60" y="20" width="760" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="LOOP1" value="第 1 层 · 提交循环 submission_loop　—　从 channel 接收 Submission，按 Op 分发（26 种动作）" style="swimlane;html=1;startSize=40;fillColor=#f5f5f5;strokeColor=#666666;fontSize=13;fontStyle=1;verticalAlign=middle;pointerEvents=0;" vertex="1" parent="1">
+          <mxGeometry x="60" y="80" width="980" height="560" as="geometry" />
+        </mxCell>
+
+        <mxCell id="LOOP2" value="第 2 层 · 任务层 SessionTask　—　分四类：普通对话 / 压缩上下文 / 代码评审 / user_shell" style="swimlane;html=1;startSize=40;fillColor=#e8f4ff;strokeColor=#4a90d9;fontSize=13;fontStyle=1;verticalAlign=middle;pointerEvents=0;" vertex="1" parent="LOOP1">
+          <mxGeometry x="40" y="90" width="900" height="450" as="geometry" />
+        </mxCell>
+
+        <mxCell id="LOOP3" value="第 3 层 · turn 循环　—　你直觉里的「一轮对话」" style="swimlane;html=1;startSize=40;fillColor=#fff4e6;strokeColor=#d79b00;fontSize=13;fontStyle=1;verticalAlign=middle;pointerEvents=0;" vertex="1" parent="LOOP2">
+          <mxGeometry x="40" y="90" width="820" height="340" as="geometry" />
+        </mxCell>
+
+        <mxCell id="run" value="run_turn(…)&#xa;组上下文 → 调模型 → 用工具 → 写回历史" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;strokeWidth=2;fontSize=12;" vertex="1" parent="LOOP3">
+          <mxGeometry x="30" y="60" width="270" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="dec" value="还有排队输入？" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=13;" vertex="1" parent="LOOP3">
+          <mxGeometry x="320" y="50" width="220" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="fin" value="返回结果&#xa;本次任务结束" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="LOOP3">
+          <mxGeometry x="600" y="60" width="180" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="LOOP3" source="run" target="dec">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="没有" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;fontSize=12;labelBackgroundColor=#ffffff;" edge="1" parent="LOOP3" source="dec" target="fin">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="有 → 不返回，直接再跑一轮" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=1;strokeColor=#b85450;strokeWidth=2;fontSize=12;fontColor=#b85450;labelBackgroundColor=#ffffff;" edge="1" parent="LOOP3" source="dec" target="run">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="430" y="230" />
+              <mxPoint x="150" y="230" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="note1" value="这个回环就是「模型还在跑时你可以继续打字」的实现原理" style="text;html=1;fontSize=12;align=center;verticalAlign=middle;fontColor=#b85450;" vertex="1" parent="LOOP3">
+          <mxGeometry x="140" y="250" width="560" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="io" value="会话对外只有两个口子：&#xa;指令从 tx_sub 进 　→　 事件从 rx_event 出（EventMsg 共 80 种）" style="shape=note;size=20;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;fillColor=#ffffff;strokeColor=#666666;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="60" y="670" width="600" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="note2" value="每层回答一个问题：&#xa;第 1 层「有活儿来了吗？」　第 2 层「这是什么活儿？」　第 3 层「这轮干完了吗？」" style="text;html=1;fontSize=12;align=left;verticalAlign=middle;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="700" y="670" width="380" height="80" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

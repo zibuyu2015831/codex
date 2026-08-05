@@ -1,0 +1,120 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="全局拓扑" id="topology">
+    <mxGraphModel dx="1400" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1620" pageHeight="960" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" value="Codex 全局拓扑：一个二进制，五种形态" style="text;html=1;fontSize=20;fontStyle=1;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="60" y="40" width="440" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend" value="&lt;b&gt;图例&lt;/b&gt;&lt;br&gt;橙 = 体量重心（codex-core）&lt;br&gt;紫 = 前端 / 适配层&lt;br&gt;绿 = 本地持久化&lt;br&gt;红 = 安全隔离&lt;br&gt;红虚线 = CI 强制的禁止直连&lt;br&gt;灰虚线 = 实验性通路&lt;br&gt;&lt;br&gt;&lt;i&gt;注：CI 禁的是「直接依赖 / 直接 import」。&lt;br&gt;codex-core 仍会经中间 crate 传递性链接&lt;br&gt;进 TUI —— 两者并不矛盾。&lt;/i&gt;" style="shape=note;size=20;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#666666;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1240" y="300" width="340" height="250" as="geometry" />
+        </mxCell>
+
+        <mxCell id="user" value="你 / IDE / SDK" style="ellipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="520" y="40" width="200" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cli" value="主二进制 codex&lt;br&gt;&lt;font style=&quot;font-size:11px&quot;&gt;codex-rs/cli · 27 个子命令分发&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="460" y="160" width="320" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="lFront" value="前端 / 服务端" style="swimlane;html=1;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="280" width="1120" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="tui" value="codex-tui&lt;br&gt;&lt;font style=&quot;font-size:11px&quot;&gt;交互式终端&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="lFront">
+          <mxGeometry x="20" y="50" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="exec" value="codex-exec&lt;br&gt;&lt;font style=&quot;font-size:11px&quot;&gt;非交互，供脚本&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="lFront">
+          <mxGeometry x="240" y="50" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="appsrv" value="codex-app-server&lt;br&gt;&lt;font style=&quot;font-size:11px&quot;&gt;JSON-RPC，供 IDE&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="lFront">
+          <mxGeometry x="460" y="50" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="mcpsrv" value="codex-mcp-server&lt;br&gt;&lt;font style=&quot;font-size:11px&quot;&gt;把自己变成工具&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="lFront">
+          <mxGeometry x="680" y="50" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="cloud" value="codex-cloud-tasks&lt;br&gt;&lt;font style=&quot;font-size:11px&quot;&gt;实验性&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;" vertex="1" parent="lFront">
+          <mxGeometry x="900" y="50" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="asc" value="codex-app-server-client&lt;br&gt;&lt;font style=&quot;font-size:11px&quot;&gt;TUI 的协议化通路&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="60" y="500" width="240" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="core" value="codex-core&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;会话 · turn · 工具调用 · 上下文&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px&quot;&gt;296,963 行 · 依赖 66 个内部 crate&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;strokeWidth=3;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="440" y="640" width="360" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="sandbox" value="codex-sandboxing&lt;br&gt;&lt;font style=&quot;font-size:11px&quot;&gt;Seatbelt / bwrap / Windows&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="180" y="820" width="240" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="model" value="模型服务&lt;br&gt;&lt;font style=&quot;font-size:11px&quot;&gt;OpenAI / Ollama / LM Studio&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="480" y="820" width="280" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="store" value="CODEX_HOME&lt;br&gt;&lt;font style=&quot;font-size:11px&quot;&gt;默认 ~/.codex&lt;br&gt;配置 · 凭证 · 会话&lt;/font&gt;" style="shape=cylinder3;boundedLbl=1;backgroundOutline=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="820" y="820" width="240" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e0" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="user" target="cli">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="cli" target="tui">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="cli" target="exec">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="cli" target="appsrv">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="cli" target="mcpsrv">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;dashed=1;" edge="1" parent="1" source="cli" target="cloud">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e6" value="🚫 CI 强制：不得直连 core" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;dashed=1;strokeColor=#b85450;strokeWidth=2;fontSize=11;fontColor=#b85450;" edge="1" parent="1" source="tui" target="asc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;entryX=0;entryY=0.5;" edge="1" parent="1" source="asc" target="core">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;entryX=0.15;entryY=1;dashed=1;" edge="1" parent="1" source="asc" target="appsrv">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;entryX=0.17;entryY=0;" edge="1" parent="1" source="exec" target="core">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="appsrv" target="core">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;entryX=0.83;entryY=0;" edge="1" parent="1" source="mcpsrv" target="core">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;entryX=1;entryY=0.5;dashed=1;" edge="1" parent="1" source="cloud" target="core">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1060" y="685" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="e13" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.2;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="core" target="sandbox">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e14" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="core" target="model">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e15" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.8;exitY=1;entryX=0.5;entryY=0;startArrow=classic;startFill=1;" edge="1" parent="1" source="core" target="store">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
