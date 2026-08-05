@@ -152,7 +152,7 @@ verified_at: 2026-08-05
 | 约定 | 说明 |
 | ---- | ---- |
 | **产物路径固定 `dev_docs/`** | 禁止迁入 `docs/`（AGENTS.md 顶部规则列表，grep `general product or user-facing documentation`） |
-| **推送只推个人 fork** | ⚠️ **上一版写的「禁止 `git push origin`，因为 `origin` 直连上游 `openai/codex`」与当前工作树不符。** 实测（`git remote -v`）：本工作树的 `origin` **已经指向个人 fork**，`git push origin <branch>` 即可；仓库**未配置上游 remote**。规则的**意图**不变——**绝不向上游推送**；若日后添加上游 remote 请命名为 `upstream` 并禁止推送。口径与 [`development_workflow.md`](../../development_workflow.md) §8 一致 |
+| **推送只推个人 fork** | **2026-08-05 已按规则意图重整 remote，当前状态如下（实测 `git remote -v`）：**<br>· `origin` → 个人 fork（fetch/push 均可）<br>· `upstream` → `openai/codex`，**push URL 已置为 `DISABLED_DO_NOT_PUSH_TO_UPSTREAM`**，误推立即 `fatal` 失败<br>· 已设 `remote.pushDefault = origin`，**任何裸 `git push` 一律走 fork**，不受分支跟踪影响<br>⚠️ 注意 `main` 分支跟踪的是 `upstream/main`（便于同步），**它的推送安全完全依赖上面那条被禁用的 push URL**，不要恢复它。<br>规则意图不变——**绝不向上游推送**。口径与 [`development_workflow.md`](../../development_workflow.md) §8 一致<br>📌 **历史**：本条曾两次记载失准——先写「`origin` 直连上游」，后改成「`origin` 已指向 fork 且未配置上游 remote」，而 2026-08-05 实测时 `origin` 确实直连上游、个人 fork 挂在名为 `fork` 的 remote 上。**引用本条前先跑一次 `git remote -v`。** |
 | 框架软链接不入库 | ⚠️ **上一版写的「`AI-Coding-Context` 已写入 `.git/info/exclude`」不成立。** 实测：该软链接**当前不存在**，`.git/info/exclude` 仍是默认内容（全为注释，无自定义条目）。规则改为**条件式**：**若**在本地创建了指向框架仓库的软链接 `AI-Coding-Context`，**则**必须自行把它加入 `.git/info/exclude` |
 | 不修改仓库根的 gitignore 文件 | 用本地 exclude 代替 |
 
