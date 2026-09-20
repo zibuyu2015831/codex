@@ -1,11 +1,11 @@
 ---
 title: Codex 仓库 AI 规则索引
-summary: 作为 AI 代理在本仓库工作的规则入口，明确以仓库自带 AGENTS.md 为唯一强制事实源、本文件只做索引与定位；规则索引全部改用章节标题加逐条实测过的可 grep 关键词而非易漂移的行号，登记 AGENTS.md 自身已知的三处陈旧记载（mcp_connection_manager.rs 路径不存在、--all-features 建议与 features 禁令矛盾、write-app-server-schema 循环失效），并给出 dev_docs 文档体系特有的落盘路径、推送目标、证据等级硬规则、取证方式禁忌与脱敏约定。
+summary: 作为 AI 代理在本仓库工作的规则入口，明确以仓库自带 AGENTS.md 为唯一强制事实源、本文件只做索引与定位；规则索引全部改用章节标题加逐条实测过的可 grep 关键词而非易漂移的行号，登记 AGENTS.md 自身已知的陈旧记载（mcp_connection_manager.rs 路径不存在、--all-features 建议与 features 禁令矛盾、protocol/v2.rs 单文件路径已改为目录形态；原 write-app-server-schema 循环失效一条第 6 轮已被上游修复而作废），并给出 dev_docs 文档体系特有的落盘路径、推送目标、证据等级硬规则、取证方式禁忌与脱敏约定。
 keywords: codex | ai-rules | agents-md | index | dev-docs | constraints | evidence-level | stale-upstream-docs
 scope: AI 代理在 openai/codex 仓库及本文档体系中的行为约束索引
 related_files: AGENTS.md | docs/contributing.md | codex-rs/tui/styles.md | codex-rs/clippy.toml | codex-rs/app-server-protocol/Cargo.toml | codex-rs/app-server-protocol/scripts/write_schema_fixtures.py | AGENTS.md | justfile | .github/scripts/verify_cargo_workspace_manifests.py | .github/scripts/verify_tui_core_boundary.py | .github/scripts/verify_bazel_clippy_lints.py | codex-rs/codex-mcp/src/connection_manager.rs
 dependencies: dev_docs/AI_Coding_Context.md | dev_docs/development_workflow.md
-verified_at: 2026-08-05
+verified_at: 2026-09-21
 ---
 
 # AI 规则索引
@@ -13,7 +13,7 @@ verified_at: 2026-08-05
 > [!CAUTION]
 > **本文件不是规范，是索引。**
 >
-> 仓库自带的 AGENTS.md（22,519 字节）是**唯一的强制规范事实源**，优先级高于本文档体系的任何内容。本文件**不覆盖、不改写、不复制**其任何条款。
+> 仓库自带的 AGENTS.md（22,397 字节）是**唯一的强制规范事实源**，优先级高于本文档体系的任何内容。本文件**不覆盖、不改写、不复制**其任何条款。
 >
 > 本文件存在的唯一理由是：帮你**快速定位**该去读哪一条，以及补充 `dev_docs` 体系自身的约定。
 
@@ -114,7 +114,8 @@ verified_at: 2026-08-05
 | ---: | ---- | ---- | ---- |
 | S1 | MCP 连接管理器路径 | 顶部规则列表 grep `mcp_connection_manager` 处写作 `codex-rs/codex-mcp/src/mcp_connection_manager.rs` <!-- ref-exempt: 本行正在声明该路径不存在，引用不可解析恰是要表达的事实 --> | **该文件不存在。** 真实文件是 `codex-rs/codex-mcp/src/connection_manager.rs`，另有同名子模块目录与 `codex-rs/codex-mcp/src/connection_manager_tests.rs`。大概是重命名后规则文本没跟着改 |
 | S2 | `--all-features` 建议 | 顶部规则列表，grep `--all-features`：*"Avoid `--all-features` for routine local runs… use it only when you specifically need full feature coverage"*，把它说成「偶尔要用」 | **workspace crate features 已被制度性禁止**——`.github/scripts/verify_cargo_workspace_manifests.py` 直接拒绝任何 `[features]`（白名单只有 `codex-rs/code-mode/Cargo.toml` 与 `codex-rs/v8-poc/Cargo.toml` 的 `sandbox`），也拒绝 `optional = true`。`justfile:78-79` 的注释写着 *"Workspace crate features are banned, so there should be no need to add `--all-features`."* **这条建议已无适用场景** |
-| S3 | app-server schema 再生成命令 | `AGENTS.md` 的 `## App-server API Development Best Practices` → `### Development Workflow`（grep `write-app-server-schema`）、`justfile` 的 `write-app-server-schema` recipe，**以及那条校验测试自己的 `panic!` 文案**（`codex-rs/app-server-protocol/src/schema_fixtures_tests.rs`，grep `Run \`just write-app-server-schema\` to overwrite`，两处）都推荐 `just write-app-server-schema` | **该 recipe 必然失败**：它调 `cargo run -p codex-app-server-protocol --bin write_schema_fixtures`，而 `codex-app-server-protocol` **没有任何 bin target**（根因是 `ts-rs` / `schemars` 只在 `[dev-dependencies]` 里，生产构建下 derive 宏被换成空实现，所以生成器只能以 `cfg(test)` 编译）。**这是一处循环陈旧——测试挂了以后照它说的做只会再挂一次。** 可用入口：`python3 codex-rs/app-server-protocol/scripts/write_schema_fixtures.py` |
+| ~~S3~~ | app-server schema 再生成命令 | — | **第 6 轮：该陈旧已被上游修复，本条作废。** `justfile:177-178` 的 recipe 现在直接调用 `{{ python }} app-server-protocol/scripts/write_schema_fixtures.py`，`just write-app-server-schema` **可以正常执行**。原先「测试失败文案推荐一条坏命令」的循环陈旧随之解除 |
+| **S4（第 6 轮新登记）** | v2 协议的单文件路径 | `AGENTS.md:265` 与 `:275` 两处写作 `app-server-protocol/src/protocol/v2.rs` <!-- ref-exempt: 本行正在声明该路径不存在，引用不可解析恰是要表达的事实 --> | **该文件不存在。** v2 协议已改为**目录形态** `codex-rs/app-server-protocol/src/protocol/v2/`（含 `mod.rs`、`shared.rs` 等）。按字面路径去找会扑空 |
 
 ---
 
@@ -298,7 +299,7 @@ python3 dev_docs/_analysis/cross_doc_consistency_checker.py --verify-repo
 
 ### 五条容易踩空的说明
 
-1. **`just write-app-server-schema` 当前是坏的。** 该 recipe 执行 `cargo run -p codex-app-server-protocol --bin write_schema_fixtures`，但 `codex-app-server-protocol` **没有任何 bin target**（无 `[[bin]]`、无 `src/bin/`），命令必然失败。可用的入口是 `codex-rs/app-server-protocol/scripts/write_schema_fixtures.py`。**注意这是循环陈旧**：校验测试自己的失败文案也在推荐这条坏命令（见 §3.5 S3）。该脚本内部用 `cargo test` 驱动一个 `#[ignore]` 的生成函数，是把测试当「代码生成宿主」用，**与「禁止直接跑 `cargo test`」不冲突**；但该 workaround 本身未实测，产物请自行核对。
+1. **`just write-app-server-schema` 第 6 轮已修好。** 上游把 recipe 改为直接调用 `codex-rs/app-server-protocol/scripts/write_schema_fixtures.py`（`justfile:177-178`），该命令现在可以正常执行。**旧版在此处记载的「必然失败 + 循环陈旧」已作废**（见 §3.5 S3）。注意该脚本内部用 `cargo test` 驱动一个 `#[ignore]` 的生成函数，是把测试当「代码生成宿主」用，**与「禁止直接跑 `cargo test`」不冲突**；它还会连带重生成 Python SDK 的三个产物。
 2. **UI 改动必须配快照。** AGENTS.md 的 `### Snapshot tests` 一节写的是 Requirement：任何影响用户可见 UI 的改动（含新增 UI）都必须附带对应的 `insta` 快照覆盖。这条最常被漏。命令链见 `tui_guide.md` §4 与 `testing_guide.md` §7。
 3. **动 CI 配置的推送可能被拒。** ⚠️ **第 6 轮：本条的原始依据已消失。** 上一版引用的 `.codex/skills/pushing-ci-changes/SKILL.md` 已不存在<!-- ref-exempt: 反例——正文说明该路径已不存在 -->；`.codex/skills/` 现有 11 个技能，其中没有等价物，`AGENTS.md` 中亦未检索到「推送 CI 配置需临时角色」的条款。
 

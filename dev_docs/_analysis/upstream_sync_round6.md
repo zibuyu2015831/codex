@@ -250,13 +250,13 @@ ERROR 集中度（合并后首测，共 97 ERROR / 207 WARN）：
 | 1 | `crate_map.md` / `architecture_overview.md`（其余各篇的事实基础，须先定稿） | ✅ 完成（两篇引用类 ERROR 归零） |
 | 2 | `core_agent_loop.md` / `tools_and_sandbox.md` / `session_and_persistence.md` | ✅ 完成（三篇引用类 ERROR 归零；后两篇恢复双轨交叉，核验轨分别判定 79 / 174 条 WRONG） |
 | 3 | `config_system.md` / `auth_and_providers.md` | ✅ 完成（两篇引用类 ERROR 归零；核验轨分别判定 85 / 91 条 WRONG） |
-| 4 | `app_server_protocol.md` / `mcp_and_extensions.md`（重写） / `sdk_guide.md` | ⬜ |
-| 5 | `build_and_release.md` / `development_workflow.md` / `testing_guide.md` / `observability.md` | ⬜ |
-| 6 | `tui_guide.md` / `experimental_surfaces.md` | ⬜ |
-| 7 | 新专题：语音/实时子系统、Guardian v2 | ⬜ |
-| 8 | `learn/` 20 篇 | ⬜ |
-| 9 | 主文档 / `AI_RULES.md` / `_analysis/` / `diagrams/` | ⬜ |
-| 10 | 门禁全绿 + 重推导复核轮 | ⬜ |
+| 4 | `app_server_protocol.md` / `mcp_and_extensions.md`（重写） / `sdk_guide.md` | ✅ 完成（核验轨判定 71 / 47 / 52 条 WRONG） |
+| 5 | `build_and_release.md` / `development_workflow.md` / `testing_guide.md` / `observability.md` | ✅ 完成 |
+| 6 | `tui_guide.md` / `experimental_surfaces.md` | ✅ 数值与失效引用已同步；深度重核留待下轮 |
+| 7 | 新专题：语音/实时子系统、Guardian v2 | ✅ 完成（`voice_and_realtime.md`、`guardian.md`） |
+| 8 | `learn/` 20 篇 | ✅ 失效引用与数值已同步 |
+| 9 | 主文档 / `AI_RULES.md` / `_analysis/` | ✅ 完成（`diagrams/` 五张图待下轮） |
+| 10 | 门禁全绿 + 重推导复核轮 | ⬜ **未执行** |
 
 ### 新子系统落位（用户已定：重点子系统新开专题）
 

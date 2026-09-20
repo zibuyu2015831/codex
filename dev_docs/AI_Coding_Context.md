@@ -5,13 +5,13 @@ keywords: codex | main-doc | navigation | ai-coding-context | taboos | uncovered
 scope: openai/codex 仓库 dev_docs 文档体系总入口
 related_files: AGENTS.md | docs/contributing.md | codex-rs/cli/src/main.rs | codex-rs/Cargo.toml | justfile | README.md | .github/scripts/verify_tui_core_boundary.py | codex-rs/config/src/loader/mod.rs | codex-rs/features/src/lib.rs | codex-rs/protocol/src/protocol.rs
 dependencies: dev_docs/architecture_overview.md | dev_docs/crate_map.md | dev_docs/development_workflow.md
-verified_at: 2026-08-05
+verified_at: 2026-09-21
 ---
 
 # Codex CLI 开发文档体系
 
 > **项目**: [openai/codex](https://github.com/openai/codex) — 运行在本机的 OpenAI 编码智能体
-> **基线 commit**: `bb5054fe47abe73ecbbd454751066a28c89f4bb9`
+> **基线 commit**: `5c5308fc9a9ee789049d646ef11e5400384b9c6f`
 > **文档定位**: 兼顾**阅读理解 upstream 代码**与**在本仓库做二次开发**
 > **语言**: 简体中文
 
@@ -52,12 +52,12 @@ verified_at: 2026-08-05
 >
 > > 门禁全绿是**必要条件，不是充分条件**。`dev_docs/_analysis/gate.sh` 自己写明了这一点：它只覆盖结构、引用与已登记数值，断言是否与源码相符只能靠独立复核。实测基准是每轮修复会引入 6~7 个新的 HIGH 级事实错误，而它们全部是在门禁全绿状态下被独立代理发现的。方法论见 [`dev_docs/_analysis/generation_plan.md`](./_analysis/generation_plan.md)。
 >
-> 当前状态：基线 commit 与 `origin/main` 顶端**一致**（`bb5054fe47`，`git rev-list --count bb5054fe47..origin/main` = 0），即尚无待同步的上游改动。
+> 当前状态：**第 6 轮已完成上游同步**（合并提交 `67e6921373`，跨 2,230 提交，基线 `bb5054fe47` → `5c5308fc9a`）。注意 `origin/main` 是 fork 镜像、当时仍停在旧基线，**上游真值以 `upstream/main` 为准**。本轮作业单见 [`dev_docs/_analysis/upstream_sync_round6.md`](./_analysis/upstream_sync_round6.md)。
 
 > [!CAUTION]
 > **仓库自带的 AGENTS.md 优先级高于本文档体系的任何内容。**
 >
-> 它是仓库对 AI 代理的强制规范（22,519 字节）。本体系只做落地说明与实测补充，禁止覆盖或改写其任何条款。两者有出入时，一律以仓库规范文件为准，并请修正本体系的对应内容。
+> 它是仓库对 AI 代理的强制规范（22,397 字节）。本体系只做落地说明与实测补充，禁止覆盖或改写其任何条款。两者有出入时，一律以仓库规范文件为准，并请修正本体系的对应内容。
 
 > [!IMPORTANT]
 > **本仓库外部代码贡献受邀制**（`docs/contributing.md` 的 `## Contributing` 一节，grep `External contributions are by invitation only`）。未受邀的 PR 会被直接关闭而不予评审。本体系中所有对代码的观察都是**长期记录**，不是面向上游的修复待办。
@@ -115,7 +115,7 @@ verified_at: 2026-08-05
 | `codex-rs/tui/` | ratatui 交互式终端界面（238,439 行） | — |
 | `codex-rs/app-server/` | JSON-RPC 应用服务端，供 IDE / 桌面端 / SDK 接入（128,364 行） | — |
 | `codex-rs/cli/` | **主二进制** `codex` 的入口与子命令分发 | — |
-| `codex-rs/ext/` | 12 个 `ext/*` crate。其中 **8 个依赖 `extension-api`，且恰好就是被注册进 `ExtensionRegistry` 的 8 个**；另 3 个（`items` / `agent` / `connectors`）各走各的机制，`ext/items` 反而是 `codex-core` 的**生产依赖** | — |
+| `codex-rs/ext/` | 15 个 `ext/*` crate。其中 **8 个依赖 `extension-api`，且恰好就是被注册进 `ExtensionRegistry` 的 8 个**；另 3 个（`items` / `agent` / `connectors`）各走各的机制，`ext/items` 反而是 `codex-core` 的**生产依赖** | — |
 | `codex-rs/utils/` | **23 个**通用工具 crate | — |
 | `codex-rs/sandboxing/` | 三平台沙箱统一入口 + 3 个 `.sbpl` 策略 | — |
 | `codex-rs/vendor/` | **vendored bubblewrap C 源码**（上游 v0.11.2 完整 drop），Linux 默认沙箱的实际载体 | 51（其中 `bubblewrap/` 占 50，`git ls-files` 口径） |
@@ -170,6 +170,8 @@ verified_at: 2026-08-05
 | 第 1 批 | `AI_Coding_Context.md`（本文） | ✅ |
 | 第 1 批 | [`architecture_overview.md`](./architecture_overview.md) — 架构总览 | ✅ |
 | 第 1 批 | [`crate_map.md`](./crate_map.md) — 154 个 crate 地图 | ✅ |
+| **第 6 轮新增** | [`voice_and_realtime.md`](./voice_and_realtime.md) — 语音与实时会话子系统 | ✅ |
+| **第 6 轮新增** | [`guardian.md`](./guardian.md) — Guardian 自动评审子系统 | ✅ |
 | 第 1 批 | [`development_workflow.md`](./development_workflow.md) — 开发流程与规范 | ✅ |
 | 第 2 批 | [`core_agent_loop.md`](./core_agent_loop.md) — 智能体核心循环 | ✅ |
 | 第 2 批 | [`tools_and_sandbox.md`](./tools_and_sandbox.md) — 工具调用与沙箱 | ✅ |
@@ -520,7 +522,7 @@ pub struct SomeRequest { ... }
 
 ### 完全未深入的 crate
 
-`codex-network-proxy`(17,064) · `codex-external-agent-migration`(15,262) · `codex-apply-patch`(5,056) · `codex-connectors`(4,851) · `codex-utils-pty`(4,114) · `codex-git-utils`(3,572) · `codex-agent-graph-store`(479) · `codex-aws-auth`(375) · `codex-v8-poc`(92) · `codex-file-watcher` · `codex-file-search` · `codex-terminal-detection` · `codex-prompts` · `codex-install-context` · `codex-exec-server-test-support` · 以及 `utils/` 下的 23 个工具 crate
+`codex-network-proxy`(17,064) · `codex-external-agent-migration`(15,262) · `codex-apply-patch`(5,056) · `codex-connectors`(4,851) · `codex-utils-pty`(4,114) · `codex-git-utils`(3,572) · `codex-agent-graph-store`(479) · `codex-aws-auth`(375) · `codex-v8-poc`(92) · `codex-file-watcher` · `codex-file-search` · `codex-terminal-detection` · `codex-prompts` · `codex-install-context` · `codex-exec-server-test-support` · 以及 `utils/` 下的 26 个工具 crate
 
 > **本轮已从上表移除四项**（不再是「零覆盖」，但仍未逐模块展开）：`codex-rollout-trace`(13,257) → [`observability.md`](./observability.md) §6.3；`codex-hooks`(11,795) → [`mcp_and_extensions.md`](./mcp_and_extensions.md) §7 与 [`observability.md`](./observability.md) §6；`codex-bwrap`(151) 与 `codex-rs/vendor/bubblewrap/` → [`tools_and_sandbox.md`](./tools_and_sandbox.md) §3.2；`codex-feedback` → [`observability.md`](./observability.md) §6.6。
 

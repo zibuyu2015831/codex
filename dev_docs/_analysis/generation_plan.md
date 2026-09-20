@@ -289,7 +289,7 @@ codex/（仓库根）
 ├── .github/workflows/      - 27 个 CI 工作流（yml；另有 README.md/Dockerfile.bazel/zstd 非 yml 条目）
 ├── bazel/ patches/ third_party/ - Bazel 规则、依赖补丁、第三方源
 ├── tools/                  - 仓库自有工具（argument-comment-lint 等）
-├── AGENTS.md               - 仓库对 AI 代理的强制规范（22,519 字节）★ 核心事实源
+├── AGENTS.md               - 仓库对 AI 代理的强制规范（22,397 字节）★ 核心事实源
 ├── justfile                - 统一任务入口（fmt/fix/test/bench/schema 等）
 └── AI-Coding-Context -> <本地工作区>/AI-Coding-Context  （框架软链接，已排除）
 ```
@@ -672,7 +672,7 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 | 项目定位信号 | 证据文件 | 文档规划影响 | 覆盖方式 |
 | ------------ | -------- | ------------ | -------- |
 | 开源维护/贡献流程（受邀制 + CLA） | `docs/contributing.md`、`docs/CLA.md`、`LICENSE`、`.github/workflows/cla.yml` | 贡献治理前提必须前置说明，避免文档给出与维护者规则冲突的行动建议 | 合并到 `development_workflow.md` |
-| AI 代理硬规范 | `AGENTS.md`（22,519 字节） | 决定 AI 编码禁忌章节与 AI_RULES 内容 | 拆分到 `development_workflow.md`（流程）+ `crate_map.md`（core 减负）+ `tui_guide.md`（TUI 约定）+ `app_server_protocol.md`（API 约定）+ 主文档「AI 编码禁忌」 |
+| AI 代理硬规范 | `AGENTS.md`（22,397 字节） | 决定 AI 编码禁忌章节与 AI_RULES 内容 | 拆分到 `development_workflow.md`（流程）+ `crate_map.md`（core 减负）+ `tui_guide.md`（TUI 约定）+ `app_server_protocol.md`（API 约定）+ 主文档「AI 编码禁忌」 |
 | 用户手册/使用指南 | `docs/getting-started.md`、`docs/exec.md`、`docs/slash_commands.md`、`docs/skills.md`、外部站点 developers.openai.com | 面向用户的使用说明**不重复造轮子**，只做索引 | 主文档「文档索引」章节链接 `docs/` 与外部站点；不生成独立 `cli_usage.md`/`installation.md`，其开发者视角内容并入 `architecture_overview.md` 与 `build_and_release.md` |
 | 自托管/部署运维 | `.devcontainer/`、`codex-cli/scripts/run_in_container.sh`、`codex-cli/scripts/init_firewall.sh`、`flake.nix` | 容器与 Nix 开发环境说明 | 合并到 `development_workflow.md` |
 | 外部 API/数据授权 | `README.md`、`codex-rs/login/`、`codex-rs/model-provider-info/`、`docs/authentication.md` | Provider、授权、数据边界 | 单独文档 `auth_and_providers.md` |

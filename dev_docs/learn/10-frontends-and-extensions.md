@@ -196,7 +196,7 @@ codex 有 5 个前端 + 一个 TypeScript SDK + 一个桌面端。**手工同步
 
 > 复现：`rg -n 'pub trait ' codex-rs/ext/extension-api/src/`。**"13 个扩展点"指的是 contributor 那一类**，说"扩展 trait 有 13 个"时要带上这个口径。
 
-实测：12 个 `ext/*` crate 里，只有 **8 个**依赖 `extension-api`（逐份直读各 crate 清单的 `[dependencies]` 段，非 grep 计数）。不依赖的 3 个是 `ext/agent`、`ext/connectors`、`ext/items`；剩下 1 个是 `extension-api` 自己。
+实测：15 个 `ext/*` crate 里，只有 **8 个**依赖 `extension-api`（逐份直读各 crate 清单的 `[dependencies]` 段，非 grep 计数）。不依赖的 3 个是 `ext/agent`、`ext/connectors`、`ext/items`；剩下 1 个是 `extension-api` 自己。
 
 > **本文档体系第一版说"12 个全部依赖"。** 那是一次**未取证的归纳**——把"`ext/` 下有 12 个 crate"直接当成了"12 个都依赖它"。
 >
