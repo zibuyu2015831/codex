@@ -166,10 +166,28 @@ verified_at: 2026-09-20
 
 | crate | 上游提交 | 去向 |
 | ---- | ---- | ---- |
-| `codex-rs/mcp-server` <!-- ref-exempt: 反例——正文说明该 crate 已不存在 --> | `531f3836a1` *Remove the deprecated `codex mcp-server` command (#42993)* | 服务端能力归入 `codex-rs/codex-mcp`；CLI 的 `McpServer` 子命令一并删除，`Mcp` 保留 |
+| `codex-rs/mcp-server` <!-- ref-exempt: 反例——正文说明该 crate 已不存在 --> | `531f3836a1` *Remove the deprecated `codex mcp-server` command (#42993)* | **能力整体删除，非迁移**（见下方更正）；CLI 的 `McpServer` 子命令一并删除，`Mcp` 保留但方向相反（管理外部服务器） |
 | `codex-rs/core-skills` <!-- ref-exempt: 反例——正文说明该 crate 已不存在 --> | `33e365b19e` *Remove the legacy core skill loader (#37457)* | 技能加载迁至 `codex-rs/ext/skills/src/loader/`（新结构含 `dynamic_skill_selector` 一整套检索器）；样例技能资产在 `codex-rs/skills/src/assets/` |
 
 `mcp_and_extensions.md` 全篇以 `mcp-server` crate 为叙事骨架（18 个 ERROR 中 8 个指向它），属于**整篇重写**而非修补。
+
+> [!CAUTION]
+> **本节的 `mcp-server` 去向判定曾经写错，错误出自本作业单自身，已于批次 3 期间更正。**
+>
+> 批次 0 最初把去向记为「服务端能力归入 `codex-rs/codex-mcp`」，批次 1 的 `crate_map.md` 沿用了它。**实测证伪**：
+>
+> ```bash
+> grep -rn 'codex_tool_runner\|codex_tool_config\|CodexToolCallParam' --include='*.rs' codex-rs/   # 0
+> grep -n '^pub ' codex-rs/codex-mcp/src/lib.rs   # 导出全是客户端侧：McpBinding / McpResourceClient / connection_manager …
+> ```
+>
+> 上游提交信息原文也写明是删除而非迁移：「Remove the `codex mcp-server` subcommand and the standalone `codex-mcp-server` crate, including its tests, interface documentation, build dependencies, and run recipe」。这同时解释了 `codex-rs/docs/codex_mcp_interface.md` 为什么消失——它就是那句「interface documentation」。 <!-- ref-exempt: 反例——正文说明该路径已被同一提交删除 -->
+>
+> 保留的 `Mcp` 子命令方向**相反**：`codex-rs/cli/src/main.rs:170` 写的是「Manage **external** MCP servers for Codex」。
+>
+> **教训**：错误的根源是一个未经检验的隐含假设——「crate 被删 ⇒ 它的能力必然迁去了某处」。**能力可以就这么没了。** 裁定死引用去向时，「无对应」必须是一个和「迁移到 X」同等正当的结论，否则就会被迫编出一个去处。本作业单 §5 的裁定原则里已写了「禁止顺手改路径蒙混过关」，但这一条当时仍然没挡住——因为它防的是路径级的敷衍，防不住**能力级的想当然**。
+>
+> 另注：这两个批次正是在 §2 所述**单人分轨降级**条件下完成的，本条是该折价的又一个实证样本。
 
 ---
 
@@ -181,7 +199,7 @@ verified_at: 2026-09-20
 | ---- | ---- | ---- |
 | `codex-rs/core-skills/src/loader.rs` <!-- ref-exempt: 已失效路径清单 --> | 12 | 迁移 → `codex-rs/ext/skills/src/loader/mod.rs`（结构已重组，非一对一） |
 | `codex-rs/thread-store/src/local/writer_lock.rs` <!-- ref-exempt: 已失效路径清单 --> | 8 | 迁移 → `codex-rs/rollout/src/writer_lock.rs` |
-| `codex-rs/mcp-server/src/lib.rs` <!-- ref-exempt: 已失效路径清单 --> | 6 | crate 删除，无一对一对应（见 §4.3） |
+| `codex-rs/mcp-server/src/lib.rs` <!-- ref-exempt: 已失效路径清单 --> | 6 | crate 删除，**能力整体消失，无任何对应**（见 §4.3 的更正） |
 | `codex-rs/core/src/session/config_lock.rs` <!-- ref-exempt: 已失效路径清单 --> | 4 | **无对应**，全仓无同名文件，需回源确认机制是否还在 |
 | `codex-rs/core/src/tools/runtimes/shell/unix_escalation.rs` <!-- ref-exempt: 已失效路径清单 --> | 3 | 迁移 → `codex-rs/core/src/tools/runtimes/zsh_fork/unix_escalation.rs` |
 | `codex-rs/core/src/guardian/policy.md` <!-- ref-exempt: 已失效路径清单 --> | 3 | 迁移 → `codex-rs/prompts/templates/guardian/policy.md` |

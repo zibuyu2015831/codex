@@ -199,7 +199,13 @@ graph TD
 | `codex-voice-host` | `codex-rs/voice-host` | 5,843 | 2 | **第 6 轮新增**：语音/实时会话的同构辅助进程。模块注释：`"Same-build helper lifecycle with privately owned runtime, transport and opt-in local devices."`（E3）。**完整子系统见 §3.13** |
 
 > [!CAUTION]
-> **`codex-mcp-server`（`codex-rs/mcp-server`）已被上游删除**（提交 `531f3836a1`「Remove the deprecated `codex mcp-server` command (#42993)」）。<!-- ref-exempt: 反例——正文说明该路径已不存在 -->CLI 的 `McpServer` 子命令一并移除，`Mcp` 子命令保留。把 Codex 暴露为 MCP server 的能力现由 `codex-rs/codex-mcp` 承载，**不是简单改个路径就能对上**——两者的模块结构完全不同，详见 [`mcp_and_extensions.md`](./mcp_and_extensions.md)。
+> **`codex-mcp-server`（`codex-rs/mcp-server`）已被上游删除**（提交 `531f3836a1`「Remove the deprecated `codex mcp-server` command (#42993)」）<!-- ref-exempt: 反例——正文说明该路径已不存在 -->，CLI 的 `McpServer` 子命令一并移除。
+>
+> **「把 Codex 暴露为 MCP server」这个能力是被整体删除，不是迁移。** 上游提交信息原文是「Remove the `codex mcp-server` subcommand and the standalone `codex-mcp-server` crate, including its tests, **interface documentation**, build dependencies, and run recipe」。支撑该能力的符号 `codex_tool_runner` / `codex_tool_config` / `CodexToolCallParam` **全仓零命中**。
+>
+> 保留下来的 `Mcp` 子命令方向**相反**：`codex-rs/cli/src/main.rs:170` 的文档注释是「Manage **external** MCP servers for Codex」——管理 Codex 要去连接的外部服务器。`codex-rs/codex-mcp` 同样是**客户端侧**（导出 `McpBinding` / `McpResourceClient` / `connection_manager` 等）。
+>
+> > **本条曾被写错，且错误出自本体系自身。** 第 6 轮批次 0 的死引用裁定表把 `mcp-server` 的去向记为「服务端能力归入 `codex-rs/codex-mcp`」，批次 1 沿用了这个判断。实测证伪：`codex-mcp` 从未承接该能力，它一直是客户端。**教训是「crate 被删 → 它的能力必然迁去了某处」这个假设本身就是错的**——能力可以就这么没了。详见 [`mcp_and_extensions.md`](./mcp_and_extensions.md)。
 
 ### 3.2 智能体核心（4）
 
