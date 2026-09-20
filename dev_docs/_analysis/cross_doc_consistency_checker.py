@@ -50,9 +50,12 @@ FACTS: list[dict] = [
             r"[^\n]{0,20}?(\d{2,4})\s*个\s*crate"
             r"|(\d{2,4})\s*个\s*crate[^\n]{0,10}?(?:的\s*)?(?:Cargo\s*)?workspace"
         ),
+        # 第 6 轮修复：原命令用裸 cargo 且 2>/dev/null，在 cargo 不在 PATH 的环境下
+        # 静默失败，报成「命令执行失败」而非「数值错误」。补 $HOME/.cargo/bin 并加
+        # --offline，不再吞 stderr。
         "verify": (
-            "cargo metadata --no-deps --format-version 1 "
-            "--manifest-path codex-rs/Cargo.toml 2>/dev/null "
+            'PATH="$PATH:$HOME/.cargo/bin" cargo metadata --no-deps --format-version 1 '
+            "--offline --manifest-path codex-rs/Cargo.toml "
             "| python3 -c \"import json,sys;print(len(json.load(sys.stdin)['packages']))\""
         ),
     },
@@ -107,9 +110,13 @@ FACTS: list[dict] = [
         "name": "ext_with_extension_api",
         "desc": "依赖 codex-extension-api 的 ext/* crate 数",
         "pattern": r"(\d{1,3})\s*(?:个|/)\s*(?:ext/\*\s*)?(?:crate\s*)?依赖\s*`?codex-extension-api`?",
+        # 第 6 轮修复：必须限定在 [dependencies] 段内。不限定的版本把
+        # [dev-dependencies] 也算进来，正是 HIGH 错误 H3（首版得出 12/12）的成因。
+        # 当前两种口径恰好都得 11，属巧合，不能据此保留宽口径写法。
         "verify": (
             "n=0; for f in codex-rs/ext/*/Cargo.toml; do "
-            "grep -q '^codex-extension-api' \"$f\" && n=$((n+1)); done; echo $n"
+            "awk '/^\\[dependencies\\]/{d=1;next}/^\\[/{d=0}d' \"$f\" "
+            "| grep -q '^codex-extension-api' && n=$((n+1)); done; echo $n"
         ),
     },
     {
