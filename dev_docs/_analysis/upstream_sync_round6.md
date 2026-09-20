@@ -316,7 +316,7 @@ ERROR 集中度（合并后首测，共 97 ERROR / 207 WARN）：
 | ---- | ---- | ---- |
 | **安全对比被写反** | `auth_and_providers.md` §2.5 / §2.1.2 | 旧版说 MCP OAuth 是「写完后 `chmod`，留下短暂宽权限窗口」，用来反衬 CLI 侧。实测 MCP 侧同样在 `open` 时设 `0o600`，**且多一层 `O_NOFOLLOW`**（CLI 侧没有）——对比方向整个反了。安全类断言写反比写漏更危险，因为它会让人去"加固"一个本来更强的地方。 |
 | **文档给的复核命令本身失效** | `config_system.md` §2 | 旧版让读者跑 `grep -rn '/\*include_disabled\*/ true' …` 复核，而 `include_disabled` / `get_layers` 这套 API **全仓已零命中**。读者按文档去验证会一无所获，进而怀疑整篇文档。**这比单纯的行号漂移更伤信任**——行号错了还能靠符号名找回来，复核命令错了则是死路。 |
-| **默认值的落点变了** | `config_system.md` §1 ④ | 新增的 `PackagedDefaults` 层（precedence **-10**，`include_str!` 编译期内嵌，生产路径恒生效）使 14 个顶层键的默认值**不再来自 Rust 的 `Default` impl，而来自一层 TOML**。原有的教训「要判断配置键是否生效，必须找到读取点」现在要追加一问：**它的默认值是从哪一层来的？** |
+| **默认值的落点变了** | `config_system.md` §1 ④ | 新增的 `PackagedDefaults` 层（precedence **-10**，`include_str!` 编译期内嵌，生产路径恒生效）使 `defaults.toml` 里那 14 个键的默认值**不再来自 Rust 的 `Default` impl，而来自一层 TOML**。原有的教训「要判断配置键是否生效，必须找到读取点」现在要追加一问：**它的默认值是从哪一层来的？** |
 
 **一类反复出现的失效源**：`auth_and_providers` 的 24 条承重 WRONG 里有 **11 条**是穷举陈述被新增项打破——7 变体→8、7 字段→8、5 条推断→6、4 条 validate 规则→10、4 个内置 provider→5、唯一例外→两个、两套存储→三套、13 个协议方法→15、3 个常量→4、四选一→五、唯一的行为覆盖→8 个文件。
 

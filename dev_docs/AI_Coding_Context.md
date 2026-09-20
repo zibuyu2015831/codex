@@ -70,13 +70,13 @@ verified_at: 2026-08-05
 | ---- | ---- | ---- |
 | 是什么 | 运行在本机的编码智能体 CLI，同时提供 IDE 接入与桌面端 | E2 |
 | 主语言 | Rust 1.95.0（edition 2024），另有 TypeScript / Python SDK | E2 |
-| 规模 | 5,913 个 Git 跟踪文件（**口径：`git ls-files` 全量减去本体系自身的 `dev_docs/`**，复核 `git ls-files \| grep -vc '^dev_docs/'`）；Rust 2,858 文件 / **1,270,789 行** | E4 |
-| 结构 | Cargo workspace，**134 个 crate** | E4 |
+| 规模 | 8,297 个 Git 跟踪文件（**口径：`git ls-files` 全量减去本体系自身的 `dev_docs/`**，复核 `git ls-files \| grep -vc '^dev_docs/'`）；Rust 4,631 文件 / **1,858,112 行** | E4 |
+| 结构 | Cargo workspace，**154 个 crate** | E4 |
 | 核心特征 | **单主二进制、多前端**；`codex-core` 是执行内核，但**不是所有前端的直接依赖** | E3 |
 | 构建 | Cargo（日常开发**与发布产出**）+ Bazel（PR 合并前主验证路径），**双锁必须同步**；另有 Nix flake 与 devcontainer 两条**不参与交付**的开发环境入口 | E2 |
 | 隔离 | macOS Seatbelt / Linux **bwrap + 条件安装的 seccomp** / **Windows 默认无沙箱**（`WindowsSandboxLevel` 的 `#[default]` 是 `Disabled`，显式开启后才走受限令牌或提权后端） | E3 |
-| 入口 | `codex` 一个主二进制（另有 6 个随发布交付的辅助可执行文件，加 2 个仅本地/CI 产出的共 8 个），27 个子命令变体（Linux 可见 23、macOS/Windows 可见 24） | E3 |
-| 测试资产 | 39 个测试目录 / 631 个测试文件 / 457 个 `*_tests.rs` / 681 个快照 | E1 |
+| 入口 | `codex` 一个主二进制（另有 7 个随发布交付的辅助可执行文件，加 2 个仅本地/CI 产出的共 9 个），30 个子命令变体（Linux 可见 25、macOS/Windows 可见 26） | E3 |
+| 测试资产 | 1148 个 `*_tests.rs` / 1359 个 insta 快照 | E1 |
 
 **最重要的一句话**：所有前端都是同一个二进制的子命令，但**它们到达 `codex-core` 的路径不同**——`codex exec`、app-server、MCP server、cloud 直接依赖 `codex-core`；而 **TUI 没有指向 `codex-core` 的直接依赖边，也不直接 import 它**（CI 强制），会话/turn 能力经 `codex-app-server-client` 接入。
 
@@ -110,7 +110,7 @@ verified_at: 2026-08-05
 
 | 目录 | 内容 | 文件数量级 |
 | ---- | ---- | ---- |
-| `codex-rs/` | **Rust workspace，项目主体**，134 个 crate | 5,501 |
+| `codex-rs/` | **Rust workspace，项目主体**，154 个 crate | 5,501 |
 | `codex-rs/core/` | 智能体核心：会话、turn、工具调用、上下文（296,963 行） | — |
 | `codex-rs/tui/` | ratatui 交互式终端界面（238,439 行） | — |
 | `codex-rs/app-server/` | JSON-RPC 应用服务端，供 IDE / 桌面端 / SDK 接入（128,364 行） | — |
@@ -122,7 +122,7 @@ verified_at: 2026-08-05
 | `codex-rs/docs/` | 仓库自带开发者文档：`codex-rs/docs/protocol_v1.md` / `codex-rs/docs/bazel.md` / `codex-rs/docs/codex_mcp_interface.md` | 3 |
 | `codex-cli/` | **npm 分发包 `@openai/codex`**（注意：与 Cargo 包名 `codex-cli`＝目录 `codex-rs/cli` 同名，容易搜错） | 7 |
 | `sdk/` | TypeScript / Python / Python-runtime 三套 SDK | 115 |
-| `.github/` | CI 工作流（27 个 yml）与脚本 | 89 |
+| `.github/` | CI 工作流（30 个 yml）与脚本 | 89 |
 | `scripts/` | 格式化与辅助脚本（`scripts/format.py` 等） | 38 |
 | `tools/` | `argument-comment-lint`（workspace 之外的独立 crate） | 31 |
 | `docs/` | 仓库内文档，**极薄**（`docs/config.md` 15 行、`docs/sandbox.md` 3 行） | 15 |
@@ -169,7 +169,7 @@ verified_at: 2026-08-05
 | ---- | ---- | ---- |
 | 第 1 批 | `AI_Coding_Context.md`（本文） | ✅ |
 | 第 1 批 | [`architecture_overview.md`](./architecture_overview.md) — 架构总览 | ✅ |
-| 第 1 批 | [`crate_map.md`](./crate_map.md) — 134 个 crate 地图 | ✅ |
+| 第 1 批 | [`crate_map.md`](./crate_map.md) — 154 个 crate 地图 | ✅ |
 | 第 1 批 | [`development_workflow.md`](./development_workflow.md) — 开发流程与规范 | ✅ |
 | 第 2 批 | [`core_agent_loop.md`](./core_agent_loop.md) — 智能体核心循环 | ✅ |
 | 第 2 批 | [`tools_and_sandbox.md`](./tools_and_sandbox.md) — 工具调用与沙箱 | ✅ |
@@ -501,7 +501,7 @@ pub struct SomeRequest { ... }
 > [!WARNING]
 > **文件数量、目录清单属于 E1，不是 E4。** 「跑了 `wc -l` / `ls`」不等于 E4——E4 指构建、测试、lint 等**验证性**工具的运行结果。首版有 13 处把文件清单标成 E4，已在第二轮统一降级。
 >
-> 例：「134 个 crate」是 E4（`cargo metadata` 解析 workspace 后的权威输出）；「`utils/` 下 23 个目录」是 E1（数目录）；「Rust 2,858 个文件」是 E1（数文件），只有其行数 1,270,789 因经 `wc` 统计可算 E2 口径。
+> 例：「154 个 crate」是 E4（`cargo metadata` 解析 workspace 后的权威输出）；「`utils/` 下 26 个目录」是 E1（数目录）；「Rust 4,631 个文件」是 E1（数文件），只有其行数 1,858,112 因经 `wc` 统计可算 E2 口径。
 
 > [!CAUTION]
 > **最常见的错误是把 E1 的目录名/依赖名推断写成 E3 事实。** 本体系有两次实例可供警惕：

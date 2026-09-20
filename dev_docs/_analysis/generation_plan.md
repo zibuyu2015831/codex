@@ -43,7 +43,7 @@ verified_at: 2026-08-05
 
 2. **架构复杂度**
 
-   - Cargo workspace 成员: **134 个 crate**（`cargo metadata --no-deps` 权威计数，E4）。其中 `codex-rs/Cargo.toml` 的 `[workspace] members` 显式列出 128 项；差额 6 个为 `chatgpt`、`message-history`、`windows-sandbox-rs`（仅以 `[workspace.dependencies]` path 依赖参与）与 `app-server/tests/common`、`core/tests/common`、`mcp-server/tests/common`（测试辅助 crate）。另有 workspace 之外的独立 crate `tools/argument-comment-lint`
+   - Cargo workspace 成员: **154 个 crate**（`cargo metadata --no-deps` 权威计数，E4）。其中 `codex-rs/Cargo.toml` 的 `[workspace] members` 显式列出 128 项；差额 6 个为 `chatgpt`、`message-history`、`windows-sandbox-rs`（仅以 `[workspace.dependencies]` path 依赖参与）与 `app-server/tests/common`、`core/tests/common`、`mcp-server/tests/common`（测试辅助 crate）。另有 workspace 之外的独立 crate `tools/argument-comment-lint`
    - 多前端单核心：`codex` 单一二进制通过 clap 子命令分发到 TUI / exec / app-server / mcp-server / responses-api-proxy / cloud 等入口。`codex-rs/cli/src/main.rs:124` 的 `Subcommand` 枚举共 **27 个变体**（3 个 `#[clap(hide = true)]`，1 个仅 macOS/Windows 条件编译）
    - 多进程协作：app-server、exec-server 可跨操作系统分离部署（AGENTS.md「## Platform Support」）
    - 四层扩展点：`ext/*` 内建扩展、`core-plugins`、`skills`、MCP 客户端/服务端
@@ -78,7 +78,7 @@ verified_at: 2026-08-05
 ### 风险点
 
 - [x] **大文件**: 存在多个远超 800 行的文件，必须分段读取。实测 Top 5：`codex-rs/tui/src/bottom_pane/chat_composer.rs` 12,616 行、`codex-rs/core/src/config/config_tests.rs` 12,127 行、`codex-rs/core/src/session/tests.rs` 11,434 行、`codex-rs/tui/src/app/tests.rs` 7,520 行、`codex-rs/tui/src/resume_picker.rs` 6,681 行
-- [x] **复杂依赖**: 134 个 crate 的依赖分层需通过 `codex-rs/Cargo.toml` 的 `[workspace.dependencies]` 路径映射反推，不得凭目录名臆测
+- [x] **复杂依赖**: 154 个 crate 的依赖分层需通过 `codex-rs/Cargo.toml` 的 `[workspace.dependencies]` 路径映射反推，不得凭目录名臆测
 - [ ] **文档不足**: 仓库自身产品文档托管在外部站点（`docs/config.md` 仅 15 行且指向 developers.openai.com），架构层面缺少仓库内说明，这正是本文档体系的价值点
 - [x] **特殊架构**: 存在跨 OS 的 app-server/exec-server 分离、双构建系统、四层扩展点，均需代码级确认后再写入文档
 - [x] **其他**: 上游高速迭代（单日多个 PR 合入），文档需标注基线 commit 并依赖路径 C 增量更新维持时效
@@ -196,7 +196,7 @@ TUI 框架: ratatui（codex-rs/tui，样式约定见 codex-rs/tui/styles.md）
 - [x] 检查 `codex-rs/Cargo.toml` 的 `[workspace]` 与 `[workspace.package]`
 - [x] 检查 `package.json`、`pnpm-workspace.yaml`、`MODULE.bazel`、`justfile`
 - [x] 检查 `codex-rs/cli/Cargo.toml` 的 `[[bin]] name = "codex"`
-- [x] 扫描 `codex-rs/` 134 个 crate 目录
+- [x] 扫描 `codex-rs/` 154 个 crate 目录
 
 ---
 
@@ -246,7 +246,7 @@ Rust 代码量按 crate 排名（Top 10）:
 
 **⚠️ 人工验证点**:
 
-- Rust 行数含测试与快照断言，若需"生产代码行数"需另行扣除 457 个 `*_tests.rs`
+- Rust 行数含测试与快照断言，若需"生产代码行数"需另行扣除 1148 个 `*_tests.rs`
 - TypeScript 行数被生成代码稀释，`sdk/typescript/src` 实际仅 10 个手写文件
 
 ---
@@ -257,7 +257,7 @@ Rust 代码量按 crate 排名（Top 10）:
 
 ```
 codex/（仓库根）
-├── codex-rs/               - Rust workspace，134 个 crate，项目主体（2842 个 .rs；全仓 2858）
+├── codex-rs/               - Rust workspace，154 个 crate，项目主体（2842 个 .rs；全仓 2858）
 │   ├── core/               - 智能体核心：会话、turn、工具调用、上下文管理（296,963 行）
 │   ├── tui/                - ratatui 交互式终端界面（238,439 行）
 │   ├── app-server/         - JSON-RPC 应用服务端，供 IDE/桌面端接入（128,364 行）
@@ -603,7 +603,7 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 
 - [ ] `dev_docs/testing_guide.md` — 测试指南
 
-  - **推荐理由**: 457 个 `*_tests.rs` + 681 个快照 + 三语言测试栈，AGENTS.md「### Test authoring guidance」「### Change size guidance (800 lines)」与「## Tests」各节 规定详尽
+  - **推荐理由**: 1148 个 `*_tests.rs` + 1359 个 insta 快照 + 三语言测试栈，AGENTS.md「### Test authoring guidance」「### Change size guidance (800 lines)」与「## Tests」各节 规定详尽
   - **内容来源**: `codex-rs/core/tests/`、`codex-rs/app-server/tests/`、`sdk/typescript/tests/`、`sdk/python/tests/`、`justfile`、`AGENTS.md`
   - **预计行数**: 450-600
 
@@ -796,7 +796,7 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 | -------- | -------- | -------- | -------- | -------- |
 | OTLP / Statsig 遥测在 release 构建下的默认开关与关闭方式 | E3：`codex-rs/otel/src/config.rs:16,90,113` | 读取 `OtelSettings` / `StatsigMetricsSettings` 完整定义与 `codex-rs/otel/src/provider.rs` 初始化链路，追溯 config.toml 键名 | 第 4 批 | `observability.md` |
 | analytics 采集开关与投递目的地的分离边界 | E3：`codex-rs/analytics/src/client.rs` | 已完成：`CaptureFile` 分支同时受 `cfg(debug_assertions)` 与捕获文件环境变量约束，二者缺一即落到 `Self::Http`；"network delivery is disabled" 只是该分支内的日志文案，**不是**编译期全局常量 | 第 4 批（已闭合） | `observability.md` |
-| 134 个 crate 的实际依赖分层（谁依赖 core，谁被 core 依赖） | E2：`codex-rs/Cargo.toml` `[workspace.dependencies]` | 逐 crate 读取 `Cargo.toml` 的 `[dependencies]` 并生成依赖图 <!-- ref-exempt: 「逐 crate Cargo.toml」为泛指 --> | 第 1 批 | `crate_map.md` |
+| 154 个 crate 的实际依赖分层（谁依赖 core，谁被 core 依赖） | E2：`codex-rs/Cargo.toml` `[workspace.dependencies]` | 逐 crate 读取 `Cargo.toml` 的 `[dependencies]` 并生成依赖图 <!-- ref-exempt: 「逐 crate Cargo.toml」为泛指 --> | 第 1 批 | `crate_map.md` |
 | 四层扩展机制（ext / core-plugins / skills / MCP）之间的关系与优先级 | E1：目录存在性 | 读取 `codex-rs/ext/extension-api/src/lib.rs`、`codex-rs/core-plugins/src/manager.rs`、`codex-rs/skills/src/lib.rs` 的公开 API | 第 3 批 | `mcp_and_extensions.md` |
 | app-server ↔ exec-server 跨 OS 分离的实际传输实现 | E2：AGENTS.md「## Platform Support」 + crate 存在性 | 读取 `exec-server-protocol/src/`、`app-server-transport/src/`、`uds/src/` | 第 2 批 | `architecture_overview.md` |
 | `CODEX_HOME` 的实际解析顺序 | E3：`codex-rs/core/src/config/mod.rs:4578`、`codex-rs/utils/home-dir/src/lib.rs:13` 两处同名函数 | 读取两处实现，确认调用关系与是否重复定义 | 第 2 批 | `config_system.md` |
@@ -861,7 +861,7 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 
 | 事实 | 证据等级 | 来源文件 | 验证方式 | 当前结论 |
 | ---- | -------- | -------- | -------- | -------- |
-| Rust workspace 含 134 个 crate | E4 | `codex-rs/Cargo.toml`（`cargo metadata --no-deps` 解析） | `cargo metadata --no-deps --format-version 1` 计数 `packages` | 已确认（第 2 轮复查更正，原记 130 有误） |
+| Rust workspace 含 154 个 crate | E4 | `codex-rs/Cargo.toml`（`cargo metadata --no-deps` 解析） | `cargo metadata --no-deps --format-version 1` 计数 `packages` | 已确认（第 2 轮复查更正，原记 130 有误） |
 | `[workspace] members` 显式列出 128 项 | E2 | `codex-rs/Cargo.toml` `[workspace] members` | 读取 + 计数 | 已确认；与 134 的差额为 3 个仅以 path 依赖参与的 crate 与 3 个 `tests/common` 测试辅助 crate |
 | 主二进制名为 `codex` | E2 | `codex-rs/cli/Cargo.toml` `[[bin]]` | 读取 | 已确认 |
 | Rust 版本 1.95.0，edition 2024 | E2 | `codex-rs/rust-toolchain.toml`、`codex-rs/Cargo.toml` `[workspace.package]` | 读取 | 已确认 |
@@ -881,8 +881,8 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 | 三平台支持强制要求 | E2 | AGENTS.md「## Platform Support」 | 读取 | 已确认 |
 | Cargo/Bazel 双锁需同步 | E2 | AGENTS.md 顶部规则列表（Bazel 锁条目） | 读取 | 已确认 |
 | `codex-rs/tui/src/bottom_pane/chat_composer.rs` 12,616 行 | E4 | `git ls-files "*.rs" \| xargs wc -l \| sort -rn` | 命令执行 | 已确认 |
-| insta 快照 681 个 | E4 | `git ls-files "*.snap" \| wc -l` | 命令执行 | 已确认 |
-| `*_tests.rs` 457 个 | E4 | `git ls-files "*_tests.rs" \| wc -l` | 命令执行 | 已确认 |
+| insta 快照 1359 个 | E4 | `git ls-files "*.snap" \| wc -l` | 命令执行 | 已确认 |
+| `*_tests.rs` 1148 个 | E4 | `git ls-files "*_tests.rs" \| wc -l` | 命令执行 | 已确认 |
 | analytics 为 opt-out 语义；**网络投递并非「当前关闭」** | E3 | `codex-rs/analytics/src/client.rs` 的 `AnalyticsEventsDestination::from_base_url_and_capture_file` | 读取完整分支 | **已更正**：写本地文件的 `CaptureFile` 分支需同时满足「debug 构建」且「捕获文件环境变量已设置且非空」；环境变量未设时，debug 构建同样落到 `Self::Http` 走网络。原记「网络投递当前关闭」是只读了日志文案得出的错误结论（`health_check_report.md` H7） |
 | Statsig 默认指标导出在 debug 构建下关闭 | E3 | `codex-rs/otel/src/config.rs:16,113` | grep | 待第 4 批完整核查 |
 | 框架目录为软链接 `AI-Coding-Context` | E4 | `ls -la` 显示 `lrwxr-xr-x ... -> <本地工作区>/AI-Coding-Context` | 命令执行 | 已确认并已排除 |
@@ -913,7 +913,7 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 
 - **扫描范围**: 全仓库递归扫描名为 `tests` / `test` / `integration_test` / `__tests__` / `spec` 的目录，外加 `codex-rs/**/*_tests.rs` 与 `codex-rs/**/*.snap`
 - **扫描口径与命令**: `semantic_review_checker.scan_test_topology`（全深度）；交叉复核 `git ls-files "*_tests.rs" | wc -l`、`git ls-files "*.snap" | wc -l`
-- **总量**: 39 个测试目录，631 个测试文件；另有 457 个内联 `*_tests.rs` 与 681 个 insta 快照
+- **总量**: 另有 1148 个内联 `*_tests.rs` 与 1359 个 insta 快照（第 6 轮实测）
 
 #### 完整测试目录清单（39 个）
 
@@ -963,7 +963,7 @@ grep -rniE "(api[_-]?key|token|secret|password|passwd|credential)[\"']?[[:space:
 
 - **Rust 集成测试重心**: `codex-rs/core/tests/`（174 文件，其中 `suite/` 有 **116 个 `.rs`**、`common/` 支撑库、`remote_env_windows/` 远程环境用例、`codex-rs/core/tests/all.rs` 聚合入口）与 `codex-rs/app-server/tests/`（121 文件），两者合计占测试文件近半。`suite/` 的数值口径为 `git ls-files "codex-rs/core/tests/suite/*.rs" | wc -l`（E1）。
 - **单元测试形态**: 457 个内联 `*_tests.rs`，遵循 AGENTS.md「### Test module organization」 的 `#[path = "..._tests.rs"]` 独立文件约定。
-- **快照测试**: 681 个 insta 快照，主要集中在 `codex-rs/tui`，对应 AGENTS.md「### Snapshot tests」 的 UI 变更必须附快照的硬要求。
+- **快照测试**: 1359 个 insta 快照，主要集中在 `codex-rs/tui`，对应 AGENTS.md「### Snapshot tests」 的 UI 变更必须附快照的硬要求。
 - **SDK 测试**: `sdk/typescript/tests/`（8 文件，jest）与 `sdk/python/tests/`（18 文件，pytest），后者覆盖 app-server 生命周期、审批、流式、登录、契约生成与公开 API 签名。
 - **第三方内容**: `codex-rs/vendor/bubblewrap/tests/`（15 文件）属 vendored 第三方测试，不纳入本项目测试规范描述。
 - **未发现**: 独立的 `examples/**/tests/` 型样例工程测试。
@@ -1127,7 +1127,7 @@ _（待用户填写）_
 | :--- | :----: | :--: | :------- |
 | 1.27M 行 Rust 无法全量覆盖 | 高 | 高 | 分 4 批 + 主文档显式声明「未覆盖范围」+ 优先覆盖 Top 10 crate |
 | 超大文件（最大 12,616 行）无法一次读取 | 高 | 中 | 先 grep 结构概览（`^pub fn` / `^impl` / `^pub struct`），再分段读取关键部分 |
-| 134 个 crate 依赖关系复杂 | 高 | 高 | 先从 `[workspace.dependencies]` 生成路径映射，再逐 crate 采集 `[dependencies]` 绘图 |
+| 154 个 crate 依赖关系复杂 | 高 | 高 | 先从 `[workspace.dependencies]` 生成路径映射，再逐 crate 采集 `[dependencies]` 绘图 |
 | 上游高速迭代导致文档漂移 | 高 | 中 | 记录基线 commit + `verified_at` + 后续走路径 C 增量更新 |
 | AI token 限制导致会话中断 | 高 | 低 | 每批结束更新 `generation_progress.md`，支持断点续传 |
 | Bazel 构建无法本地验证 | 中 | 中 | 相关结论降级为 E2，标注「未本机验证」，以 CI 工作流交叉参考 |
@@ -1165,7 +1165,7 @@ _（待用户填写）_
 
 ### 可用性验证
 
-- [ ] 依据主文档能在 5 分钟内定位到 134 个 crate 中的目标 crate
+- [ ] 依据主文档能在 5 分钟内定位到 154 个 crate 中的目标 crate
 - [ ] 「我要新增 X」类任务有 step-by-step 指引
 - [ ] 所有 markdown 链接可跳转
 - [ ] mermaid 图表可正确渲染

@@ -111,7 +111,7 @@ verified_at: 2026-09-21
 > - 调用方传了 `LoaderOverrides::packaged_defaults_path` → 读该文件；
 > - **否则走 `include_str!("../../defaults.toml")`**（`codex-rs/config/src/loader/mod.rs:183`）——即**编译期内嵌，永远存在**。
 >
-> `codex-rs/config/defaults.toml` 现有 **14 个顶层键 + 一个 `[history]` 段**：`include_permissions_instructions`、`include_apps_instructions`、`include_collaboration_mode_instructions`、`include_environment_context`、`cli_auth_credentials_store`、`mcp_oauth_credentials_store`、`project_doc_max_bytes`、`project_doc_fallback_filenames`、`background_terminal_max_timeout`、`file_opener`、`hide_agent_reasoning`、`chatgpt_base_url`、`project_root_markers`，以及 `[history] persistence`。
+> `codex-rs/config/defaults.toml` 现有 **14 条顶层设置 + 一个 `[history]` 段**：`include_permissions_instructions`、`include_apps_instructions`、`include_collaboration_mode_instructions`、`include_environment_context`、`cli_auth_credentials_store`、`mcp_oauth_credentials_store`、`project_doc_max_bytes`、`project_doc_fallback_filenames`、`background_terminal_max_timeout`、`file_opener`、`hide_agent_reasoning`、`chatgpt_base_url`、`project_root_markers`，以及 `[history] persistence`。
 >
 > **这改变了「默认值」这个概念的落点。** 上面这些键的实际默认值**不再来自 Rust 的 `Default` impl，而来自这一层的 TOML**。所以 §1 末尾「要判断一个配置键是否生效，必须找到读取点」这条教训，现在要再加一问：**它的默认值是从哪一层来的？**
 >

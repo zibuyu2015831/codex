@@ -1,78 +1,98 @@
 ---
-title: Codex MCP 与四条扩展路径（+ 一条用户侧钩子路径）
-summary: 通过代码级核查确定 ext 扩展、插件、Skills、MCP 四条扩展路径的真实关系，说明 extension-api 的 13 个扩展点 trait（12 个 *Contributor 加上不带该后缀的 UserInstructionsProvider）构成主扩展点、ext/* 下 12 个 crate 中有 8 个构建在它之上而 items/agent/connectors 三个是例外、8 个具体扩展在 core 之上的 app-server / cli / mcp-server 层注册进 ExtensionRegistry（items 反而是 core 的生产依赖），并指出 ext/connectors 建在插件机制上因而插件并非完全平行的独立轨道；另补出第五条路径 codex-hooks——10 种用户可配置的生命周期钩子事件，同样是 codex-core 的生产依赖。
-keywords: codex | mcp | extensions | plugins | skills | hooks | extension-api | contributor | thread_extensions
-scope: codex-rs/ext、core-plugins、core-skills、hooks 与 MCP 相关 crate 的扩展体系
-related_files: codex-rs/ext/extension-api/src/lib.rs | codex-rs/ext/extension-api/src/contributors.rs | codex-rs/ext/extension-api/src/capabilities/mod.rs | codex-rs/ext/skills/Cargo.toml | codex-rs/ext/mcp/src/lib.rs | codex-rs/ext/agent/src/lib.rs | codex-rs/ext/items/Cargo.toml | codex-rs/ext/connectors/Cargo.toml | codex-rs/core-plugins/src/lib.rs | codex-rs/core/Cargo.toml | codex-rs/app-server/src/extensions.rs | codex-rs/mcp-server/src/message_processor.rs | codex-rs/hooks/src/schema.rs | codex-rs/config/src/mcp_types.rs | codex-rs/core-skills/src/loader.rs | AGENTS.md
-dependencies: dev_docs/crate_map.md | dev_docs/core_agent_loop.md
-verified_at: 2026-08-05
+title: Codex MCP 与扩展体系
+summary: 通过代码级核查确定扩展、插件、Skills、MCP 与 hooks 各路径的真实关系，说明 extension-api 的 16 个扩展点 trait 构成主扩展点、ext/* 下 15 个 crate 中有 11 个实现它、其中 10 个被装配层注册；给出 MCP 客户端侧三层 crate 分工与从 contributor 收集到统一工具注册表的完整链路、Skills 路径在第 6 轮的层级反转（ext/skills 同时被 core 生产依赖又被 registry 装配）、插件与其余三条路径的深度耦合，以及 hooks 的 11 种用户可配置事件。第 6 轮上游同步：Codex 作为 MCP 服务端的整个方向已被上游删除，core-skills crate 已删除。
+keywords: codex | mcp | extensions | plugins | skills | hooks | extension-api | contributor | thread_extensions | elicitation | round6
+scope: codex-rs/ext、core-plugins、codex-mcp、hooks 与 MCP 客户端相关 crate 的扩展体系
+related_files: codex-rs/ext/extension-api/src/lib.rs | codex-rs/ext/extension-api/src/contributors.rs | codex-rs/ext/extension-api/src/capabilities/mod.rs | codex-rs/app-server/src/extensions.rs | codex-rs/core/src/mcp.rs | codex-rs/codex-mcp/src/runtime.rs | codex-rs/codex-mcp/src/connection_manager.rs | codex-rs/codex-mcp/src/elicitation.rs | codex-rs/ext/mcp/src/plugin_contributor.rs | codex-rs/ext/skills/src/loader/mod.rs | codex-rs/hooks/src/schema.rs | codex-rs/core/Cargo.toml | AGENTS.md
+dependencies: dev_docs/crate_map.md | dev_docs/core_agent_loop.md | dev_docs/_analysis/upstream_sync_round6.md
+verified_at: 2026-09-21
 ---
 
-# MCP 与四条扩展路径（+ 一条用户侧钩子路径）
+# MCP 与扩展体系
 
-> **基线 commit**: `bb5054fe47abe73ecbbd454751066a28c89f4bb9`
-> **证据等级**: 本文的核心结论（四条路径的关系）已由 **E3 代码级核查**确立，取代此前 `_analysis` 中标注的 E1 推断
-
-> [!IMPORTANT]
-> **这篇文档解决了一个长期挂账的问题。** 第 1 批的 `architecture_overview.md`、`crate_map.md`、`AI_Coding_Context.md` 都写着「四条扩展路径的相互关系尚未验证（E1），禁止凭目录名推断」。本文通过读取 `Cargo.toml` 依赖关系与 `extension-api` 公开 API 完成了核查，结论见 §1。<!-- ref-exempt: 泛指各 crate 的清单文件，不指某一个 -->
->
-> 第 1 批文档中的 E1 声明**在本文发布后即失效**，以本文为准。
+> **基线 commit**: `5c5308fc9a9ee789049d646ef11e5400384b9c6f`
+> **证据等级**: 路径关系、装配点、MCP 链路为 E3（源码与调用链）；crate 清单与行数为 E1；依赖关系为 E2
 
 > [!CAUTION]
-> **本文已修订，修正了初版的多处事实错误**（各处均有「修订说明」）：
+> **第 6 轮：本篇是全体系受损最重的一篇，核验轨判定 81 条原子断言中 47 条 WRONG（58%），另有 10 条「叙事对象已不存在、无从判对错」。** 若你读过旧版，以下五条请优先重读：
 >
-> 1. **不是"全部 12 个 ext/\* 都依赖 extension-api"**——12 个目录里 1 个就是 `extension-api` 本身（crate 不能依赖自己），剩下 11 个里有 **3 个不依赖它**。真实比例是 **8 / 11**。
-> 2. **`codex-core` 并不直接依赖那 5 个具体扩展 crate**——初版引用的 `codex-rs/core/Cargo.toml:141/144/147` 全部落在 `[dev-dependencies]`（该段从 `:137` 开始，`[dependencies]` 是 `:18`–`:126`）。准确说法是：**core 的生产依赖里没有任何一个被注册进 `ExtensionRegistry` 的扩展**——但 `codex-extension-api`(`:39`) 与 `codex-extension-items`(`:40`) 确实在生产依赖里，只是这两个都不是"具体扩展"。**注意：进入 `ExtensionRegistry` 的具体扩展是 8 个，不是 11 个**（见 §3.1）。
-> 3. **装配点不是未知的**——主装配点是 `codex-rs/app-server/src/extensions.rs` 的 `thread_extensions()`。
-> 4. `codex-rs/codex-mcp/src/mcp_connection_manager.rs` **这个文件不存在**，真实文件名是 `codex-rs/codex-mcp/src/connection_manager.rs`。<!-- ref-exempt: 反例——正文正在声明 AGENTS.md 给的这个路径不存在，引用不可解析恰是要表达的事实 -->
-> 5. `ext/connectors` **不依赖** extension-api，所以它不是"两套机制的交叉点"；`tui` **不依赖** extension-api。
+> | # | 旧版怎么说 | 现在的事实 |
+> | ---: | ---- | ---- |
+> | 1 | 四条路径之一是「MCP」，含 Codex 作为服务端与客户端**两个方向** | **服务端方向被整体删除**。`codex-rs/mcp-server` crate、`codex mcp-server` 子命令、`codex_tool_runner` / `codex_tool_config` / `CodexToolCallParam` 全部不存在 |
+> | 2 | 「Skills 被包装成扩展」，`ext/skills` 包装 core 之下的 `core-skills` 运行时 | **层级反转了**。`core-skills` crate 已删除；`ext/skills` 既被 registry 装配，**又被 `codex-core` 当普通库生产依赖** |
+> | 3 | 「core 的生产依赖里没有任何一个被注册进 `ExtensionRegistry` 的扩展」 | **已被证伪**。`codex-rs/core/Cargo.toml:68` 的 `codex-skills-extension` 就是 |
+> | 4 | 插件是「大体并行、个别处合流」的第二条赛道 | **合流是常态**。`core-plugins` 在 crate 层面同时依赖 `codex-mcp` / `codex-skills` / `codex-hooks` |
+> | 5 | `extension-api` 是纯粹的扩展点、不碰具体机制 | **松动了**。它的 `[dependencies]` 现含 `codex-mcp`（`codex-rs/ext/extension-api/Cargo.toml:22`） |
+>
+> **标题口径也随之改了**：旧版叫「四条扩展路径」，但 Skills 已不再是独立一条。现在更准确的说法是**三条 crate 作者侧路径（扩展 / 插件 / MCP 客户端）+ 一条用户配置路径（hooks）**。
 
----
+> [!NOTE]
+> **更早几轮的修订史**（保留备查）：初版曾称「12 个 `ext/*` 全部依赖 extension-api」（实为 8/11）、把 `codex-rs/core/Cargo.toml` 的 dev 依赖当成生产依赖、声称装配点未知。这些在第 5 轮已更正；第 6 轮的数字与结论在此基础上再次全面刷新。
 
-## 1. 核心结论：一个主扩展点 + 一个并行机制，但边界比初版描述的更松
+## 1. 核心结论：一个主扩展点，但边界比旧版描述的松得多
 
-### 1.1 依赖关系实测（E3，逐个 `Cargo.toml` 核对）<!-- ref-exempt: 泛指各 crate 的清单文件，不指某一个 -->
+### 1.1 依赖关系实测（E2，逐个 `Cargo.toml` 的 `[dependencies]` 段核对）<!-- ref-exempt: 泛指各 crate 的清单文件，不指某一个 -->
 
-`ext/` 下共 12 个目录，其中 `ext/extension-api` 是扩展点本身，**具体扩展是 11 个**。逐个核对 `codex-extension-api` 依赖：
+`ext/` 下共 **15 个**目录，其中 `ext/extension-api` 是扩展点本身，**具体扩展是 14 个**，其中 **11 个**实现 `codex-extension-api`。
+
+```bash
+ls -1 codex-rs/ext | wc -l                                                      # 15
+grep -l "codex-extension-api" codex-rs/ext/*/Cargo.toml | grep -v "ext/extension-api/" | wc -l   # 11
+```
 
 | `ext/*` | 依赖 `codex-extension-api` | 备注 |
 | ---- | :--: | ---- |
-| `git-attribution` / `goal` / `guardian` / `image-generation` / `mcp` / `memories` / `skills` / `web-search` | ✅（8 个） | 常规扩展 |
-| `items` | ❌ | `[dependencies]` 共 5 条：`codex-utils-absolute-path`、`schemars`、`serde`、`serde_json`、`ts-rs`。它有 7 个下游 crate（`protocol`、`tools`、`rollout`、`app-server-protocol`、`core`、`ext/image-generation`、`ext/web-search`），实证其"位于依赖图很低层" |
-| `agent` | ❌ | 只依赖 `codex-core`、`codex-protocol` |
-| `connectors` | ❌ | 依赖 `codex-connectors`、`codex-core-plugins`、`codex-plugin`、`codex-utils-path-uri` |
+| `git-attribution` / `goal` / `guardian-v2` / `guardian-reviewer` / `history-notes` / `image-generation` / `mcp` / `memories` / `queue` / `skills` / `web-search` | ✅（11 个） | 常规扩展。**第 6 轮新增 4 个**：`guardian-v2`、`guardian-reviewer`、`history-notes`、`queue`（前两个由原单体 `ext/guardian` 拆分而来） |
+| `items` | ❌ | 纯数据 / schema crate，`[dependencies]` 里 workspace 内只有 `codex-utils-absolute-path` |
+| `agent` | ❌ | 只依赖 `codex-core`、`codex-protocol`；持有 `Weak<ThreadManager>`（`codex-rs/ext/agent/src/lib.rs:35`） |
+| `connectors` | ❌ | **第 6 轮改名换职责**：模块文档现为 *"Plugin app declaration loading."*（`codex-rs/ext/connectors/src/lib.rs:1`），导出 `PluginAppProvider` / `PluginAppProviderError`，不再是旧版记录的 `ExecutorPluginConnectorProvider` |
 
-> [!CAUTION]
-> **修订说明（原文错误）**：初版写「全部 12 个 `ext/*` crate 都依赖 `codex-extension-api`」，并给了 `grep -rl` 作为证据。那条 grep 的命中里**包含 `codex-rs/ext/extension-api/Cargo.toml` 自己**（`[package] name` 行就含这个字符串）——**crate 不可能依赖自己**。逐文件核对后的真实数字是 **11 个具体扩展中的 8 个**。
+> [!IMPORTANT]
+> **「实现 extension-api」不等于「被注册进 `ExtensionRegistry`」——第 6 轮这两个集合首次出现差异。**
+>
+> 11 个实现者里有 **10 个**被装配层注册，唯一的例外是 **`guardian-reviewer`**：它依赖 `extension-api`，但不出现在任何装配点，而是被 `codex-core` 当**普通库**用（`codex-rs/core/Cargo.toml:51`）。
+>
+> 穷举命令：
+>
+> ```bash
+> # 不含 ExtensionRegistryBuilder 的 ext crate（即不自我注册的）
+> for d in codex-rs/ext/*/; do grep -rqs "ExtensionRegistryBuilder" "$d/src" || echo "$(basename $d)"; done
+> # → agent connectors guardian-reviewer items
+> ```
 
-其余实测结论：
+其余实测结论（第 6 轮刷新）：
 
 | 事实 | 证据 |
 | ---- | ---- |
-| `ext/skills`（`codex-skills-extension`）**同时依赖** `codex-core-skills` 与 `codex-skills` | `codex-rs/ext/skills/Cargo.toml:16,22` |
-| `ext/mcp`（`codex-mcp-extension`）**依赖** `codex-mcp`，**也依赖 `codex-core`** | `codex-rs/ext/mcp/Cargo.toml`（`codex-core`、`codex-mcp` 均在 `[dependencies]`） |
-| `core-plugins` 依赖 `codex-plugin`，**不依赖 `codex-extension-api`** | `codex-rs/core-plugins/Cargo.toml:30` |
-| `codex-core` 的**生产**依赖中只有两个 ext crate：`codex-extension-api`(`:39`)、`codex-extension-items`(`:40`) | `codex-rs/core/Cargo.toml`；`grep -n "^\[" codex-rs/core/Cargo.toml` 显示 `[dev-dependencies]` 从 `:137` 开始 |
+| `ext/skills` **不再依赖任何 `core-skills`**（该 crate 已删除），现依赖 `codex-skills` 与 `codex-mcp` | `codex-rs/ext/skills/Cargo.toml` |
+| `ext/mcp` 依赖 `codex-mcp`，**也依赖 `codex-core`** | `codex-rs/ext/mcp/Cargo.toml` |
+| `core-plugins` 依赖 `codex-plugin`(`:29`)、`codex-mcp`(`:26`)、`codex-skills`(`:31`)、`codex-hooks`(`:23`)，**不依赖 `codex-extension-api`** | `codex-rs/core-plugins/Cargo.toml` |
+| **`extension-api` 自身依赖 `codex-mcp`** | `codex-rs/ext/extension-api/Cargo.toml:22`，并在 `codex-rs/ext/extension-api/src/lib.rs:20-21` 再导出 `McpProtocolMode` / `ToolInfo as McpToolInfo` |
 
-### 1.2 三个"例外" crate 各自是什么（E3）
+> [!CAUTION]
+> **旧版的一条核心结论已被证伪：「`codex-core` 的生产依赖里没有任何一个被注册进 `ExtensionRegistry` 的扩展」。**
+>
+> ```
+> codex-rs/core/Cargo.toml:51:codex-guardian-reviewer = { workspace = true }
+> codex-rs/core/Cargo.toml:68:codex-skills-extension = { workspace = true }
+> ```
+>
+> 两行都落在 `[dependencies]` 段内（`[dev-dependencies]` 从 `:140` 才开始）。其中 **`codex-skills-extension` 同时是被注册的扩展**（`codex-rs/app-server/src/extensions.rs:109`）**和 core 的生产库依赖**——core 直接用它的 `HostSkillsService`，不经过任何 contributor 契约。
+>
+> `grep -rn 'codex_skills_extension' codex-rs/core/src --include='*.rs' | grep -v _tests` 命中 **13 处**，横跨 `codex-rs/core/src/thread_manager.rs`、`codex-rs/core/src/session/mod.rs`、`codex-rs/core/src/session/turn.rs`、`codex-rs/core/src/state/service.rs`、`codex-rs/core/src/plugins/mod.rs`、`codex-rs/core/src/skills.rs` 等。
+>
+> **这是整个 `ext/` 目录里唯一被 core 反向依赖的「注册型」扩展**，详见 §5 的层级反转说明。
 
-它们不依赖 `extension-api`，但各有明确定位——不能因为目录在 `ext/` 下就当成同类：
+### 1.2 四个"例外" crate 各自是什么（E3）
 
-| crate | 定位 | 依据 |
-| ---- | ---- | ---- |
-| `ext/items`（`codex-extension-items`） | **纯类型 crate**，不是扩展。模块文档自述：*"Typed display items owned by Codex extensions. This crate intentionally sits below `codex-protocol` so core can carry extension items without owning each extension's display schema."* | `codex-rs/ext/items/src/lib.rs:1-4` |
-| `ext/agent`（`codex-agent-extension`） | **子智能体派生的辅助层**，位于 `ThreadManager` **之上**：定义 `AgentInvocation`、`AgentRun`、`AgentRunner`，直接使用 `codex_core::ThreadManager`、`StartThreadOptions`、`NewThread`。**关键事实：`AgentRunner` 持有的是 `Weak<ThreadManager>`**——它建在 core 的 `ThreadManager` 上，完全不走扩展契约 | `codex-rs/ext/agent/src/lib.rs:18`（`AgentInvocation`）、`:25`（`AgentRun`）、`:33`（`AgentRunner`）、`:34`（`Weak<ThreadManager>` 字段）；全文件 91 行。被 `codex-rs/app-server/src/request_processors/turn_processor.rs:2-4` 使用 |
-| `ext/connectors`（`codex-connectors-extension`） | **建在插件机制之上**。模块文档只有一行：*"Executor-backed connector declaration loading."*；公开 `ExecutorPluginConnectorProvider` | `codex-rs/ext/connectors/src/lib.rs:1-6` |
-
-> [!IMPORTANT]
-> **`ext/connectors` 是"插件是完全平行的独立轨道"这一说法的反例。** 它位于 `ext/` 目录下、名字带 `-extension`，却完全不碰 `extension-api`，而是构建在 `codex-core-plugins` + `codex-plugin` 上。两套机制在目录层面并不是干净分开的。
+> **第 6 轮：例外从三个增至四个**（新增 `guardian-reviewer`，见上方 IMPORTANT）。
 
 ### 1.3 由此确定的关系
 
 ```
      ┌─────────────────────────────────────────────────────┐
      │  codex-extension-api  ── 主扩展点                    │
-     │  13 个扩展点 trait（12 个 *Contributor + 1）         │
+     │  16 个扩展点 trait（12 个 *Contributor + 1）         │
      │  + ExtensionRegistry                                 │
      └───────────────────────┬─────────────────────────────┘
                              │ 11 个具体扩展中的 8 个实现它
@@ -112,11 +132,21 @@ core-skills  codex-mcp
 
 > 所以此前"四条并行路径"的说法**不准确**。准确的说法是：**一个主扩展点（覆盖多数 ext + skills + MCP）+ 一个大体并行、但在个别扩展里合流的插件机制**，另加若干不属于任何一条的支撑 crate。
 >
-> **另有第五条、面向用户而非 crate 作者的路径：`codex-hooks`**（10 种生命周期钩子事件，`codex-core` 的生产依赖）。它不经过 `extension-api`，见 **§7**。
+> **另有第五条、面向用户而非 crate 作者的路径：`codex-hooks`**（11 种生命周期钩子事件，`codex-core` 的生产依赖）。它不经过 `extension-api`，见 **§7**。
 
 ---
 
-## 2. extension-api：13 个扩展点 trait = 12 个 `*Contributor` + 1（E3）
+## 2. extension-api：16 个扩展点 trait = 12 个 `*Contributor` + 4（E3）
+
+> **第 6 轮：从 13 个增至 16 个。** 旧版记的 13 = 12 + 1，漏掉了 3 个同样不以 `Contributor` 结尾的 trait。复算：
+>
+> ```bash
+> grep -rh "^pub trait " codex-rs/ext/extension-api/src/ | wc -l              # 20
+> grep -rh "^pub trait " codex-rs/ext/extension-api/src/capabilities/ | wc -l  # 4（能力 trait，不计入扩展点）
+> # 20 - 4 = 16
+> ```
+>
+> 4 个不以 `Contributor` 结尾的扩展点：`UserInstructionsProvider`（`codex-rs/ext/extension-api/src/user_instructions.rs:67`）、`ThreadInstructionsProvider`（同文件 `:44`）、`SynchronousApprovalReviewer`（`codex-rs/ext/extension-api/src/contributors/approval_review.rs:24`）、`TurnStartAdmission`（`codex-rs/ext/extension-api/src/turn_admission.rs:10`）。**按 `Contributor` 关键词 grep 只会得到 12**，这是反复对不上账的原因。
 
 > [!NOTE]
 > **勘误：不要写成"13 个 Contributor trait"。** 上一稿全文（含摘要与 §1.3 的示意图）都用了这个说法，但 `codex-rs/ext/extension-api/src/contributors.rs` 里以 `Contributor` 结尾的 trait 只有 **12** 个；第 13 个是 `UserInstructionsProvider`，定义在**另一个文件** `codex-rs/ext/extension-api/src/user_instructions.rs:38`（注意仓库里还有一个同名文件 `codex-rs/core/src/context/user_instructions.rs`，不要混淆），**名字里没有 "Contributor"**。
@@ -163,11 +193,11 @@ pub use registry::empty_extension_registry;
 > [!IMPORTANT]
 > **这不是一个 `capabilities.rs` 文件，而是一个目录**，含 `mod.rs`、`codex-rs/ext/extension-api/src/capabilities/agent.rs`、`events.rs`、`metrics.rs`、`codex-rs/ext/extension-api/src/capabilities/response_items.rs` 五个文件（全路径见下表；`codex-rs/ext/extension-api/src/lib.rs:1` 是 `mod capabilities;`）。<!-- ref-exempt: 此处列的是目录内的裸文件名，全路径在紧随的表格中给出 -->
 >
-> **更要紧的区分：这 4 个 capability trait 的方向与 §2 开头那 13 个扩展点 trait 相反。** capability 由**宿主实现、注入给扩展使用**；13 个扩展点 trait 则由**扩展实现、由宿主调用**。
+> **更要紧的区分：这 4 个 capability trait 的方向与 §2 开头那 16 个扩展点 trait 相反。** capability 由**宿主实现、注入给扩展使用**；16 个扩展点 trait 则由**扩展实现、由宿主调用**。
 
 | 类型 | 定义位置 | 用途 |
 | ---- | ---- | ---- |
-| `AgentSpawner` / `AgentSpawnFuture` | `codex-rs/ext/extension-api/src/capabilities/agent.rs:13` | 扩展可以派生子智能体 |
+| ~~`AgentSpawner` / `AgentSpawnFuture`~~ | **第 6 轮删除**：`capabilities/agent.rs` 整个文件已不存在<!-- ref-exempt: 反例——正文说明该路径已不存在 --> | 取而代之的是 `ConversationHistorySnapshot`（`codex-rs/ext/extension-api/src/capabilities/conversation_history.rs`）。**能力 trait 仍是 4 个，但成员换了一个**——只对数字的检查抓不到这类变化 |
 | `ExtensionEventSink` / `NoopExtensionEventSink` | `codex-rs/ext/extension-api/src/capabilities/events.rs:19` | 事件下沉 |
 | `ResponseItemInjector` / `NoopResponseItemInjector` | `codex-rs/ext/extension-api/src/capabilities/response_items.rs:15` | **向模型响应流注入条目** |
 | `ExtensionMetrics` | `codex-rs/ext/extension-api/src/capabilities/metrics.rs:5` | 指标 |
@@ -189,7 +219,9 @@ pub use registry::empty_extension_registry;
 
 ---
 
-## 3. `ext/` 下的 12 个 crate（E1：目录清单与行数；依赖列为 E2）
+## 3. `ext/` 下的 15 个 crate（E1：目录清单与行数；依赖列为 E2）
+
+> **第 6 轮行数全面刷新**（旧值 → 新值）：`ext/skills` 11,114 → **22,219**；`ext/goal` 4,384 → **5,725**；`ext/memories` 2,399 → **2,585**；`ext/extension-api` 2,377 → **2,912**；`ext/mcp` 1,504 → **3,843**；`ext/image-generation` 1,166 → **1,446**；`ext/web-search` 874 → **885**；`ext/git-attribution` 439 → **441**；`ext/items` 271 → **380**；`ext/agent` 161 → **170**；`ext/connectors` 71 → **74**。原 `ext/guardian`（77 行）已拆成 `ext/guardian-v2`（**11,545**）+ `ext/guardian-reviewer`（**3,102**）；另新增 `ext/history-notes`（**1,529**）与 `ext/queue`（**1,689**）。
 
 > [!NOTE]
 > **口径修订**：初版标题写「12 个内建扩展」。准确说是 **`ext/` 下 12 个 crate**——其中 `extension-api` 是扩展点本身、`items` 是纯类型 crate，**真正的"内建扩展"是 11 个（`items` 若不计则更少）**。行数为目录统计，属 **E1**（初版标 E4 属于评级过高，已下调）。
@@ -243,7 +275,7 @@ pub use registry::empty_extension_registry;
 | 位置 | 装了什么 |
 | ---- | ---- |
 | `codex-rs/cli/src/main.rs:2057,2063` | **共 2 个**：`codex_git_attribution::install`、`codex_skills_extension::install`；且用 `ExtensionRegistryBuilder::new()` 而非 `with_event_sink`（`codex-rs/cli/src/main.rs:2056`）——`new()` 走 `Default`，事件下沉是 `NoopExtensionEventSink`（`codex-rs/ext/extension-api/src/registry.rs:38-41,60-62`），**cli 装的扩展发不出扩展事件** |<!-- ref-exempt: with_event_sink 在此是被否定的对象，正文说的正是 cli 没有用它 --><!-- ref-exempt: with_event_sink 在此是被否定的对象，正文说的正是 cli 没有用它 -->
-| `codex-rs/mcp-server/src/message_processor.rs:69` 起 | **恰好 3 个**：`codex_git_attribution::install`(`:72`)、`codex_image_generation_extension::install`(`:78`)、`codex_skills_extension::install_with_providers_and_metrics`(`:85`)。注意这里 `SkillProviders::new().with_host_provider(...)` **只装 host provider**，比 app-server 少 executor / orchestrator 两种 |
+| ~~`codex-rs/mcp-server/src/message_processor.rs`~~ | **第 6 轮删除**：该 crate 已被上游整体移除<!-- ref-exempt: 反例——正文说明该路径已不存在 -->，这条装配点随之消失。剩余装配点见本表其余行。原内容（供对照）：曾装 3 个扩展 —— git-attribution / image-generation / skillsiders_and_metrics`(`:85`)。注意这里 `SkillProviders::new().with_host_provider(...)` **只装 host provider**，比 app-server 少 executor / orchestrator 两种 |
 | `codex-rs/thread-manager-sample/src/main.rs:137` | 最小示例：只装 image-generation，随后传给 `ThreadManager::new` |
 
 > **三处装配点的并集恰好是 8 个具体扩展**：goal / git-attribution / guardian / memories / mcp / web-search / image-generation / skills。`ext/` 下另外 3 个 crate（`items` / `agent` / `connectors`）**根本不进 `ExtensionRegistry`**——所以「11 个具体扩展全部在装配层注册」是错的，正确数字是 **8**。
@@ -267,7 +299,9 @@ pub use registry::empty_extension_registry;
 
 ## 4. 插件路径（并行机制）
 
-### 4.1 模块版图：`codex-rs/core-plugins/src/lib.rs` 的 13 个 `pub mod`（另有 14 个私有 mod，共 27 条声明）
+### 4.1 模块版图：`codex-rs/core-plugins/src/lib.rs` 的 13 个 `pub mod`（另有 26 个私有 mod，共 39 条声明）
+
+> **第 6 轮**：`pub mod` 仍是 13 个（结论未变），但总声明数 27 → **39**，私有 mod 14 → **26**。复算：`grep -cE "^(pub )?mod " codex-rs/core-plugins/src/lib.rs`。
 
 > [!NOTE]
 > **证据等级 E1，且清单本身不完整——这是有意的裁剪。** `codex-rs/core-plugins/src/lib.rs:1-27` 共 **27** 条 `mod` 声明，下表只列其中 **13 条 `pub mod`**（对外 API 面）。职责列按模块名推断，故为 E1。初版把这里叫作"模块声明清单"是错的——"清单"暗示穷举，而实际漏了 14 条。
@@ -313,7 +347,7 @@ pub use registry::empty_extension_registry;
 | 函数 | 注册的 contributor | 作用 |
 | ---- | ---- | ---- |
 | `install(...)`（`codex-rs/ext/mcp/src/lib.rs:42-44`） | `HostedPluginRuntimeExtension` | 托管插件运行时声明的 MCP server |
-| `install_executor_plugins(...)`（`codex-rs/ext/mcp/src/lib.rs:47-54`） | `SelectedExecutorPluginMcpContributor` | **这条才接 `ext/connectors`**——`codex-rs/ext/mcp/src/executor_plugin.rs:1` 就是 `use codex_connectors_extension::ExecutorPluginConnectorProvider;` |
+| `install_plugins(...)`（`codex-rs/ext/mcp/src/lib.rs:26` 导出 → `codex-rs/ext/mcp/src/plugin_contributor.rs:32`） | `PluginContributor` | **第 6 轮重构**：旧版的 `install_executor_plugins` / `executor_plugin.rs` / `SelectedExecutorPluginMcpContributor` 三者**全仓零命中**<!-- ref-exempt: 反例——正文说明这些符号已不存在 -->。现在是**一个 `PluginContributor` 对象同时占 4 个注册槽**（`codex-rs/ext/mcp/src/plugin_contributor.rs:25-28`：thread_lifecycle / config / turn_lifecycle / mcp_server）。旧版「两者都通过同一个 `builder.mcp_server_contributor(...)` 入口注册」已不成立onnectors_extension::ExecutorPluginConnectorProvider;` |
 
 两者都通过同一个 `builder.mcp_server_contributor(...)` 入口注册（`:43`、`:51`）。
 
@@ -340,50 +374,50 @@ pub use registry::empty_extension_registry;
 
 ---
 
-## 5. Skills 路径
+## 5. Skills 路径：第 6 轮发生层级反转
+
+> [!CAUTION]
+> **旧版的骨架是「`ext/skills` 包装 core 之下的 `core-skills` 运行时」。这个方向反了。**
+>
+> 上游 `33e365b19e`「Remove the legacy core skill loader」删除了 `codex-rs/core-skills` crate<!-- ref-exempt: 反例——正文说明该 crate 已不存在 -->，加载器、检索器与注入全部搬进 `codex-rs/ext/skills/`。今天的层级是：
+>
+> ```
+> codex-core  ──依赖──▶  ext/skills（codex-skills-extension）──依赖──▶  codex-skills（纯解析/模型层）
+>      ▲                        │
+>      └────── 同时经 ExtensionRegistry 被装配进来 ──┘
+> ```
+>
+> **`ext/skills` 同时在 core 之下与 core 之上**：既是 `codex-rs/core/Cargo.toml:68` 的生产依赖（core 直接调它的 `HostSkillsService`，不经 contributor 契约），又在 `codex-rs/app-server/src/extensions.rs:109` 被注册进 registry。这是整个 `ext/` 目录里唯一有此双重身份的 crate，也是本轮最值得记住的结构性发现。
+>
+> **推论**：「Skills 是一条独立的扩展路径」这个说法应当撤回——它现在就是**扩展本体**，只是额外被 core 直接引用。
 
 | crate | 行数 | 角色 |
 | ---- | ---: | ---- |
-| `codex-skills-extension`（`ext/skills`） | 11,114 | **扩展包装层**，实现 `SkillInvocationContributor` 等 trait |
-| `codex-core-skills` | 9,083 | 运行时：`loader` / `injection` / `model` / `remote` / `service` / `system` / `config_rules` |
-| `codex-skills` | 372 | 系统 skill 的安装与缓存 |
+| `codex-skills-extension`（`codex-rs/ext/skills`） | 22,219 | **Skills 的实现主体**：`loader/`（发现与装载）、`dynamic_skill_selector/`（一整套检索器，含 BM25、字符 n-gram、LRU 等）、`host_service.rs`、`host_prompt.rs`、`host_roots.rs` |
+| `codex-skills`（目录 `codex-rs/skills`） | 2,594 | **纯解析 / 模型层**：`parser` / `model` / `selection` / `mentions` / `interface` / `invocation` / `loading` 七个模块的再导出（`codex-rs/skills/src/lib.rs:10-44`）。另含样例 skill 资产 |
 
-> **crate 名 ≠ 目录名**：crate `codex-skills` 的目录是 `codex-rs/skills/`（`codex-rs/skills/Cargo.toml:4` 是 `name = "codex-skills"`）。不存在 `codex-skills/src/` 这个目录，初版的路径写法定位不到文件。
+> **crate 名 ≠ 目录名**：crate `codex-skills` 的目录是 `codex-rs/skills/`。不存在 `codex-skills/src/` 这个目录。
 
-`codex-rs/skills/src/lib.rs` 的公开 API（E3）：
+仓库自带的样例 skill 在 `codex-rs/skills/src/assets/samples/`，第 6 轮共 **6 个**（旧版记 3 个）：`imagegen`、`openai-docs`、`plugin-creator`、`review-agent`、`skill-creator`、`skill-installer`。
 
-```rust
-pub fn system_cache_root_dir(codex_home: &AbsolutePathBuf) -> AbsolutePathBuf;  // :30
-pub fn install_system_skills(codex_home: &AbsolutePathBuf) -> Result<(), SystemSkillsError>;  // :44
-pub enum SystemSkillsError;  // :143
-```
+### 5.1 Skill 的发现与装载（E3，第 6 轮全部迁址）
 
-**系统 skill 缓存落在 `CODEX_HOME` 下**。仓库内自带的样例 skill 在 `codex-rs/skills/src/assets/samples/` —— 包括 `plugin-creator`、`skill-creator`、`skill-installer`。
+> **旧版本节的 6 条证据全部指向已删除的 `codex-rs/core-skills/src/loader.rs`**<!-- ref-exempt: 反例——正文说明该路径已不存在 -->（本篇 18 个引用错误里有 12 个出自这里）。现按新位置重建。
 
-### 5.1 Skill 的发现与装载（E3）
-
-`.codex/skills` 这类目录是怎么被找到的，全部由 `codex-rs/core-skills/src/loader.rs` 决定：
-
-| 事实 | 位置 |
-| ---- | ---- |
-| 目录名常量 `SKILLS_DIR_NAME = "skills"` | `codex-rs/core-skills/src/loader.rs:143` |
-| 每个根目录最多扫 2000 个 skill 目录（`MAX_SKILLS_DIRS_PER_ROOT`），扫描深度上限 6 层（`MAX_SCAN_DEPTH`，`:156`） | `codex-rs/core-skills/src/loader.rs:157` |
-| 实际的目录遍历实现 | `codex-rs/core-skills/src/loader/discovery.rs` |
-
-扫描根由 `fn skill_roots_from_layer_stack_inner`（`codex-rs/core-skills/src/loader.rs:292`）沿**配置层栈**逐层拼出，按 `SkillScope` 分类：
+扫描根的解析在 `codex-rs/ext/skills/src/host_roots.rs`，入口 `resolve_skill_roots`（`:28`）→ `resolve_skill_roots_with_home_dir`（`:48`）→ `roots_from_layer_stack`（`:73`）沿**配置层栈**逐层拼出，按 `SkillScope` 分类：
 
 | `SkillScope` | 根目录 | 位置 |
 | ---- | ---- | ---- |
-| `Repo` | 项目配置目录下的 `skills/`（即 `.codex/skills`） | `codex-rs/core-skills/src/loader.rs:312` |
-| `User` | `$CODEX_HOME/skills`（已弃用但保留兼容） | `codex-rs/core-skills/src/loader.rs:326` |
-| `User` | `$HOME/.agents/skills`（用户安装的 skill） | `codex-rs/core-skills/src/loader.rs:338` |
-| `System` | `$CODEX_HOME/skills/.system`（内置 skill 缓存，非配置层） | `codex-rs/core-skills/src/loader.rs:351` |
-| `Admin` | 系统配置层下的 `skills/`（Unix 上即 `/etc/codex/skills`） | `codex-rs/core-skills/src/loader.rs:364` |
-| `Repo` | 从项目根到 cwd 之间每一级目录的 `.agents/skills` | `codex-rs/core-skills/src/loader.rs:410` |
+| `Repo` | 项目配置目录下的 `skills/`（即 `.codex/skills`） | `codex-rs/ext/skills/src/host_roots.rs:90` |
+| `User` | `$CODEX_HOME/skills` | `codex-rs/ext/skills/src/host_roots.rs:100` |
+| `User` | `$HOME/.agents/skills`（用户安装的 skill） | `codex-rs/ext/skills/src/host_roots.rs:106` |
+| `System` | 内置 skill 缓存 | `codex-rs/ext/skills/src/host_roots.rs:112` |
+| `Admin` | 系统配置层下的 `skills/` | `codex-rs/ext/skills/src/host_roots.rs:118` |
+| `Repo` | 从项目根到 cwd 之间每一级目录的 `.agents/skills` | `codex-rs/ext/skills/src/host_roots.rs:137` 的 `repo_agents_skill_roots`，分类在 `:171` |
 
-插件带来的 skill 根与显式追加的额外根另由 `codex-rs/core-skills/src/loader.rs:272,278` 并入，`scope` 一律记为 `User`。
+目录名常量 `SKILLS_DIR_NAME = "skills"` 在 `codex-rs/ext/skills/src/host_roots.rs:25`；扫描上限常量 `MAX_SCAN_DEPTH` 与 `MAX_SKILLS_DIRS_PER_ROOT` 定义在 `codex-rs/ext/skills/src/loader/mod.rs`，消费点在 `codex-rs/ext/skills/src/loader/discovery.rs:70` 与 `:73`。去重在 `codex-rs/ext/skills/src/host_roots.rs:271` 的 `dedupe_skill_roots_by_path`。
 
-`core-skills` 的 `injection` 模块说明 skill 内容会被**注入模型上下文**——**这一条是 E1（仅依据模块名，未读实现）**，与 §10 把「Skill 注入模型上下文的具体形式」列为未覆盖项是同一件事，两处口径一致。
+> **仍未覆盖（E1）**：skill 内容注入模型上下文的**具体形式**本轮同样未读实现，与 §10 的未覆盖项口径一致。
 
 ---
 
@@ -463,7 +497,7 @@ pub enum SystemSkillsError;  // :143
 | `McpServerEnvVar` | `codex-rs/config/src/mcp_types.rs:68` | 环境变量声明（裸名或带 `source` 的对象） |
 | `McpServerAuth` | `codex-rs/config/src/mcp_types.rs:140` | 认证模式：`oauth`（存储凭据）/ `chatgpt`（复用 ChatGPT 会话） |
 
-（§6.1 中"客户端 / 服务端两个方向"的划分经核实无误：`mcp-server` 走 stdio 已由 `codex-rs/mcp-server/src/lib.rs:129-133` 从 stdin 读行的实现证实。）
+> **第 6 轮：这里原有一句「客户端 / 服务端两个方向的划分经核实无误」的括注已删除。** 服务端方向整体不存在了，它引用的文件也不存在。
 
 ---
 
@@ -482,7 +516,9 @@ pub enum SystemSkillsError;  // :143
 | 另被 app-server 与插件运行时依赖 | `codex-rs/app-server/Cargo.toml:55`、`codex-rs/core-plugins/Cargo.toml:24` |
 | 有完整机制，不是一个类型别名 | `codex-rs/hooks/src/registry.rs`、`codex-rs/hooks/src/engine/`、`codex-rs/hooks/src/declarations.rs`、`codex-rs/hooks/src/config_rules.rs`、`codex-rs/hooks/src/schema.rs` |
 
-### 7.2 10 种钩子事件（E3）
+### 7.2 11 种钩子事件（E3）
+
+> **第 6 轮新增 `Interrupt`**（`codex-rs/hooks/src/schema.rs:123-124`）。复算：`sed -n '102,125p' codex-rs/hooks/src/schema.rs | grep -c 'rename ='` → 11。
 
 `codex-rs/hooks/src/schema.rs:100-120` 的 `enum HookEventNameWire` 穷举了全部事件名（wire 格式即 `config.toml` 里写的字符串）：<!-- ref-exempt: 指用户机器上生成的 $CODEX_HOME/config.toml -->
 
@@ -505,7 +541,7 @@ pub enum SystemSkillsError;  // :143
 | ---- | ---- | ---- |
 | 面向谁 | **crate 作者**——要写 Rust、要在装配层注册 | **用户**——写配置即可，不改代码 |
 | 入口 | `codex-rs/ext/extension-api/src/contributors.rs` 的 trait | `$CODEX_HOME/config.toml` 中的 hook 声明<!-- ref-exempt: 指用户机器上生成的配置文件 --> |
-| 覆盖面 | thread / turn / tool / approval 等 13 个扩展点 | 10 种固定事件 |
+| 覆盖面 | thread / turn / tool / approval 等 16 个扩展点 | 10 种固定事件 |
 | 生效方式 | 显式 `install(...)` 注册进 `ExtensionRegistry`（见 §2） | 由 `codex-rs/hooks/src/registry.rs` 按配置规则装载 |<!-- ref-exempt: ExtensionRegistry 属于左列的扩展体系，不应期望出现在 hooks/registry.rs 中 -->
 
 **两套机制并存，不是替代关系。** 需要在生命周期插入逻辑时，先问"这段逻辑要不要用户能开关"——要，走 hooks；不要且需要 Rust 级能力，走扩展。
@@ -550,7 +586,7 @@ pub enum SystemSkillsError;  // :143
 | 各 Contributor trait 的方法签名与调用时机 | E1（仅知 trait 名） | `codex-rs/ext/extension-api/src/contributors.rs` |
 | 插件清单（manifest）的格式 | E1 | `codex-rs/core-plugins/src/manifest.rs` |
 | 插件市场的远程协议 | E1 | `codex-rs/core-plugins/src/remote.rs`、`codex-rs/core-plugins/src/remote_bundle.rs`、`codex-rs/core-plugins/src/remote_legacy.rs` |
-| Skill **注入模型上下文**的具体形式（发现与装载已覆盖，注入未覆盖） | E1（仅依据模块名，与 §5.1 末段口径一致） | `codex-rs/core-skills/src/injection.rs` |
+| Skill **注入模型上下文**的具体形式（发现与装载已覆盖，注入未覆盖） | E1 | 第 6 轮随 `core-skills` 删除而迁址，相关实现现分散在 `codex-rs/ext/skills/src/host_prompt.rs` 与 `codex-rs/core/src/plugins/injection.rs`，**本轮未读实现，不确认分工** |
 | MCP 连接的握手与工具发现流程 | E1 | `codex-rs/codex-mcp/src/connection_manager.rs` 与 `codex-rs/codex-mcp/src/connection_manager/` |
 | `codex-hooks` 的执行引擎与配置规则（本文只覆盖了 10 种事件名与依赖关系） | E1 | `codex-rs/hooks/src/engine/`、`codex-rs/hooks/src/config_rules.rs`、`codex-rs/hooks/src/declarations.rs` |
 | `codex-connectors`（4,851 行）与 `ext/connectors`（71 行）的分工 | E1 | 两者的 `Cargo.toml` 与 `lib.rs`<!-- ref-exempt: 语境已限定为这两个 crate 各自的清单与入口文件 --> |

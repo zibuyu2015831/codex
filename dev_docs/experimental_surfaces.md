@@ -718,7 +718,7 @@ grep -oE 'stage: Stage::[A-Za-z]+' codex-rs/features/src/lib.rs | sort | uniq -c
 > [!CAUTION]
 > **修订说明（原文错误）**：初版在此表最后一行写「各表面的启用配置键 → `codex-rs/core/config.schema.json` 中的 `experimental_*` 键」，等于把读者指向了一个**不成立的假设**。
 
-实测（E2，解析生成的 `codex-rs/core/config.schema.json`）：**93 个顶层键中只有 10 个以 `experimental_` 开头**，且**没有一个对应本文展开的六个表面**：
+实测（E2，解析生成的 `codex-rs/core/config.schema.json`）：**100 个顶层键中只有 10 个以 `experimental_` 开头**，且**没有一个对应本文展开的六个表面**：
 
 | `experimental_*` 键 | 实际对应 |
 | ---- | ---- |

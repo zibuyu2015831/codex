@@ -179,7 +179,7 @@ graph TB
 > WINDOWS_BINARIES: "codex codex-code-mode-host codex-responses-api-proxy codex-windows-sandbox-setup codex-windows-sandbox-service codex-command-runner codex-app-server"
 > ```
 >
-> **第 6 轮变化**：该行新增 `codex-windows-sandbox-service`，从 6 项变为 7 项；去掉主二进制 `codex` 后，两个发布工作流的并集从 6 个辅助可执行文件变为 **7 个**。
+> **第 6 轮变化**：该行新增 `codex-windows-sandbox-service`，从 6 项变为 7 项；去掉主二进制 `codex` 后，两个发布工作流的并集由基线的六项增至 **7 个辅助可执行文件**。
 
 发布矩阵佐证（E2，`.github/workflows/rust-release.yml:89-132`）：非 Windows 的每个 target 拆成 `bundle: primary` 与 `bundle: app-server` 两条，`binaries` 字段分别是——
 
