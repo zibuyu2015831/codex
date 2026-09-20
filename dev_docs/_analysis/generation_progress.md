@@ -1,23 +1,23 @@
 ---
 title: Codex CLI 文档体系生成进度记录
-summary: 记录 openai/codex 仓库 dev_docs 文档体系的生成进度、流程阶段状态、两轮 Phase 1 方案复查记录、结构化机器检查结果、脱敏扫描记录与用户确认状态；含第二轮七路独立审查把首版验收由 PASS_WITH_ACCEPTED_ISSUES 改判为 FAIL 的经过，以及第 5 轮双轨交叉审查（核验轨 + 禁读文档的重推导轨 + 会拒改的修订轨）逐批次执行记录、自建三项门禁的落地、产物行数与门禁状态的实测重建，支持会话中断后的断点续传。
-keywords: codex | progress | phase1-review | machine-checks | dev-docs | tracking | dual-track-review
+summary: 记录 openai/codex 仓库 dev_docs 文档体系的生成进度、流程阶段状态、两轮 Phase 1 方案复查记录、结构化机器检查结果、脱敏扫描记录与用户确认状态；含第二轮七路独立审查把首版验收由 PASS_WITH_ACCEPTED_ISSUES 改判为 FAIL 的经过、第 5 轮双轨交叉审查（核验轨 + 禁读文档的重推导轨 + 会拒改的修订轨）逐批次执行记录与自建三项门禁的落地，以及第 6 轮上游同步（基线 bb5054fe47 → 5c5308fc9a，跨 2,230 提交）的批次计划、事实基座重建与方法论折价声明，支持会话中断后的断点续传。
+keywords: codex | progress | phase1-review | machine-checks | dev-docs | tracking | dual-track-review | upstream-sync | round6
 scope: openai/codex 仓库 dev_docs 文档体系生成过程追踪
 related_files: AGENTS.md | codex-rs/Cargo.toml | codex-rs/cli/src/main.rs
-dependencies: dev_docs/_analysis/generation_plan.md | dev_docs/_analysis/project_analysis_report.md
-verified_at: 2026-08-05
+dependencies: dev_docs/_analysis/generation_plan.md | dev_docs/_analysis/project_analysis_report.md | dev_docs/_analysis/upstream_sync_round6.md
+verified_at: 2026-09-20
 ---
 
 # 文档生成进度记录
 
 > **项目**: Codex CLI（仓库 `openai/codex`）
 > **开始时间**: 2026-08-03 12:28
-> **最后更新**: 2026-08-05
-> **当前状态**: 第 5 轮双轨交叉审查已完成主体批次，各批次修订均已提交；`health_check_report.md` 判定 `PASS_WITH_ACCEPTED_ISSUES`
-> **流程阶段进度**: Step 8/8 已执行完毕；Step 8 的结论历经「通过 → FAIL → 通过（附 accepted issue）→ 第 5 轮重新验收」四次更新
-> **产物完成度**: 26/26 (100%)
-> **当前 gate**: 8 项门禁（5 项框架 checker + 3 项自建门禁）+ 双轨交叉审查 + 修订代理独立复核
-> **下一步动作**: 见 `health_check_report.md` 的 `accepted_issues`（AI-005 待联网、AI-007 待下一轮抽样复核）
+> **最后更新**: 2026-09-20
+> **当前状态**: **第 6 轮上游同步进行中**。已将 `upstream/main` 合入 `zibuyu`（合并提交 `67e6921373`，跨 2,230 提交），基线 `bb5054fe47` → `5c5308fc9a`。批次 0（事实基座）与批次 1（`crate_map` / `architecture_overview`）已完成，批次 2–10 待执行
+> **流程阶段进度**: 第 1–5 轮的 Step 8/8 已闭环；第 6 轮属框架路径 C（上游漂移增量更新），作业单见 `dev_docs/_analysis/upstream_sync_round6.md`
+> **产物完成度**: 27/27（第 6 轮将新增 2 篇专题，届时为 29）
+> **当前 gate**: 8 项门禁（5 项框架 checker + 3 项自建门禁）；**第 6 轮不具备多代理条件，双轨交叉降级为单人分轨，见作业单 §2**
+> **下一步动作**: 执行批次 2（`core_agent_loop.md` / `tools_and_sandbox.md` / `session_and_persistence.md`）
 > **阻塞原因**: 无
 > **正式生成授权**: 已授权（用户 2026-08-03 明确回复"方案审核通过"）
 > **版本控制状态**: 已提交并推送至 `origin/zibuyu`。**注意**：本仓库只配置了一个 remote，且它就是个人 fork `git@github.com:zibuyu2015831/codex.git`（`git remote -v` 实测），未配置任何指向 `openai/codex` 的 remote
@@ -383,6 +383,9 @@ verified_at: 2026-08-05
 | 第 3–4 轮 | 修复中 | 第三轮修复第二轮的 6 个新 HIGH，第四轮修复第三轮的 7 个新 HIGH；verdict 回到 `PASS_WITH_ACCEPTED_ISSUES`，但附 accepted issue **AI-006**（第四轮修复未经独立复核） | 兑现 AI-006 | 本项目实测的「修复引入新错」基准率为每轮 6–7 个 HIGH |
 | 2026-08-05 | 第 5 轮双轨交叉审查 | 批次 0 先建三件门禁工具（`dev_docs/_analysis/ref_checker.py`、`dev_docs/_analysis/claim_ledger.jsonl`、`dev_docs/_analysis/redact_scan.sh`）并改造 `dev_docs/_analysis/cross_doc_consistency_checker.py` 消费账本；随后按 `session_and_persistence` → 批次 1 → 批次 2 → `observability` → 批次 3 → 批次 4 的顺序逐篇双轨审查并修订，共 7 次提交 | 处理 AI-005 / AI-007 | 引用可从仓库根解析率由 25.1% 大幅提升；跨文档对账首次全绿；修订代理多次拒改主控裁定并附反证 |
 | 2026-08-05 | 元文件回写 | 重写 `health_check_report.md` 为第 5 轮验收报告；`generation_progress.md` 更正「推送红线」失真陈述与过期统计；`generation_plan.md` 补入双轨方法论与三条反模式硬约束并闭合 CLI 子命令口径遗留项；两个元文件的 55 条不可解析引用全部补全或标注豁免 | 见 `health_check_report.md` 的后续建议 | 元文件也在验收范围内——这是第二轮 H15 的教训 |
+| 2026-09-20 | 第 6 轮上游同步启动 | 合并 `upstream/main`（合并提交 `67e6921373`，2,230 提交 / 6,091 文件 / +817,079 −152,246 行），无冲突，分支纯净性复核通过；合并后门禁实测 97 ERROR / 207 WARN，断言账本 29 条中 26 条数值失效 | 执行批次 0 | 用户裁定本轮取「全量重做式重核」+「为重点子系统新开专题」 |
+| 2026-09-20 | 批次 0 完成 | 重建事实基座：账本 29→33 条并全部复验通过；修复三处**工装口径缺陷**（cargo 不在 PATH 时静默失败、migrations 目录硬编码漏计新目录、realtime 变体裸 grep 混计 Op 与 EventMsg）；逐条裁定 33 个死引用去向；新建作业单 `dev_docs/_analysis/upstream_sync_round6.md` | 执行批次 1 | 查出三项**框架级**语义变更：untrusted 审批白名单整体退役、`Op::UserInput` 更名 `TurnInput`、`mcp-server` 与 `core-skills` 两个 crate 删除 |
+| 2026-09-20 | 批次 1 完成 | 重写 `crate_map.md`（154 crate 全量重算行数与双口径依赖度，新增 §3.13 语音实时、§3.14 Guardian 两个子系统分组）与 `architecture_overview.md`（子命令 27→30、发布二进制 6→7、mcp-server 前端整条移除）；两篇引用类 ERROR 归零，全仓 97→89 | 执行批次 2 | 四项门禁查不出的新发现：tui 行数反超 core、app-server README 从 2469 行缩至 316 行且 AGENTS.md 不再提及、能力 trait 数不变但成员换人、AGENTS.md 的 v2.rs 路径已失效 |
 
 ---
 
