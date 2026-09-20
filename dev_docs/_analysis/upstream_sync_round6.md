@@ -249,7 +249,7 @@ ERROR 集中度（合并后首测，共 97 ERROR / 207 WARN）：
 | 0 | 事实基座重建与工装修复（本文件 + 账本） | ✅ 完成 |
 | 1 | `crate_map.md` / `architecture_overview.md`（其余各篇的事实基础，须先定稿） | ✅ 完成（两篇引用类 ERROR 归零） |
 | 2 | `core_agent_loop.md` / `tools_and_sandbox.md` / `session_and_persistence.md` | ✅ 完成（三篇引用类 ERROR 归零；后两篇恢复双轨交叉，核验轨分别判定 79 / 174 条 WRONG） |
-| 3 | `config_system.md` / `auth_and_providers.md` | ⬜ |
+| 3 | `config_system.md` / `auth_and_providers.md` | ✅ 完成（两篇引用类 ERROR 归零；核验轨分别判定 85 / 91 条 WRONG） |
 | 4 | `app_server_protocol.md` / `mcp_and_extensions.md`（重写） / `sdk_guide.md` | ⬜ |
 | 5 | `build_and_release.md` / `development_workflow.md` / `testing_guide.md` / `observability.md` | ⬜ |
 | 6 | `tui_guide.md` / `experimental_surfaces.md` | ⬜ |
@@ -307,3 +307,17 @@ ERROR 集中度（合并后首测，共 97 ERROR / 207 WARN）：
 | **唯一证据消失时应删结论，而不是找个相近符号圆回来** | `core_agent_loop.md` §4.2 | `tool_waits_for_runtime_cancellation` 全仓零命中，由它推出的「不同工具取消等待行为不同」已整条删除并注明未取证。**留空比编一个替代证据诚实。** |
 
 另有两处「数字没变但集合变了」，与批次 1 的 `AgentSpawner` 那条同类：`codex-rs/linux-sandbox/src/landlock.rs` 的 `deny_syscall` 仍是 19 处但新增了 `process_vm_writev` 与 3 条 `io_uring_*`；`extension-api` 能力 trait 仍是 4 个但换了一个成员。**只对数字的检查对这一类完全无感。**
+
+### 批次 3 的额外发现
+
+两篇的核验轨判定为 **85/126** 与 **91/216**。除各文已就地记载外，有三条值得单列：
+
+| 发现 | 出处 | 说明 |
+| ---- | ---- | ---- |
+| **安全对比被写反** | `auth_and_providers.md` §2.5 / §2.1.2 | 旧版说 MCP OAuth 是「写完后 `chmod`，留下短暂宽权限窗口」，用来反衬 CLI 侧。实测 MCP 侧同样在 `open` 时设 `0o600`，**且多一层 `O_NOFOLLOW`**（CLI 侧没有）——对比方向整个反了。安全类断言写反比写漏更危险，因为它会让人去"加固"一个本来更强的地方。 |
+| **文档给的复核命令本身失效** | `config_system.md` §2 | 旧版让读者跑 `grep -rn '/\*include_disabled\*/ true' …` 复核，而 `include_disabled` / `get_layers` 这套 API **全仓已零命中**。读者按文档去验证会一无所获，进而怀疑整篇文档。**这比单纯的行号漂移更伤信任**——行号错了还能靠符号名找回来，复核命令错了则是死路。 |
+| **默认值的落点变了** | `config_system.md` §1 ④ | 新增的 `PackagedDefaults` 层（precedence **-10**，`include_str!` 编译期内嵌，生产路径恒生效）使 14 个顶层键的默认值**不再来自 Rust 的 `Default` impl，而来自一层 TOML**。原有的教训「要判断配置键是否生效，必须找到读取点」现在要追加一问：**它的默认值是从哪一层来的？** |
+
+**一类反复出现的失效源**：`auth_and_providers` 的 24 条承重 WRONG 里有 **11 条**是穷举陈述被新增项打破——7 变体→8、7 字段→8、5 条推断→6、4 条 validate 规则→10、4 个内置 provider→5、唯一例外→两个、两套存储→三套、13 个协议方法→15、3 个常量→4、四选一→五、唯一的行为覆盖→8 个文件。
+
+问题不在推断方法，而在**穷举结论没有绑定复算命令**。本轮已对其中多条就地补入可直接执行的复算命令，使下轮核验从「重新取证」降级为「跑一遍」。这应当成为此后写穷举断言的硬性要求。

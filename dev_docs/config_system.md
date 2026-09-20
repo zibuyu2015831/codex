@@ -1,17 +1,17 @@
 ---
 title: Codex 配置体系
-summary: 描述 codex-config 的八个配置层来源与九个优先级档位（含 MDM 在 macOS 上实际走最高优先级 legacy 通道这一关键勘误）、配置文件发现顺序、项目层的两道闸门（键黑名单 + 目录信任门控）、93 个顶层配置键的规模、profile 作为独立文件的第二用户层机制、config.schema.json 的生成与自动化防漂移测试、requirements.toml 的管理员约束能力、sqlite_home 的三级解析与 requirements 覆盖、LoaderOverrides 逃生舱，以及配置加载作为高风险改动面的注意事项。
-keywords: codex | config | config-layer | precedence | config-toml | json-schema | requirements-toml | trust-gating | profile | denylist | sqlite-home | loader-overrides
+summary: 描述 codex-config 的九个配置层来源与十个优先级档位（含第 6 轮新增的 PackagedDefaults 层与 MDM 在 macOS 上实际走最高优先级 legacy 通道这一关键勘误）、配置文件发现顺序、项目层的两道闸门（键黑名单 + 目录信任门控）、100 个顶层配置键的规模、profile 作为独立文件的第二用户层机制、config.schema.json 的生成与自动化防漂移测试、requirements.toml 的管理员约束能力、sqlite_home 的三级解析与 requirements 覆盖、LoaderOverrides 逃生舱，以及配置加载作为高风险改动面的注意事项。
+keywords: codex | config | config-layer | precedence | config-toml | json-schema | requirements-toml | trust-gating | profile | denylist | sqlite-home | loader-overrides | packaged-defaults | round6
 scope: codex-rs/config 与 codex-rs/core/src/config 的配置加载体系
-related_files: codex-rs/config/src/config_layer_source.rs | codex-rs/config/src/state.rs | codex-rs/config/src/loader/mod.rs | codex-rs/config/src/loader/layer_io.rs | codex-rs/config/src/loader/macos.rs | codex-rs/config/src/loader/README.md | codex-rs/core/src/config/mod.rs | codex-rs/core/src/config/config_loader_tests.rs | codex-rs/core/src/config/schema_tests.rs | codex-rs/core/src/bin/config_schema.rs | codex-rs/core/config.schema.json | codex-rs/app-server-protocol/src/protocol/v2/config.rs | codex-rs/app-server/src/config_layer.rs | codex-rs/cli/src/lib.rs | codex-rs/utils/home-dir/src/lib.rs | docs/config.md | AGENTS.md
+related_files: codex-rs/config/src/config_layer_source.rs | codex-rs/config/src/state.rs | codex-rs/config/src/loader/mod.rs | codex-rs/config/src/loader/layer_io.rs | codex-rs/config/src/loader/macos.rs | codex-rs/config/src/loader/README.md | codex-rs/core/src/config/mod.rs | codex-rs/core/src/config/config_loader_tests.rs | codex-rs/core/src/config/schema_tests.rs | codex-rs/config-schema/src/main.rs | codex-rs/config/defaults.toml | codex-rs/config/src/loader/managed_requirements.rs | codex-rs/core/config.schema.json | codex-rs/app-server-protocol/src/protocol/v2/config.rs | codex-rs/app-server/src/config_layer.rs | codex-rs/cli/src/lib.rs | codex-rs/utils/home-dir/src/lib.rs | docs/config.md | AGENTS.md
 dependencies: dev_docs/architecture_overview.md | dev_docs/core_agent_loop.md
-verified_at: 2026-08-05
+verified_at: 2026-09-21
 ---
 
 # 配置体系
 
-> **基线 commit**: `bb5054fe47abe73ecbbd454751066a28c89f4bb9`
-> **覆盖范围**: `codex-config`（`src/` 下 21,167 行）+ `codex-rs/core/src/config/`
+> **基线 commit**: `5c5308fc9a9ee789049d646ef11e5400384b9c6f`
+> **覆盖范围**: `codex-config`（`src/` 下 29,515 行）+ `codex-rs/core/src/config/`
 > **证据等级**: 层级优先级、加载顺序与信任门控为 E3（源码与调用链）；配置键数量为 E2（解析已提交的生成产物 `codex-rs/core/config.schema.json`）；行数统计为 E1（对已跟踪文件 `wc -l`）；文件/模块清单为 E1
 
 > [!NOTE]
@@ -24,15 +24,18 @@ verified_at: 2026-08-05
 
 ---
 
-## 1. 八个层来源变体、九个优先级档位（E3）
+## 1. 九个层来源变体、十个优先级档位（E3）
 
-`codex-rs/config/src/config_layer_source.rs:6` 定义了 `ConfigLayerSource`，`:31-48` 给出了每层的数值优先级。**数值越大优先级越高，高优先级覆盖低优先级**（`:29-30` 的文档注释明文说明）。
+`codex-rs/config/src/config_layer_source.rs:6` 定义了 `ConfigLayerSource`，`:33-51` 给出了每层的数值优先级。**数值越大优先级越高，高优先级覆盖低优先级**（`:31-32` 的文档注释明文说明）。
 
 > [!NOTE]
-> **「八层」还是「九层」？** `ConfigLayerSource` 只有 **8 个变体**，但 `precedence()` 返回 **9 个不同数值**——`User` 按 `profile.is_some()` 分叉为 21 / 20（见下表与 ③）。本文统一说「八个层来源变体、九个优先级档位」。
+> **「九层」还是「十层」？** `ConfigLayerSource` 有 **9 个变体**，但 `precedence()` 返回 **10 个不同数值**——`User` 按 `profile.is_some()` 分叉为 21 / 20（见下表与 ③）。本文统一说「九个层来源变体、十个优先级档位」。
+>
+> **第 6 轮变更**：基线为 8 变体 / 9 档位，本轮新增 `PackagedDefaults`（precedence **-10**），见下方 ④。
 
 | 优先级 | 层 | 变体 | 载体 |
 | ---: | ---- | ---- | ---- |
+| **-10** | **安装包自带默认值**（第 6 轮新增，**生产路径恒生效**） | `PackagedDefaults { file }` | 内嵌 `codex-rs/config/defaults.toml`，或 `LoaderOverrides::packaged_defaults_path` 指定的文件。见下方 ④ |
 | 0 | MDM 管理策略（**生产路径未使用**） | `Mdm { domain, key }` | 见下方 ① |
 | 10 | 主机级系统配置 | `System { file }` | `/etc/codex/config.toml`（Unix）/ `%ProgramData%\OpenAI\Codex\config.toml`（Windows） |
 | 15 | 企业云配置包 | `EnterpriseManaged { id, name }` | 企业云下发 |
@@ -43,14 +46,14 @@ verified_at: 2026-08-05
 | 40 | 遗留管理配置（文件） | `LegacyManagedConfigTomlFromFile { file }` | `managed_config.toml` |
 | **50** | 遗留管理配置（MDM，**仅 macOS**） | `LegacyManagedConfigTomlFromMdm` | **macOS 托管偏好设置，即真正的 MDM 通道** |
 
-### 三个容易踩的点
+### 四个容易踩的点
 
 > [!WARNING]
 > **① 在 macOS 上，MDM 在生产路径上是最高优先级（50），不是最低（0）。**
 >
 > **平台限定**：这一层**只在 macOS 上存在**。`codex-rs/config/src/loader/layer_io.rs:77-87` 里只有 `#[cfg(target_os = "macos")]` 分支才调用 `load_managed_admin_config_layer`；`#[cfg(not(target_os = "macos"))]` 分支直接 `let managed_preferences = None;`。因此在 **Linux / Windows 上，全场最高的实际是优先级 40 的那一层**（`LegacyManagedConfigTomlFromFile`，定义见 `codex-rs/config/src/config_layer_source.rs:6`），本节所有「全场最高」「压在所有层之上」的表述都应读作「在 macOS 上」。
 >
-> `ConfigLayerSource::Mdm`（precedence 0）**在生产代码里从未被构造过**：全仓所有出现处都是 `match` 分支（`codex-rs/config/src/diagnostics.rs:260`、`codex-rs/config/src/state.rs:212`、`codex-rs/tui/src/debug_config.rs:408`、`codex-rs/app-server/src/config_layer.rs:16`、`codex-rs/hooks/src/engine/discovery.rs:379`、`codex-rs/app-server/src/config_manager_service.rs:789`、`codex-rs/core-skills/src/loader.rs:372` 等），仅有的两处构造都在测试内（`codex-rs/hooks/src/engine/mod_tests.rs` 与 `codex-rs/hooks/src/engine/discovery.rs` 的 `#[cfg(test)]` 段）。
+> `ConfigLayerSource::Mdm`（precedence 0）**在生产代码里从未被构造过**：全仓所有出现处都是 `match` 分支（`codex-rs/config/src/diagnostics.rs:254`、`codex-rs/config/src/state.rs:222`、`codex-rs/config/src/mcp_ema.rs:108`、`codex-rs/tui/src/debug_config.rs:396`、`codex-rs/app-server/src/config_layer.rs:16`、`codex-rs/hooks/src/engine/discovery.rs:379`、`codex-rs/app-server/src/config_manager_service.rs:793`、`codex-rs/ext/skills/src/host_roots.rs:122`（第 6 轮迁移，原在已删除的 core-skills crate） 等），仅有的两处构造都在测试内（`codex-rs/hooks/src/engine/mod_tests.rs` 与 `codex-rs/hooks/src/engine/discovery.rs` 的 `#[cfg(test)]` 段）。
 >
 > 真实的 macOS MDM 托管偏好设置（`com.openai.codex` 域的 `config_toml_base64` 键，`codex-rs/config/src/loader/macos.rs`）走的是另一条链路：
 >
@@ -90,15 +93,31 @@ verified_at: 2026-08-05
 > 第一版写「profile 是在用户层**内部**叠加的」，错了。20 与 21 是**两个独立的层，读两个不同的文件**：
 >
 > - 20 = `${CODEX_HOME}/config.toml`（基础用户配置）
-> - 21 = `${CODEX_HOME}/<name>.config.toml`（选定 profile，后缀常量见 `codex-rs/core/src/config/mod.rs:274` `CONFIG_PROFILE_V2_SUFFIX = ".config.toml"`）
+> - 21 = `${CODEX_HOME}/<name>.config.toml`（选定 profile，后缀常量见 `codex-rs/core/src/config/mod.rs:265` `CONFIG_PROFILE_V2_SUFFIX = ".config.toml"`）
 >
-> `codex-rs/config/src/loader/mod.rs:245-247` 的注释说得很清楚：「Add the base user config layer. When profile-v2 is selected, add the **profile config as a second user layer on top** so the profile only needs to contain overrides.」实现在 `:282-293`（`if active_user_file != base_user_file { layers.push(load_user_config_layer(...)) }`；`:281` 是空行）。
+> `codex-rs/config/src/loader/mod.rs:282-284` 的注释说得很清楚：「Add the base user config layer. When profile-v2 is selected, add the **profile config as a second user layer on top** so the profile only needs to contain overrides.」实现在 `:282-293`（`if active_user_file != base_user_file { layers.push(load_user_config_layer(...)) }`；`:281` 是空行）。
 >
 > CLI 侧的帮助文本（`codex-rs/cli/src/lib.rs:64`）也是这么写的：「Layer `$CODEX_HOME/<name>.config.toml` on top of the base user config.」
 >
 > 推论：profile 文件**只需要写差异项**，不必复制整份配置。
 >
-> **名称是被校验的**：`--profile` 的值先要通过 `ProfileV2Name`（`codex-rs/protocol/src/config_types.rs:100-141`）的 `FromStr`——**非空、且每个字节只能是 ASCII 字母数字或 `_` / `-`**（`:129-136`）。这直接堵死了 `../foo` 这类路径穿越：profile 名会被拼进 `${CODEX_HOME}/<name>.config.toml`，如果不校验就等于让 `--profile` 变成任意文件读取原语。
+> **名称是被校验的**：`--profile` 的值先要通过 `ProfileV2Name`（`codex-rs/protocol/src/config_types.rs:116-159`）的 `FromStr`——**非空、且每个字节只能是 ASCII 字母数字或 `_` / `-`**（`:147-155`）。这直接堵死了 `../foo` 这类路径穿越：profile 名会被拼进 `${CODEX_HOME}/<name>.config.toml`，如果不校验就等于让 `--profile` 变成任意文件读取原语。
+
+> [!IMPORTANT]
+> **④ 第 6 轮新增：有一层比 MDM 的 0 还低，而且它在生产路径上恒定生效。**
+>
+> `ConfigLayerSource::PackagedDefaults { file }`（`codex-rs/config/src/config_layer_source.rs:8`，precedence **-10**，`:35`）是**层栈里第一个被 push 的**（`codex-rs/config/src/loader/mod.rs:243`，无条件）。它的内容来自：
+>
+> - 调用方传了 `LoaderOverrides::packaged_defaults_path` → 读该文件；
+> - **否则走 `include_str!("../../defaults.toml")`**（`codex-rs/config/src/loader/mod.rs:183`）——即**编译期内嵌，永远存在**。
+>
+> `codex-rs/config/defaults.toml` 现有 **14 个顶层键 + 一个 `[history]` 段**：`include_permissions_instructions`、`include_apps_instructions`、`include_collaboration_mode_instructions`、`include_environment_context`、`cli_auth_credentials_store`、`mcp_oauth_credentials_store`、`project_doc_max_bytes`、`project_doc_fallback_filenames`、`background_terminal_max_timeout`、`file_opener`、`hide_agent_reasoning`、`chatgpt_base_url`、`project_root_markers`，以及 `[history] persistence`。
+>
+> **这改变了「默认值」这个概念的落点。** 上面这些键的实际默认值**不再来自 Rust 的 `Default` impl，而来自这一层的 TOML**。所以 §1 末尾「要判断一个配置键是否生效，必须找到读取点」这条教训，现在要再加一问：**它的默认值是从哪一层来的？**
+>
+> 一个直接后果：本文 §2「项目层发现算法」说默认 `DEFAULT_PROJECT_ROOT_MARKERS = &[".git"]`——该常量仍在，但实际生效的默认值由 packaged-defaults 层的 `project_root_markers = [".git"]` 提供，常量只是兜底。两者当前取值相同，**一旦哪天不同，只读常量就会得出错误结论**。
+>
+> 配套测试：`codex-rs/config/src/loader/tests.rs` 的 `packaged_defaults_have_lower_precedence_than_existing_config_layers()` 与 `missing_packaged_defaults_file_returns_an_error()`。
 
 ### 死类型 ②：`ConfigToml::profiles` 与整个 `ConfigProfile`（E3）
 
@@ -259,25 +278,51 @@ loader/mod.rs:318       project_trust_context(...)         ← 结合 project_ro
 loader/mod.rs:1254-1256 decision = trust_context.decision_for_dir(&dir)
                         disabled_reason = trust_context.disabled_reason_for_decision(&decision)
         ↓
-loader/mod.rs:949       ConfigLayerEntry::new_disabled(source, config, reason)
+loader/mod.rs:1126      ConfigLayerEntry::new_disabled(source, config, reason)
         ↓
-codex-rs/config/src/state.rs:111   ConfigLayerEntry.disabled_reason: Option<String>
-codex-rs/config/src/state.rs:171-173   fn is_disabled(&self) -> bool { self.disabled_reason.is_some() }
+codex-rs/config/src/state.rs:120   ConfigLayerEntry.disabled_reason: Option<String>
+codex-rs/config/src/state.rs:180-182   fn is_disabled(&self) -> bool { self.disabled_reason.is_some() }
         ↓
-codex-rs/config/src/state.rs:542   .filter(|layer| include_disabled || !layer.is_disabled())
+codex-rs/config/src/state.rs:548   layers_low_to_high() { self.all_layers_low_to_high().filter(|layer| !layer.is_disabled()) }
 ```
 
-被禁用的层在 `effective_config()`（`codex-rs/config/src/state.rs:492-501`）、`origins()`（`:506-519`）、`layers_high_to_low()`（`:524-529`）里**全部以 `include_disabled = false` 过滤掉**，但仍通过 `get_layers(ordering, include_disabled = true)` 暴露给 UI。`codex-rs/config/src/loader/README.md` 的说法是：「Layers with a `disabled_reason` are still surfaced for UI, but are ignored when computing the effective config and origins metadata.」
+> [!CAUTION]
+> **第 6 轮：`get_layers(ordering, include_disabled)` 这套 API 已被整体删除。**
+>
+> ```bash
+> grep -rn "get_layers" --include='*.rs' codex-rs/        # 0
+> grep -rn "include_disabled" --include='*.rs' codex-rs/  # 0
+> ```
+>
+> 这意味着旧版给出的复核命令（`grep -rn '/\*include_disabled\*/ true' …`）**会返回空结果**——读者按文档去验证会一无所获，进而怀疑整篇文档。这类「文档给的复核命令本身失效」比单纯的行号漂移更伤信任。
+>
+> 替代 API 是 `codex-rs/config/src/state.rs` 的四件套：
+>
+> | 函数 | 位置 | 是否含禁用层 |
+> | ---- | ---- | ---- |
+> | `layers_low_to_high()` | `:548` | 否（内部 `.filter(|l| !l.is_disabled())`） |
+> | `layers_high_to_low()` | `:556` | 否 |
+> | `all_layers_low_to_high()` | `:564` | **是** |
+> | `all_layers_high_to_low()` | `:572` | **是** |
 
-`include_disabled = true` 的**代表性生产调用点**（E1，非测试；**下表非穷举**——全量见 `grep -rn '/\*include_disabled\*/ true' --include='*.rs' codex-rs`，非测试共 16 处，另有 `codex-rs/hooks/src/config_rules.rs`、`codex-rs/core-skills/src/loader.rs`、`codex-rs/core/src/session/mod.rs` 等）：
+被禁用的层在 `effective_config()`（`codex-rs/config/src/state.rs:475-484`）、`origins()`（`:494-496`，实现移入 `origins_with_path_filter` `:500-543`）、`layers_high_to_low()`（`:556-558`）里**全部被过滤掉**，但仍通过 `all_layers_*` 两个函数暴露给 UI。`codex-rs/config/src/loader/README.md` 的说法是：「Layers with a `disabled_reason` are still surfaced for UI, but are ignored when computing the effective config and origins metadata.」
+
+含禁用层的 `all_layers_*` 的**代表性生产调用点**（E1，非测试。**穷举命令与结果**：下列 13 处）：
+
+```bash
+grep -rn "all_layers_low_to_high\|all_layers_high_to_low" --include='*.rs' codex-rs/ \
+  | grep -v "/state.rs" | grep -vE "tests?\.rs|_tests\.rs|/tests/"
+```
 
 | 调用点 | 用途 |
 | ---- | ---- |
-| `codex-rs/tui/src/debug_config.rs:134-136` | TUI 配置调试视图列出全部层（含禁用层） |
-| `codex-rs/app-server/src/config_manager_service.rs:163-165` | app-server 的 `include_layers` 响应字段 |
-| `codex-rs/cli/src/doctor/title.rs:174-176` | `codex doctor` 输出 |
-| `codex-rs/app-server/src/lib.rs:358-360` | 收集被禁用的项目目录，供客户端提示「是否信任」 |
-| `codex-rs/tui/src/app/startup_prompts.rs:72-74` | 同上，TUI 启动时的信任提示 |
+| `codex-rs/tui/src/debug_config.rs:133` | TUI 配置调试视图列出全部层（含禁用层） |
+| `codex-rs/app-server/src/config_manager_service.rs:169` | app-server 的 `include_layers` 响应字段 |
+| `codex-rs/cli/src/doctor/title.rs:175` | `codex doctor` 输出 |
+| `codex-rs/app-server/src/lib.rs:380` | 收集被禁用的项目目录，供客户端提示「是否信任」 |
+| `codex-rs/tui/src/app/startup_prompts.rs:70` | 同上，TUI 启动时的信任提示 |
+| `codex-rs/ext/skills/src/host_roots.rs:80` | **第 6 轮迁移**：原在已删除的 `core-skills` crate |
+| 另 7 处 | `codex-rs/core/src/agent/role.rs:244`、`codex-rs/core/src/session/mod.rs:2216`、`codex-rs/core/src/config/mod.rs:1884` 与 `:1890`、`codex-rs/config/src/skills_config.rs:152`、`codex-rs/tui/src/chatwidget/status_surfaces.rs:507`、`codex-rs/hooks/src/config_rules.rs:23` |
 
 实际后果：**克隆一个不受信任的仓库不会让它的 `.codex/config.toml` <!-- ref-exempt: 运行时用户配置文件，非仓库内文件 --> 自动生效**，但你能在 TUI 的配置调试视图里看到「这一层存在但被禁用了，原因是 X」，并被提示是否信任该目录。
 
@@ -325,23 +370,23 @@ codex-rs/config/src/state.rs:542   .filter(|layer| include_disabled || !layer.is
 
 | 指标 | 数量 | 证据 |
 | ---- | ---: | ---- |
-| `config.toml` **可被 schema 校验的**顶层键 | **93** | E2：`codex-rs/core/config.schema.json` 的 `properties` | <!-- ref-exempt: 运行时用户配置文件，非仓库内文件 -->
-| `ConfigToml` **仍会被 serde 接受的**顶层字段 | **96** | E2：`codex-rs/config/src/config_toml.rs` 的 `pub` 字段 |
+| `config.toml` **可被 schema 校验的**顶层键 | **100** | E2：`codex-rs/core/config.schema.json` 的 `properties` | <!-- ref-exempt: 运行时用户配置文件，非仓库内文件 -->
+| `ConfigToml` **仍会被 serde 接受的**顶层字段 | **103** | E2：`codex-rs/config/src/config_toml.rs` 的 `pub` 字段 |
 | 其中**刻意对 schema 隐藏**的废弃/移除键 | **3** | E2：带 `#[schemars(skip)]` |
-| `codex-config` crate `src/` 行数 | 21,167 | E1：`find codex-rs/config/src -type f \| xargs wc -l`（**全部文件**口径） |
-| 同上，**仅 `.rs`** 口径 | 21,034 | E1：`git ls-files 'codex-rs/config/**/*.rs' \| xargs wc -l`。[`crate_map.md`](./crate_map.md) §3 用的是这个口径。⚠️ **这两个数同时改了「文件类型」与「目录范围」两个维度**：21,034 含 `codex-rs/config/examples/generate-proto.rs`（19 行，在 `src/` 之外）。三个口径分别是 —— `src/` 全部文件 21,167；`src/` 仅 `.rs` 21,015；跟踪的全部 `.rs`（含 `examples/`）21,034。21,167 − 21,015 = 152 行来自 `src/` 下的 `codex-rs/config/src/loader/README.md`(83) 与 `.proto`(69) |
-| `codex-rs/core/src/config/config_tests.rs` 行数 | 12,127 | E1：`wc -l` |
+| `codex-config` crate `src/` 行数 | 29,515 | E1：`find codex-rs/config/src -type f \| xargs wc -l`（**全部文件**口径） |
+| 同上，**仅 `.rs`** 口径 | 29,374 | E1：`git ls-files 'codex-rs/config/**/*.rs' \| xargs wc -l`。[`crate_map.md`](./crate_map.md) §3 用的是这个口径。⚠️ **这两个数同时改了「文件类型」与「目录范围」两个维度**：21,034 含 `codex-rs/config/examples/generate-proto.rs`（19 行，在 `src/` 之外）。三个口径分别是 —— `src/` 全部文件 21,167；`src/` 仅 `.rs` 21,015；跟踪的全部 `.rs`（含 `examples/`）21,034。21,167 − 21,015 = 152 行来自 `src/` 下的 `codex-rs/config/src/loader/README.md`(83) 与 `.proto`(69) |
+| `codex-rs/core/src/config/config_tests.rs` 行数 | **13,226** | E1：`wc -l` |
 
 > [!IMPORTANT]
-> **93 还是 96？两个数字都对，但单说哪一个都不完整。**
+> **100 还是 103？两个数字都对，但单说哪一个都不完整。**
 >
-> - **93** = `codex-rs/core/config.schema.json` 顶层 `properties` 的键数，且 schema 声明了 `additionalProperties: false`——这是**编辑器与 strict-config 会校验的集合**。
-> - **96** = `ConfigToml` 的 `pub` 字段数——这是 **serde 实际会接受的集合**。
+> - **100** = `codex-rs/core/config.schema.json` 顶层 `properties` 的键数，且 schema 声明了 `additionalProperties: false`——这是**编辑器与 strict-config 会校验的集合**。
+> - **103** = `ConfigToml` 的 `pub` 字段数——这是 **serde 实际会接受的集合**。
 > - **差集恰好是 3 个带 `#[schemars(skip)]` 的字段**，全部是废弃或已移除的键：
->   - `js_repl_node_path`、`js_repl_node_module_dirs`（`codex-rs/config/src/config_toml.rs:300-306`，注释均为 `/// Deprecated: ignored.`）
->   - `experimental_thread_store_endpoint`（`codex-rs/config/src/config_toml.rs:413-416`，注释：`/// Removed. Former remote thread-store endpoint setting kept only so we can fail fast instead of silently falling back to local persistence.`）
+>   - `js_repl_node_path`、`js_repl_node_module_dirs`（`codex-rs/config/src/config_toml.rs:339-345`，注释均为 `/// Deprecated: ignored.`）
+>   - `experimental_thread_store_endpoint`（`codex-rs/config/src/config_toml.rs:448-451`，注释：`/// Removed. Former remote thread-store endpoint setting kept only so we can fail fast instead of silently falling back to local persistence.`）
 >
-> 即：**保留字段是为了「快速失败」而不是「静默忽略」**，同时又不希望它们出现在给用户看的 schema 里。写「93 个配置键」时请注明这是 schema 口径。
+> 即：**保留字段是为了「快速失败」而不是「静默忽略」**，同时又不希望它们出现在给用户看的 schema 里。写「100 个配置键」时请注明这是 schema 口径。
 
 > 复核命令：
 > ```bash
@@ -351,10 +396,12 @@ codex-rs/config/src/state.rs:542   .filter(|layer| include_disabled || !layer.is
 顶层键的**若干示例**：`agents`、`approval_policy`、`chatgpt_base_url`、`default_permissions`、`features`、`hooks`、`history`、`model_providers`、`notify`、`otel`、`sqlite_home`、`experimental_*`（共 **10** 个）……
 
 > [!NOTE]
-> **本文刻意不复制完整键清单。** 上一版列了「按字母序前 40 个」，既漏了键、又把 `experimental_*` 数错成 7（实为 10，与 [实验性表面](./experimental_surfaces.md) §「experimental_ 前缀实测」一致）。**维护一份易漂移的复制品没有价值——完整清单请查 `codex-rs/core/config.schema.json`。**
+> **本文刻意不复制完整键清单。** 上一版列了「按字母序前 40 个」，既漏了键、又把 `experimental_*` 数错成 7。**第 6 轮实测为 9 个**（`experimental_compact_prompt_file`、`experimental_realtime_start_instructions`、`experimental_realtime_webrtc_call_base_url`、`experimental_realtime_ws_backend_prompt`、`experimental_realtime_ws_base_url`、`experimental_realtime_ws_model`、`experimental_realtime_ws_startup_context`、`experimental_thread_store`、`experimental_use_unified_exec_tool`）。⚠️ [实验性表面](./experimental_surfaces.md) §「experimental_ 前缀实测」此前与本文互引为佐证、两边都记 10，**构成一个自洽的错误闭环**——修一边不修另一边等于没修，该文待批次 6 同步。**维护一份易漂移的复制品没有价值——完整清单请查 `codex-rs/core/config.schema.json`。**
 
 > [!NOTE]
-> **勘误（E1）**：第一版称 `codex-rs/core/src/config/config_tests.rs` 是「全仓第 2 大文件」。按**跟踪文件的总行数**排（`git ls-files | xargs wc -l | sort -rn`），它是**第 5**：前四位是 `codex-rs/app-server-protocol/schema/json/codex_app_server_protocol.schemas.json`（22,635）、同目录的 `codex-rs/app-server-protocol/schema/json/codex_app_server_protocol.v2.schemas.json`（20,393）、`codex-rs/Cargo.lock`（16,230）、`codex-rs/tui/src/bottom_pane/chat_composer.rs`（12,616）。它确实是**最大的 `.rs` 文件之一**（仅次于 `codex-rs/tui/src/bottom_pane/chat_composer.rs`），但「全仓第 2」这个口径不成立。
+> **勘误史与第 6 轮反转（E1）**：第一版称 `codex-rs/core/src/config/config_tests.rs` 是「全仓第 2 大文件」，第 5 轮更正为「第 5，且只是最大的 `.rs` 文件**之一**（仅次于 `chat_composer.rs`）」。
+>
+> **第 6 轮这个结论反转了。** 按跟踪文件总行数排（`git ls-files | xargs wc -l | sort -rn`），它现在是**全仓第 4**（13,226 行），前三位是 `codex-rs/app-server-protocol/schema/json/codex_app_server_protocol.schemas.json`（26,114）、`codex-rs/app-server-protocol/schema/json/codex_app_server_protocol.v2.schemas.json`（23,827）、`codex-rs/Cargo.lock`（18,262）。**更重要的是：它已经超过 `codex-rs/tui/src/bottom_pane/chat_composer.rs`（13,036），成为全仓最大的 `.rs` 文件。**「仅次于 chat_composer」这个说法现在是反的。
 
 ---
 
@@ -389,15 +436,15 @@ codex-rs/config/src/state.rs:542   .filter(|layer| include_disabled || !layer.is
 | 文件 | 职责 |
 | ---- | ---- |
 | `codex-rs/core/src/config/mod.rs` | 配置主体（含 `find_codex_home`（见 §6）、`CONFIG_PROFILE_V2_SUFFIX`、`sqlite_home` 解析、遗留 profile 拒绝逻辑） |
-| `codex-rs/core/src/config/schema.rs` + `codex-rs/core/src/config/schema.md`（**与 `codex-rs/config/src/schema.rs` 同名不同文件**） | JSON Schema 生成 |
+| `codex-rs/core/src/config/schema.rs` + `codex-rs/core/src/config/schema.md` | **第 6 轮：这条注解的含义反了。** core 侧现在只有 **7 行**，全文是对 `codex_config::schema` 的 re-export（`canonicalize` / `config_schema_json` / `write_config_schema`）+ 一个 `mod tests`；真正的实现在 `codex-rs/config/src/schema.rs`（292 行）。它存在的唯一目的是挂 `schema_tests.rs`，**不再是「同名不同文件的两份实现」** |
 | `codex-rs/core/src/config/schema_tests.rs` | schema 防漂移测试（见 §7） |
-| `codex-rs/core/src/bin/config_schema.rs` | `codex-write-config-schema` 二进制入口（20 行） |
+| `codex-rs/config-schema/src/main.rs` | **第 6 轮迁出**：`codex-write-config-schema` 二进制入口（22 行）。此前在 `codex-rs/core/src/bin/config_schema.rs`，现为**独立 crate** `codex-config-schema`，`codex-rs/core/src/bin/` 整个目录已不存在 <!-- ref-exempt: 反例——正文说明该旧路径已不存在 --> |
 | `codex-rs/core/src/config/permissions.rs`（**与 `codex-rs/config/src/permissions_toml.rs` 无关**）、`codex-rs/core/src/config/resolved_permission_profile.rs`、`codex-rs/core/src/config/permission_profile_catalog.rs` | 权限档 |
 | `codex-rs/core/src/config/auth_keyring.rs` | 钥匙串认证 |
 | `codex-rs/core/src/config/otel.rs` | 遥测配置 |
 | `codex-rs/core/src/config/network_proxy_spec.rs` | 网络代理 |
 | `codex-rs/core/src/config/managed_features.rs` | 受管特性 |
-| `codex-rs/core/src/config/agent_roles.rs` | 智能体角色 |
+| （已迁出）智能体角色 | **第 6 轮迁至独立 crate** `codex-rs/agent-roles/`（592 行）；`codex-rs/core/src/config/agent_roles.rs` 已不存在 <!-- ref-exempt: 反例——正文说明该路径已不存在 --> |
 | `codex-rs/core/src/config/edit.rs` + `edit/` | 配置编辑 |
 | `codex-rs/core/src/config/requirements.rs` | 需求约束 |
 | `codex-rs/core/src/config/config_loader_tests.rs` | 加载器行为测试（含 `managed_preferences_take_highest_precedence`） |

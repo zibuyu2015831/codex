@@ -1,16 +1,16 @@
 ---
 title: Codex 认证与模型接入
-summary: 以 codex-protocol 的 AuthMode 枚举（7 个变体）为准描述认证方式，区分「类型存在」与「实际生效」——只有 4 个变体会写进 auth.json，Headers 被存储层拒绝、ChatgptAuthTokens 被强制 Ephemeral；说明 auth.json 的实际结构与 0600 权限、resolved_mode() 的推断顺序、cli_auth_credentials_store 的四个取值与 Feature::SecretAuthStorage / AuthKeyringBackendKind 的两处平台分叉、ModelProviderInfo 的完整配置面与 validate() 的互斥规则、WireApi 仅剩 Responses 一个变体的现状、CODEX_OSS_BASE_URL 驱动的本地模型接入（完全不走认证），以及若干隐藏的 OAuth / 端点覆盖参数带来的风险。
+summary: 以 codex-protocol 的 AuthMode 枚举（8 个变体）为准描述认证方式，区分「类型存在」与「实际生效」——只有 5 个变体会写进 auth.json，Headers 被存储层拒绝、ChatgptAuthTokens 被强制 Ephemeral；说明 auth.json 的实际结构与 0600 权限、resolved_mode() 的推断顺序、cli_auth_credentials_store 的四个取值与 Feature::SecretAuthStorage / AuthKeyringBackendKind 的两处平台分叉、ModelProviderInfo 的完整配置面与 validate() 的互斥规则、WireApi 仅剩 Responses 一个变体的现状、CODEX_OSS_BASE_URL 驱动的本地模型接入（完全不走认证），以及若干隐藏的 OAuth / 端点覆盖参数带来的风险。
 keywords: codex | auth | login | oauth | pkce | model-provider | wire-api | keyring | credentials | auth-mode | resolved-mode | oss-provider
 scope: codex-rs/login、protocol/src/auth.rs、model-provider-info 与相关认证凭证存储
 related_files: codex-rs/protocol/src/auth.rs | codex-rs/model-provider-info/src/lib.rs | codex-rs/login/src/lib.rs | codex-rs/login/src/auth/storage.rs | codex-rs/login/src/auth/manager.rs | codex-rs/login/src/auth/auth_headers.rs | codex-rs/keyring-store/src/lib.rs | codex-rs/secrets/src/local.rs | codex-rs/config/src/types.rs | codex-rs/core/src/config/auth_keyring.rs | codex-rs/features/src/lib.rs | codex-rs/cli/src/main.rs | codex-rs/rmcp-client/src/oauth.rs | AGENTS.md
 dependencies: dev_docs/config_system.md | dev_docs/architecture_overview.md
-verified_at: 2026-08-05
+verified_at: 2026-09-21
 ---
 
 # 认证与模型接入
 
-> **基线 commit**: `bb5054fe47abe73ecbbd454751066a28c89f4bb9`
+> **基线 commit**: `5c5308fc9a9ee789049d646ef11e5400384b9c6f`
 > **证据等级**: 类型定义与字段为 E3；端点为 E3（**取证方式已修正为「常量名 + 被谁请求」，不再以 grep 到 URL 字面量为准**，见 §1.6）；§1.1 的文件清单为 E1、其「承载的能力」列为 E3；依赖宏展开与序列化语义的两处结论（§1 的 serde/strum 差异、§2.1 的 `null` 键）为 **E3（推断）**——静态证据完备且高置信度，但未跑运行期验证；OAuth 完整时序为 E1
 
 > [!CAUTION]
@@ -36,13 +36,15 @@ verified_at: 2026-08-05
 
 ## 1. 认证方式：以 `AuthMode` 枚举为准（E3）
 
+> **第 6 轮：`AuthMode` 从 7 个变体增至 8 个**（新增 `BedrockAccessKeys`，`codex-rs/protocol/src/auth.rs:34-37`）。本节的变体计数、两个辅助方法的 false 列、以及 §1.4 / §2.1.1 的连带计数全部已按 8 个变体重算。
+
 > [!CAUTION]
 > **修订说明（原文方法有误）**：初版的表格是从 `codex-rs/login/src/auth/` **目录下的文件名**推导出来的。这导致两类问题：
 >
 > - **漏掉了两个变体**：`ChatgptAuthTokens` 与 `Headers`。（初版给的理由是"它们没有同名实现文件"——**这个理由本身也是错的**：`Headers` 的实现就是 `codex-rs/login/src/auth/auth_headers.rs`（`:10-12` 的 `pub struct AuthHeaders`，经 `codex-rs/login/src/auth/mod.rs:15` re-export）。初版按文件名推导时连这个文件都没读到。只有 `ChatgptAuthTokens` 确实没有同名实现文件。）
 > - **把实现文件当成了并列的认证模式**：例如 "External Bearer"（`codex-rs/login/src/auth/external_bearer.rs`）是一个实现文件，不是 `AuthMode` 的一个变体。<!-- ref-exempt: 本行否定 external_bearer.rs 含 AuthMode（实测零命中），引用不可解析恰是要表达的事实 -->
 >
-> 权威定义是 **`codex-rs/protocol/src/auth.rs:9-34` 的 `pub enum AuthMode`**，共 **7 个变体**。以下表格按该枚举重建。
+> 权威定义是 **`codex-rs/protocol/src/auth.rs:9-38` 的 `pub enum AuthMode`**，共 **8 个变体**（第 6 轮新增 `BedrockAccessKeys`）。以下表格按该枚举重建。
 >
 > 另有一份**用于生成 TypeScript 的重复定义**：`codex-rs/app-server-protocol/src/protocol/common.rs:24` 起的 `pub enum AuthMode`（带 `#[ts(...)]`）。它的 `ChatgptAuthTokens` 文档注释写着 `/// [UNSTABLE] FOR OPENAI INTERNAL USE ONLY - DO NOT USE.`（`:29`）——比 protocol 侧的注释更明确。改动认证模式时**两处都要改**。
 
@@ -55,6 +57,7 @@ verified_at: 2026-08-05
 | `AgentIdentity` | `agentIdentity` | `agentIdentity` | *"Programmatic Codex auth backed by a registered Agent Identity."* | 配合 `codex-agent-identity` |
 | `PersonalAccessToken` | `personalAccessToken` | `personalAccessToken` | *"Programmatic Codex auth backed by a personal access token."* | 程序化接入 |
 | `BedrockApiKey` | `bedrockApiKey` | `bedrockApiKey` | *"Amazon Bedrock bearer token managed by Codex."* | 配合 `codex-aws-auth` |
+| **`BedrockAccessKeys`**（第 6 轮新增） | `bedrockAccessKeys` | `bedrockAccessKeys` | *"Amazon Bedrock AWS access keys managed by Codex."* | `codex-rs/login/src/auth/bedrock_access_keys.rs:35-62` 的 `login_with_bedrock_access_keys()` |
 
 > [!IMPORTANT]
 > **勘误：上一稿把 serde 与 strum 合并成一列"线格式（serde/strum）"，掩盖了两者不一致的两行。** 两套属性是**各自独立**的（`codex-rs/protocol/src/auth.rs:7-33`）：
@@ -92,6 +95,19 @@ verified_at: 2026-08-05
 
 > [!NOTE]
 > **两个补回的变体值得特别注意**：`ChatgptAuthTokens` 与 `Headers` 都是**由外部注入凭证**的模式，不走 `codex login` 交互流程。做认证相关改动时，只测 CLI 登录路径会漏掉它们。
+
+> [!IMPORTANT]
+> **新增一个 `AuthMode` 变体要同时改五处——这是第 6 轮 `BedrockAccessKeys` 落地时实际触及的面（E3）。**
+>
+> | # | 落点 | 本轮实例 |
+> | ---: | ---- | ---- |
+> | 1 | `codex-rs/protocol/src/auth.rs` 的枚举 | `:34-37` |
+> | 2 | `codex-rs/app-server-protocol/src/protocol/common.rs` 的**重复定义**（带 `#[ts(...)]`） | `:48-52` |
+> | 3 | `AuthDotJson` 的对应字段 | `codex-rs/login/src/auth/storage.rs:63-64` 的 `bedrock_access_keys` |
+> | 4 | `resolved_mode()` 的判据链（**顺序即优先级**） | `codex-rs/login/src/auth/manager.rs:1754` |
+> | 5 | `from_auth_dot_json()` 的 `match` 穷举分支（每个变体都带 `unreachable!`） | `codex-rs/login/src/auth/manager.rs:401-421` |
+>
+> 外加一个 `login_with_*` 入口。**漏掉其中任何一处，症状都不是编译错误，而是运行期行为静默不一致**——第 2 处漏了会让 TypeScript 侧少一个变体，第 4 处漏了会让该模式永远推断不出来。
 
 ### 1.1 `login/src/auth/` 下的实现文件（**文件名与清单为 E1；「承载的能力」列为 E3**）
 
@@ -183,26 +199,27 @@ verified_at: 2026-08-05
 
 另外，`CODEX_OSS_BASE_URL` / `CODEX_OSS_PORT` 同属端点改写类别，但走的是 provider 构造而非认证链路，见 §5.1。
 
-### 1.4 **7 个变体里只有 4 个会把 `auth_mode` 写进 `auth.json`**（E3，本轮补入）
+### 1.4 **8 个变体里只有 5 个会把 `auth_mode` 写进 `auth.json`**（E3）
 
 > [!CAUTION]
 > **这是本文最容易误导人的一处「类型存在 ≠ 路径生效」，也是一处口径陷阱。** 两个数字不要混：
 >
 > | 口径 | 数量 | 谁被排除 |
 > | ---- | ---: | ---- |
-> | **凭证会落进 `auth.json`** | **5** | `Headers`（被存储层显式拒绝）、`ChatgptAuthTokens`（强制 `Ephemeral`，只存内存） |
-> | **`auth_mode` 字段会被写出** | **4** | 上述 2 个，**外加 `PersonalAccessToken`**——它落盘，但 `auth_mode` 刻意写 `None` |
+> | **凭证会落进 `auth.json`** | **6** | `Headers`（被存储层显式拒绝）、`ChatgptAuthTokens`（强制 `Ephemeral`，只存内存） |
+> | **`auth_mode` 字段会被写出** | **5** | 上述 2 个，**外加 `PersonalAccessToken`**——它落盘，但 `auth_mode` 刻意写 `None` |
 >
 > 被排除的三种都不是"暂未实现"，是**代码里显式做掉的**。下表按第二个口径（`auth_mode` 字段）列。
 
 | `AuthMode` 变体 | 会写进 `auth.json`？ | 依据 |
 | ---- | ---- | ---- |
 | `ApiKey` | ✅ | 落在 `openai_api_key` 字段 |
-| `Chatgpt` | ✅ | `codex-rs/login/src/server.rs:910-911` 显式写 `auth_mode: Some(AuthMode::Chatgpt)` |
+| `Chatgpt` | ✅ | `codex-rs/login/src/server.rs:855-856` 显式写 `auth_mode: Some(AuthMode::Chatgpt)` |
 | `AgentIdentity` | ✅ | 落在 `agent_identity` 字段 |
 | `BedrockApiKey` | ✅ | 落在 `bedrock_api_key` 字段 |
-| **`PersonalAccessToken`** | ⚠️ **落盘，但 `auth_mode` 写成 `None`** | `codex-rs/login/src/auth/manager.rs:945-947`：注释 *"Infer PAT auth from the credential field so older Codex builds can still deserialize auth.json after a rollback."* + `auth_mode: None,` |
-| **`Headers`** | ❌ **被存储层显式拒绝** | `codex-rs/login/src/auth/manager.rs:316-320`：`return Err(std::io::Error::other("externally provided auth cannot be loaded from auth storage."))` |
+| **`BedrockAccessKeys`**（第 6 轮新增） | ✅ | `codex-rs/login/src/auth/bedrock_access_keys.rs:44` 显式写 `auth_mode: Some(AuthMode::BedrockAccessKeys)`，凭证落在 `bedrock_access_keys` 字段 |
+| **`PersonalAccessToken`** | ⚠️ **落盘，但 `auth_mode` 写成 `None`** | `codex-rs/login/src/auth/manager.rs:1046-1048`：注释 *"Infer PAT auth from the credential field so older Codex builds can still deserialize auth.json after a rollback."* + `auth_mode: None,` |
+| **`Headers`** | ❌ **被存储层显式拒绝** | `codex-rs/login/src/auth/manager.rs:388-392`：`return Err(std::io::Error::other("externally provided auth cannot be loaded from auth storage."))` |
 | **`ChatgptAuthTokens`** | ❌ **被强制降为 `Ephemeral`，只存内存** | `codex-rs/login/src/auth/manager.rs:1513-1517` 的 `storage_mode()` |
 
 要点：
@@ -217,9 +234,17 @@ verified_at: 2026-08-05
 > 1. **不能假定 `auth_mode` 一定存在。** 它是 `Option<AuthMode>`，PAT 路径下就是 `None`，且该字段带 `skip_serializing_if`（§2.1），`None` 时**整个键都不会出现在文件里**。
 > 2. **不能假定 `auth_mode` 等于实际生效的模式。** 生效的是 `resolved_mode()` 的结果；`auth_mode` 只是它的第一优先级输入。
 
+> **穷举复算命令（第 6 轮补入，下轮核验可直接跑）**：
+>
+> ```bash
+> grep -rn "auth_mode: Some(AuthMode::" codex-rs/login/src codex-rs/core/src codex-rs/app-server/src | grep -v tests
+> ```
+>
+> 命中 8 处，去重后落盘写出 `auth_mode` 的是 5 个：`ApiKey` / `Chatgpt` / `AgentIdentity` / `BedrockApiKey` / `BedrockAccessKeys`。其中 `codex-rs/login/src/auth/manager.rs:1733` 的 `ChatgptAuthTokens` **只进 ephemeral 内存 store**，不落盘。
+
 ### 1.5 认证加载的**四级优先级**（E3，本轮补入）
 
-`codex-rs/login/src/auth/manager.rs:1217-1305` 的 `load_auth()` 按固定顺序取第一个命中的来源：
+`codex-rs/login/src/auth/manager.rs:1473-1581` 的 `load_auth()` 按固定顺序取第一个命中的来源：
 
 | 顺序 | 来源 | 位置 | 前提 |
 | ---: | ---- | ---- | ---- |
@@ -243,12 +268,14 @@ verified_at: 2026-08-05
 >
 > | 取值 | 调用点（生产） | 场景 |
 > | ---- | ---- | ---- |
-> | **`true`** | `codex-rs/cli/src/main.rs:1893`、`codex-rs/cli/src/main.rs:2101`、`codex-rs/cli/src/mcp_cmd.rs:574`、`codex-rs/cli/src/doctor.rs:354`、**`codex-rs/exec/src/lib.rs:570`** | **CLI 主路径**，以及 `codex exec`（经 in-process app-server） |
-> | **`false`** | `codex-rs/app-server/src/lib.rs:511`、`codex-rs/app-server/src/lib.rs:752`、`codex-rs/mcp-server/src/message_processor.rs:62`、`codex-rs/tui/src/lib.rs:561`、`codex-rs/core/src/prompt_debug.rs:36`、`codex-rs/core/src/connectors.rs:121`、`codex-rs/cli/src/main.rs:2055`、`codex-rs/exec/src/lib.rs:358`（云配置包加载器） | **stdio app-server / MCP server / TUI / connectors** |
+> | **`true`** | `codex-rs/cli/src/main.rs:2315`、`codex-rs/cli/src/main.rs:2524`、`codex-rs/cli/src/mcp_cmd.rs:631`、`codex-rs/cli/src/doctor.rs:400`、`codex-rs/cli/src/plugin_cmd.rs:753`、`codex-rs/exec/src/worktree.rs:41`、**`codex-rs/exec/src/lib.rs:713`** | **CLI 主路径**，以及 `codex exec`（经 in-process app-server）。**第 6 轮新增两处**：`plugin_cmd.rs` 与 `exec/src/worktree.rs` |
+> | **`false`** | `codex-rs/app-server/src/lib.rs:540`、`codex-rs/app-server/src/lib.rs:805`、`codex-rs/tui/src/lib.rs:664`、`codex-rs/core/src/prompt_debug.rs:36`（**本轮唯一未漂的一条**）、`codex-rs/core/src/connectors.rs:122`、`codex-rs/cli/src/main.rs:2196` 与 `:2302`、`codex-rs/exec/src/lib.rs:392`（云配置包加载器） | **stdio app-server / TUI / connectors** |
 >
-> ⇒ **在 stdio app-server 二进制、MCP server、TUI 场景下 `CODEX_API_KEY` 不生效。** 这不是 bug，是宿主不希望环境变量悄悄改写会话身份。
+> **第 6 轮删除**：原 `false` 行里的 `codex-rs/mcp-server/src/message_processor.rs:62` 随该 crate 被上游删除而消失（提交 `531f3836a1`，`codex mcp-server` 子命令一并移除）。<!-- ref-exempt: 反例——正文说明该路径已不存在 -->
 >
-> ⚠️ **不要把这条推广成「所有 app-server 场景都不生效」。** in-process app-server 把它做成了**调用方可设的公开字段**（`codex-rs/app-server/src/in_process.rs:149` 的 `pub enable_codex_api_key_env: bool`，在 `:414` 传给 `AuthManager::shared_from_config`），因此取值由嵌入方决定——`codex exec` 传 `true`（`codex-rs/exec/src/lib.rs:570`）。**同一个 `codex exec` 内部还有第二个调用点传 `false`**（`:358`，云配置包加载器），两者作用域不同，勿混。
+> ⇒ **在 stdio app-server 二进制、TUI 场景下 `CODEX_API_KEY` 不生效。** 这不是 bug，是宿主不希望环境变量悄悄改写会话身份。
+>
+> ⚠️ **不要把这条推广成「所有 app-server 场景都不生效」。** in-process app-server 把它做成了**调用方可设的公开字段**（`codex-rs/app-server/src/in_process.rs:162` 的 `pub enable_codex_api_key_env: bool`，在 `:427` 传给 `AuthManager::shared_from_config`），因此取值由嵌入方决定——`codex exec` 传 `true`（`codex-rs/exec/src/lib.rs:713`）。**同一个 `codex exec` 内部还有第二个调用点传 `false`**（`:358`，云配置包加载器），两者作用域不同，勿混。
 
 > [!CAUTION]
 > **`OPENAI_API_KEY` 不在 `load_auth()` 的任何一级里。**
@@ -369,7 +396,7 @@ pub struct AuthDotJson {
 }
 ```
 
-> **勘误**：上一稿在代码块末尾留了一个 `// ...`，暗示还有未列出的字段。**没有了——以上即全部 7 个字段**（`codex-rs/login/src/auth/storage.rs:40-60`）。占位省略号会让读者以为文档做了裁剪，进而去猜"被省掉的是什么"，反而制造不确定性；确认穷举时就应明说穷举。
+> **勘误**：上一稿在代码块末尾留了一个 `// ...`，暗示还有未列出的字段。**没有了——以上即全部 7 个字段**（`codex-rs/login/src/auth/storage.rs:41-65`）。占位省略号会让读者以为文档做了裁剪，进而去猜"被省掉的是什么"，反而制造不确定性；确认穷举时就应明说穷举。
 
 要点：
 
@@ -384,13 +411,13 @@ pub struct AuthDotJson {
 >
 > 后果很具体：**即使没有配置 API key，序列化 `auth.json` 时也会写出一个值为 `null` 的该键**。所以"文件里出现这个键"并不代表"存了凭证"，排查时别据此下结论。
 >
-> **证据等级：E3（推断）。** 属性的有无是逐字段读源码确认的（`codex-rs/login/src/auth/storage.rs:40-60`），但"缺少 `skip_serializing_if` ⇒ `None` 会被写成 `null`"这一步依赖 **serde 的默认序列化语义**，本轮未跑运行期验证。静态证据完备、结论高置信度，等级标 E3（推断）。
+> **证据等级：E3（推断）。** 属性的有无是逐字段读源码确认的（`codex-rs/login/src/auth/storage.rs:41-65`），但"缺少 `skip_serializing_if` ⇒ `None` 会被写成 `null`"这一步依赖 **serde 的默认序列化语义**，本轮未跑运行期验证。静态证据完备、结论高置信度，等级标 E3（推断）。
 >
 > 这类"逐字段属性不一致"是最容易被概括掉的细节——**看到"所有字段都……"这类全称判断，应逐字段核对而不是抽查一两个。**
 
 #### 2.1.1 `resolved_mode()`：`auth_mode` 缺失时的推断顺序（E3，本轮补入）
 
-因为 PAT 路径刻意把 `auth_mode` 写成 `None`（§1.4），**实际生效的模式由 `resolved_mode()` 决定**，而不是直接读字段。`codex-rs/login/src/auth/manager.rs:1493-1507`：
+因为 PAT 路径刻意把 `auth_mode` 写成 `None`（§1.4），**实际生效的模式由 `resolved_mode()` 决定**，而不是直接读字段。`codex-rs/login/src/auth/manager.rs:1744-1761`：
 
 | 顺序 | 判据 | 结果 |
 | ---: | ---- | ---- |
@@ -431,7 +458,9 @@ options.truncate(true).write(true).create(true);
 }
 ```
 
-**权限在 `open` 时通过 `OpenOptions::mode()` 设定**（`codex-rs/login/src/auth/storage.rs:213`），而不是写完再 `chmod`——后者会留下一个短暂的宽权限窗口。
+**权限在 `open` 时通过 `OpenOptions::mode()` 设定**（`codex-rs/login/src/auth/storage.rs:217`）。
+
+> **第 6 轮删除了此处原有的一句对比**。旧版在这里写「而不是写完再 `chmod`——后者会留下一个短暂的宽权限窗口」，用来反衬 MCP 侧。实测 MCP 侧同样是 `open` 时设权限，且**多一层 `O_NOFOLLOW`**（CLI 侧没有），对比方向是反的。详见 §2.5。
 
 > [!IMPORTANT]
 > **`#[cfg(unix)]` 这个门控是理解 §2.3 平台分叉的关键一环。**
@@ -446,7 +475,7 @@ options.truncate(true).write(true).create(true);
 
 ### 2.2 `cli_auth_credentials_store` 的取值（E3，修订补入）
 
-初版只说它是"`codex-rs/core/config.schema.json` 顶层键之一"，未说明取值。类型是 `AuthCredentialsStoreMode`（`codex-rs/config/src/types.rs:107-117`），共 **4 个取值**：
+初版只说它是"`codex-rs/core/config.schema.json` 顶层键之一"，未说明取值。类型是 `AuthCredentialsStoreMode`（`codex-rs/config/src/types.rs:112-122`），共 **4 个取值**：
 
 | 取值 | 语义（文档注释原文） |
 | ---- | ---- |
@@ -480,7 +509,7 @@ impl Config {
 }
 ```
 
-`Feature::SecretAuthStorage`（`codex-rs/features/src/lib.rs:92`）的文档注释：
+`Feature::SecretAuthStorage`（`codex-rs/features/src/lib.rs:110`）的文档注释：
 
 > *"Store CLI auth in the encrypted local secrets backend when keyring storage is selected."*
 
@@ -507,13 +536,13 @@ impl Config {
 
 | 落点 | 位置 |
 | ---- | ---- |
-| `AuthKeyringBackendKind::{Direct, Secrets}` | `codex-rs/config/src/types.rs:136-144` |
-| `Direct` 的钥匙串命名 | service `"Codex Auth"`（`KEYRING_SERVICE`，`codex-rs/login/src/auth/storage.rs:231`）；account 由 `compute_store_key()`（`codex-rs/login/src/auth/storage.rs:234-245`）算出，形如 `cli\|<canonical codex_home 的 sha256 前 16 个 hex 字符>` |
-| `Secrets` 的加密文件 | `$CODEX_HOME/secrets/` 下，文件名常量见 `codex-rs/secrets/src/local.rs:37-39`：`LOCAL_SECRETS_FILENAME`、**`CODEX_AUTH_SECRETS_FILENAME`**（CLI 认证用）、`MCP_OAUTH_SECRETS_FILENAME` |
-| `Secrets` 的密钥名 | `CODEX_AUTH_SECRET_NAME`（`codex-rs/login/src/auth/storage.rs:226-230`） |
+| `AuthKeyringBackendKind::{Direct, Secrets}` | `codex-rs/config/src/types.rs:144-149` |
+| `Direct` 的钥匙串命名 | service `"Codex Auth"`（`KEYRING_SERVICE`，`codex-rs/login/src/auth/storage.rs:235`）；account 由 `compute_store_key()`（`codex-rs/login/src/auth/storage.rs:238-249`）算出，形如 `cli\|<canonical codex_home 的 sha256 前 16 个 hex 字符>` |
+| `Secrets` 的加密文件 | `$CODEX_HOME/secrets/` 下，文件名常量见 `codex-rs/secrets/src/local.rs:41-44`：`LOCAL_SECRETS_FILENAME`、**`CODEX_AUTH_SECRETS_FILENAME`**（CLI 认证用）、`MCP_OAUTH_SECRETS_FILENAME` |
+| `Secrets` 的密钥名 | `CODEX_AUTH_SECRET_NAME`（`codex-rs/login/src/auth/storage.rs:230-234`） |
 
 > [!NOTE]
-> **account key 里含 `CODEX_HOME` 的哈希，意味着不同 `CODEX_HOME` 的凭证在钥匙串里互不干扰**（`codex-rs/login/src/auth/storage.rs:234-245` 先 `canonicalize()` 再 sha256 取前 16 位）。副作用是**移动或改名 `CODEX_HOME` 会导致钥匙串里已存的凭证找不到**，表现为"突然要求重新登录"，但旧条目仍留在钥匙串里。
+> **account key 里含 `CODEX_HOME` 的哈希，意味着不同 `CODEX_HOME` 的凭证在钥匙串里互不干扰**（`codex-rs/login/src/auth/storage.rs:238-249` 先 `canonicalize()` 再 sha256 取前 16 位）。副作用是**移动或改名 `CODEX_HOME` 会导致钥匙串里已存的凭证找不到**，表现为"突然要求重新登录"，但旧条目仍留在钥匙串里。
 
 **5 个存储后端实现**（`codex-rs/login/src/auth/storage.rs`，均实现 `AuthStorageBackend`）：
 
@@ -527,7 +556,7 @@ impl Config {
 
 由 `create_auth_storage()`（`codex-rs/login/src/auth/storage.rs:498`）按 `(mode, backend_kind)` 二元组选择。**mode 和 backend_kind 是两个正交的枚举**——这正是 §2 开头那条 `_mode` 命名注释想要区分的东西。
 
-它的注册项在 `codex-rs/features/src/lib.rs:852-857`：
+它的注册项在 `codex-rs/features/src/lib.rs:968-973`：
 
 ```rust
 FeatureSpec {
@@ -551,8 +580,8 @@ FeatureSpec {
 >
 > | 判据 | 位置 | 能否被用户覆盖 |
 > | ---- | ---- | ---- |
-> | `impl Default for AuthKeyringBackendKind`：`if cfg!(windows) { Secrets } else { Direct }` | `codex-rs/config/src/types.rs:146-154` | ❌ **不可配置**——编译期常量 |
-> | feature `secret_auth_storage` 的 `default_enabled: cfg!(windows)` | `codex-rs/features/src/lib.rs:852-857`，经 `auth_keyring_backend_kind_from_secret_auth_storage()`（`codex-rs/core/src/config/auth_keyring.rs:47-54`）转换 | ✅ **可被 `[features] secret_auth_storage = false` 覆盖** |
+> | `impl Default for AuthKeyringBackendKind`：`if cfg!(windows) { Secrets } else { Direct }` | `codex-rs/config/src/types.rs:151-158` | ❌ **不可配置**——编译期常量 |
+> | feature `secret_auth_storage` 的 `default_enabled: cfg!(windows)` | `codex-rs/features/src/lib.rs:968-973`，经 `auth_keyring_backend_kind_from_secret_auth_storage()`（`codex-rs/core/src/config/auth_keyring.rs:47-54`）转换 | ✅ **可被 `[features] secret_auth_storage = false` 覆盖** |
 >
 > **生产 `Config` 走的是第二条**（`Config::auth_keyring_backend_kind()`，`codex-rs/core/src/config/auth_keyring.rs:11-15`）。第一条只在拿不到 `Config` 的场合兜底——例如 `load_auth()` 里构造 ephemeral 存储时直接用 `AuthKeyringBackendKind::default()`（`codex-rs/login/src/auth/manager.rs:1237`）。
 >
@@ -562,7 +591,7 @@ FeatureSpec {
 
 ### 2.4 `ChatgptAuthTokens` 会**静默覆盖** `cli_auth_credentials_store`（E3，本轮补入）
 
-`AuthDotJson::storage_mode()`（`codex-rs/login/src/auth/manager.rs:1509-1518`）：
+`AuthDotJson::storage_mode()`（`codex-rs/login/src/auth/manager.rs:1763-1772`）：
 
 ```rust
 fn storage_mode(
@@ -588,19 +617,31 @@ fn storage_mode(
 >
 > 注意这条降级发生在 `resolved_mode()` 之上，因此**同样受 §2.1.1 推断顺序的影响**。
 
-### 2.5 CLI 登录 vs MCP OAuth：**两套独立体系**（E3，本轮补入）
+### 2.5 CLI 登录 / MCP OAuth / Provider Gateway OAuth：**三套独立体系**（E3）
 
-`$CODEX_HOME` 下有两套互不相干的凭证存储。它们的键名、枚举、默认值、落点全都不同，**极易互相套用**：
+> [!CAUTION]
+> **第 6 轮两处更正**：本节标题原写「两套」，实为**三套**（新增 Provider Gateway OAuth）；且 Unix 权限那一行**把安全对比写反了**，详见表后说明。
 
-| 维度 | CLI 登录 | MCP OAuth |
-| ---- | ---- | ---- |
-| 配置键 | `cli_auth_credentials_store` | `mcp_oauth_credentials_store` |
-| 枚举 | `AuthCredentialsStoreMode`（4 变体，`codex-rs/config/src/types.rs:107-117`） | `OAuthCredentialsStoreMode`（3 变体，`codex-rs/config/src/types.rs:119-134`） |
-| **默认值** | **`File`**（`#[default]` 在 `codex-rs/config/src/types.rs:108`） | **`Auto`**（`#[default]` 在 `codex-rs/config/src/types.rs:127`） |
-| 文件后端 | `$CODEX_HOME/auth.json` | `$CODEX_HOME/.credentials.json`（`FALLBACK_FILENAME`，`codex-rs/rmcp-client/src/oauth.rs:611`；路径构造 `:825-827`） |
-| Keyring service | `"Codex Auth"`（`codex-rs/login/src/auth/storage.rs:231`） | `"Codex MCP Credentials"`（`codex-rs/rmcp-client/src/oauth.rs:76`） |
-| Secrets 文件 | `CODEX_AUTH_SECRETS_FILENAME`（`codex-rs/secrets/src/local.rs:38`） | `MCP_OAUTH_SECRETS_FILENAME`（`codex-rs/secrets/src/local.rs:39`） |
-| Unix 权限 | `0o600`，**`open` 时**经 `OpenOptions::mode()`（`codex-rs/login/src/auth/storage.rs:213`） | `0o600`，**写完后**经 `set_permissions()`（`codex-rs/rmcp-client/src/oauth.rs:868-873`） |
+`$CODEX_HOME` 下有**三套**互不相干的凭证存储。它们的键名、枚举、默认值、落点全都不同，**极易互相套用**：
+
+| 维度 | CLI 登录 | MCP OAuth | Provider Gateway OAuth（第 6 轮新增） |
+| ---- | ---- | ---- | ---- |
+| 配置键 | `cli_auth_credentials_store` | `mcp_oauth_credentials_store` | 无独立配置键，由 `ModelProviderInfo.gateway_oauth` 驱动（`codex-rs/model-provider-info/src/lib.rs:156`） |
+| 枚举 | `AuthCredentialsStoreMode`（4 变体，`codex-rs/config/src/types.rs:112-122`） | `OAuthCredentialsStoreMode`（3 变体，`codex-rs/config/src/types.rs:127-139`） | — |
+| **默认值** | **`File`**（`#[default]` 在 `codex-rs/config/src/types.rs:113`） | **`Auto`**（`#[default]` 在 `codex-rs/config/src/types.rs:132`） | — |
+| 文件后端 | `$CODEX_HOME/auth.json` | `$CODEX_HOME/.credentials.json`（`FALLBACK_FILENAME`，`codex-rs/rmcp-client/src/oauth.rs:815`；路径构造 `:1058`） | `$CODEX_HOME/secrets/gateway_oauth.age` |
+| Keyring service | `"Codex Auth"`（`codex-rs/login/src/auth/storage.rs:235`） | `"Codex MCP Credentials"`（`codex-rs/rmcp-client/src/oauth.rs:92`） | 密钥名 `PROVIDER_OAUTH_<摘要大写>`，账号前缀 `provider-oauth\|`（`codex-rs/login/src/gateway_auth_storage.rs:77-83`） |
+| Secrets 文件常量 | `CODEX_AUTH_SECRETS_FILENAME`（`codex-rs/secrets/src/local.rs:42`） | `MCP_OAUTH_SECRETS_FILENAME`（`codex-rs/secrets/src/local.rs:43`） | `GATEWAY_OAUTH_SECRETS_FILENAME`（`codex-rs/secrets/src/local.rs:44`） |
+| Unix 权限 | `0o600`，`open` 时经 `OpenOptions::mode()`（`codex-rs/login/src/auth/storage.rs:217`） | `0o600`，**同样在 `open` 时**经 `OpenOptions::mode()`（`codex-rs/rmcp-client/src/oauth.rs:1090`），**且额外带 `O_NOFOLLOW`**；写入前再经 `set_permissions()` 重申一次（`:1127`） | 经 `SecretsManager`，见 §2.3 |
+
+> [!CAUTION]
+> **上一版把两侧的安全强弱写反了，必须更正。**
+>
+> 旧版说 MCP 侧是「**写完后**经 `set_permissions()`」，并在 §2.1.2 据此推出对比：CLI 侧「在 `open` 时设定……而不是写完再 `chmod`——后者会留下一个短暂的宽权限窗口」。
+>
+> 实测（`codex-rs/rmcp-client/src/oauth.rs:1083-1130`）：MCP 侧是 `OpenOptions::mode(0o600)` **在 `open` 时设定**（`:1090`），且带 `libc::O_NOFOLLOW`（防符号链接攻击）；`set_permissions()`（`:1127`）发生在 `set_len` 与 `write_all` **之前**，是重申而非补救。
+>
+> **所以不存在那个「宽权限窗口」，而且在这一点上 MCP 侧比 CLI 侧更严**——`O_NOFOLLOW` 是 CLI 侧没有的加固。§2.1.2 里的那句对比已随之删除。
 
 > [!IMPORTANT]
 > **默认行为的差异比键名差异更值得记住：CLI 默认写明文 `auth.json`，MCP 默认优先写 keyring。**
@@ -632,7 +673,7 @@ fn storage_mode(
 | `query_params` | 追加到 base URL 的查询参数 |
 | `env_key_instructions` | `env_key` 未设置时展示给用户的**提示文案**（`codex-rs/model-provider-info/src/lib.rs:98-100`）——**不是认证机制**，见 §3.2 勘误 |
 
-### 3.2 认证（**四选一，`validate()` 强制互斥**）
+### 3.2 认证（**五选一，`validate()` 强制互斥**）
 
 | 字段 | 说明 |
 | ---- | ---- |
@@ -642,7 +683,7 @@ fn storage_mode(
 | `aws` (`ModelProviderAwsAuthInfo`) | AWS SigV4（`profile` / `region`，`codex-rs/model-provider-info/src/lib.rs:150-153`） |
 
 > [!CAUTION]
-> **勘误：上一稿标题写"四选一**或组合**"——"或组合"不成立。** `ModelProviderInfo::validate()`（`codex-rs/model-provider-info/src/lib.rs:157-214`）会在**配置加载期**显式拒绝组合，详见 §3.6。
+> **勘误：上一稿标题写"四选一**或组合**"——"或组合"不成立。** `ModelProviderInfo::validate()`（`codex-rs/model-provider-info/src/lib.rs:285-381`）会在**配置加载期**显式拒绝组合，详见 §3.6。
 >
 > 另外，**`env_key_instructions` 不是认证机制**，上一稿把它列进这张表是分类错误。它只是 `env_key` 未设置时的**提示文案**（`codex-rs/model-provider-info/src/lib.rs:98-100`），会被塞进 `EnvVarError.instructions`（`codex-rs/model-provider-info/src/lib.rs:295`）显示给用户。它不参与任何认证判定，因此也不参与互斥校验——已从本表移出，见 §3.1。
 
@@ -690,7 +731,27 @@ fn storage_mode(
 
 ### 3.6 `validate()`：配置面唯一的运行期校验（E3，本轮补入）
 
-`ModelProviderInfo::validate()`（`codex-rs/model-provider-info/src/lib.rs:157-214`）是 `ModelProviderInfo` **自身字段互斥关系**的校验入口。规则分两块共 4 条：
+`ModelProviderInfo::validate()`（`codex-rs/model-provider-info/src/lib.rs:285-381`）是 `ModelProviderInfo` **自身字段互斥关系**的校验入口。
+
+> **第 6 轮：规则从 4 条增至 10 条**，新增的 6 条全部围绕 AWS 侧（`credential_export` / `auth_refresh`）与新的 `gateway_oauth` 字段。下表按源码顺序列全：
+
+| # | 规则 | 位置 | 状态 |
+| ---: | ---- | ---- | ---- |
+| 1 | `gateway_oauth` 不能与 AWS 认证组合 | `:286-288` → `codex-rs/model-provider-info/src/gateway_oauth.rs:68-71` | **新增** |
+| 2 | `aws` 不能与 `supports_websockets` 同时出现（带 TODO 注释） | `:290-295` | 原 #1 |
+| 3 | `aws` 不能与 `env_key` / `experimental_bearer_token` / `auth` / `requires_openai_auth` 同时出现 | `:297-316` | 原 #2 |
+| 4 | `aws.credential_export` 不能与 `aws.profile` 同时出现 | `:319-324` | **新增** |
+| 5 | `aws.credential_export.command` 不得为空白 | `:325-329` | **新增** |
+| 6 | **`aws.credential_export.command` 必须是绝对路径或裸可执行名** | `:330-341` | **新增**，见下方安全说明 |
+| 7 | `aws.auth_refresh.command` 不得为空白 | `:345-347` | **新增** |
+| 8 | `aws.auth_refresh.command` 必须等于 `aws` | `:348-350` | **新增** |
+| 9 | `auth.command` 不得为空白 | `:358-360` | 原 #3 |
+| 10 | `auth` 不能与 `env_key` / `experimental_bearer_token` / `requires_openai_auth` 同时出现 | `:362-380` | 原 #4 |
+
+> [!IMPORTANT]
+> **规则 6 是一条新增的安全加固，值得单独记住。** 它把 `aws.credential_export.command` 限制为**绝对路径或裸可执行名**，堵的是「配置驱动命令执行」这一攻击面——不加限制的话，一个相对路径就能让 provider 配置在当前工作目录里捞一个同名可执行文件来跑。这与 §8 关注的风险是同一类。
+
+> 以下是旧版给出的原 4 条明细，编号已按上表顺延（内容经第 6 轮复核仍成立，仅行号漂移）：
 
 | # | 规则 | 报错信息 | 位置 |
 | ---: | ---- | ---- | ---- |
@@ -704,7 +765,7 @@ fn storage_mode(
 >
 > | 路径 | 管什么 | 位置 | 本文何处 |
 > | ---- | ---- | ---- | ---- |
-> | `validate()` | 单个 provider **自身字段的互斥关系** | `codex-rs/model-provider-info/src/lib.rs:157-214` | 本节 |
+> | `validate()` | 单个 provider **自身字段的互斥关系** | `codex-rs/model-provider-info/src/lib.rs:285-381` | 本节 |
 > | `merge_configured_model_providers()` | 用户 provider **能否覆盖内置项** | `codex-rs/model-provider-info/src/lib.rs:482-486` | §3.7 |
 > | `WireApi` 的手写 `Deserialize` | `wire_api = "chat"` 的**迁移拒绝** | `codex-rs/model-provider-info/src/lib.rs:80` | §4 |
 
@@ -715,25 +776,26 @@ fn storage_mode(
 - **规则 3 先于规则 4 检查**：`auth` 存在但 `command` 为空时，先报 `must not be empty`，即使同时还有别的冲突。
 - **`env_key` 与 `experimental_bearer_token` 之间不互斥**——两者可以同时配置，`validate()` 不拦。§3.2 的"四选一"指的是 `aws` / `auth` 与其余认证字段之间的关系。
 
-### 3.7 内置 provider：4 个，且**只能扩展不能覆盖**（E3，本轮补入）
+### 3.7 内置 provider：5 个，且**只能扩展不能覆盖**（E3）
 
-`built_in_model_providers()`（`codex-rs/model-provider-info/src/lib.rs:438-464`）：
+`built_in_model_providers()`（`codex-rs/model-provider-info/src/lib.rs:643-675`）。**第 6 轮该函数已带参数** `openai_base_url: Option<String>`（`:643-645`），旧版写成无参函数：
 
 | provider id | 常量 | 要点 |
 | ---- | ---- | ---- |
-| `openai` | `OPENAI_PROVIDER_ID`（`codex-rs/model-provider-info/src/lib.rs:37`） | `requires_openai_auth: true`、`supports_websockets: true`、`supports_standalone_web_search: true`（`codex-rs/model-provider-info/src/lib.rs:364-366`）；`env_http_headers` 预置 `OPENAI_ORGANIZATION` / `OPENAI_PROJECT`（`:348-358`） |
-| `amazon-bedrock` | `AMAZON_BEDROCK_PROVIDER_ID`（`codex-rs/model-provider-info/src/lib.rs:40`） | `base_url: None` 时由运行期推导区域端点，**配了值就是明确的端点覆盖**（`:375-378`） |
-| `ollama` | `OLLAMA_OSS_PROVIDER_ID`（`codex-rs/model-provider-info/src/lib.rs:435`） | 经 `create_oss_provider(DEFAULT_OLLAMA_PORT, ...)`，默认端口 **11434**（`codex-rs/model-provider-info/src/lib.rs:432`） |
-| `lmstudio` | `LMSTUDIO_OSS_PROVIDER_ID`（`codex-rs/model-provider-info/src/lib.rs:434`） | 经 `create_oss_provider(DEFAULT_LMSTUDIO_PORT, ...)`，默认端口 **1234**（`codex-rs/model-provider-info/src/lib.rs:431`） |
+| `openai` | `OPENAI_PROVIDER_ID`（`codex-rs/model-provider-info/src/lib.rs:76`） | `requires_openai_auth: true`、`supports_websockets: true`、`supports_standalone_web_search: true`（`codex-rs/model-provider-info/src/lib.rs:364-366`）；`env_http_headers` 预置 `OPENAI_ORGANIZATION` / `OPENAI_PROJECT`（`:348-358`） |
+| `amazon-bedrock` | `AMAZON_BEDROCK_PROVIDER_ID`（`codex-rs/model-provider-info/src/lib.rs:79`） | `base_url: None` 时由运行期推导区域端点，**配了值就是明确的端点覆盖**（`:557-560`） |
+| **`amazon-bedrock-runtime`**（第 6 轮新增） | `AMAZON_BEDROCK_RUNTIME_PROVIDER_ID` | 由 `create_amazon_bedrock_runtime_provider()`（`codex-rs/model-provider-info/src/lib.rs:590-597`）构造，与 `amazon-bedrock` 的差别仅在 `name` 与 `http_headers = None` |
+| `ollama` | `OLLAMA_OSS_PROVIDER_ID`（`codex-rs/model-provider-info/src/lib.rs:640`） | 经 `create_oss_provider(DEFAULT_OLLAMA_PORT, ...)`，默认端口 **11434**（`codex-rs/model-provider-info/src/lib.rs:432`） |
+| `lmstudio` | `LMSTUDIO_OSS_PROVIDER_ID`（`codex-rs/model-provider-info/src/lib.rs:639`） | 经 `create_oss_provider(DEFAULT_LMSTUDIO_PORT, ...)`，默认端口 **1234**（`codex-rs/model-provider-info/src/lib.rs:431`） |
 
-源码注释说明了为什么只有这 4 个（`codex-rs/model-provider-info/src/lib.rs:445-448`）：
+源码注释说明了为什么只内置这几个（`codex-rs/model-provider-info/src/lib.rs:652-655`，原文未变）：
 
 > *"We do not want to be in the business of adjucating which third-party providers are bundled with Codex CLI, so we only include the OpenAI and open source ("oss") providers by default. Users are encouraged to add to `model_providers` in config.toml to add their own providers."*
 
 **`merge_configured_model_providers()`（`codex-rs/model-provider-info/src/lib.rs:471-507`）的合并语义**：
 
 - 一般情况走 `model_providers.entry(key).or_insert(provider)`（`codex-rs/model-provider-info/src/lib.rs:503`）——**`or_insert` 意味着同名时保留内置项、丢弃用户配置**。用户 provider **只能扩展**内置集，**不能覆盖内置项**。
-- **唯一例外是 `amazon-bedrock`**（`codex-rs/model-provider-info/src/lib.rs:476-501`）：允许改 `base_url` / `auth` / `http_headers` / `aws.profile` / `aws.region`；把这几项 `take()` 走之后若剩余部分 `!= ModelProviderInfo::default()`，直接报错——
+- **例外有两个**（第 6 轮由一个增至两个）：`amazon-bedrock` 与 `amazon-bedrock-runtime`（判定在 `codex-rs/model-provider-info/src/lib.rs:687-690` 的 `matches!`，校验走独立的 `validate_bedrock_override()`，`:267-283`）。允许改的字段也扩了：`base_url` / `auth` / `http_headers` / `aws.profile` / `aws.region` / **`aws.credential_export`** / **`aws.auth_refresh`**；把这几项 `take()` 走之后若剩余部分 `!= ModelProviderInfo::default()`，直接报错——
   `model_providers.amazon-bedrock only supports changing base_url, auth, http_headers, aws.profile, and aws.region; other non-default provider fields are not supported`
 
 > [!IMPORTANT]
@@ -936,15 +998,30 @@ pub fn create_oss_provider(default_provider_port: u16, wire_api: WireApi) -> Mod
 ## 9. 本文未覆盖的内容
 
 > [!IMPORTANT]
+> **第 6 轮新增一类条目：「不知道它存在」。**
+>
+> 本节原有的标准是「写『未覆盖』之前应先确认是『找过而没有』，还是『没找过』」。第 6 轮的核验发现了**第三种状态**——上游新增的一批认证表面，本文此前既没找过、也没登记为未覆盖，等于在读者视野里不存在。现补记如下（均为 E1，仅确认存在与入口，未展开）：
+>
+> | 表面 | 入口 | 规模 |
+> | ---- | ---- | ---- |
+> | 工作负载身份 | `codex-rs/workload-identity/`（`WorkloadIdentityExchange` / `WorkloadIdentityToken`）、`codex-rs/login/src/auth/workload_identity.rs` | 870 + 486 行 |
+> | 设备凭据与签名 | `codex-rs/user-verification/` | 1,248 行 |
+> | Provider Gateway OAuth | `codex-rs/login/src/gateway_auth.rs`、`gateway_auth_callback.rs`、`gateway_auth_storage.rs`、`gateway_auth_token.rs` | 见 §2.5 已补的第三套存储 |
+> | OAuth 子模块拆分 | `codex-rs/login/src/oauth/` 下新增 5 个文件（authorization / client / diagnostics / error / pkce） | ⚠️ 与 §1「OAuth 流程要素」表里的 `codex-rs/login/src/pkce.rs` **同时存在**，本文未区分两者职责 |
+> | 企业托管认证（EMA） | `codex-rs/rmcp-client/src/ema_*.rs` | 未评估 |
+> | 内部身份 | `codex-rs/login/src/internal_identity.rs` | 未评估 |
+
+
+> [!IMPORTANT]
 > **本轮把 5 项从"未覆盖 E1"升级为"已覆盖 E3"。** 它们并非真的缺证据，而是**上一稿没去找**——静态证据一直都在。写"未覆盖"之前应先确认是"找过而没有"，还是"没找过"；把后者记成前者，会让这张表变成掩盖工作量的地方，而不是暴露风险的地方。
 
 | 未覆盖项 | 当前证据 | 建议入口 |
 | ---- | ---- | ---- |
 | ~~`auth.json` 的结构~~ | **已在 §2.1 解决**（`AuthDotJson`） | — |
-| ~~凭证在钥匙串中的具体命名与格式~~ | **已升 E3，在 §2.3 解决**：service `"Codex Auth"`（`codex-rs/login/src/auth/storage.rs:231`）、account `cli\|<sha256 前16位>`（`codex-rs/login/src/auth/storage.rs:234-245`）、`KeyringStore` trait（`codex-rs/keyring-store/src/lib.rs:42-46`） | — |
+| ~~凭证在钥匙串中的具体命名与格式~~ | **已升 E3，在 §2.3 解决**：service `"Codex Auth"`（`codex-rs/login/src/auth/storage.rs:235`）、account `cli\|<sha256 前16位>`（`codex-rs/login/src/auth/storage.rs:238-249`）、`KeyringStore` trait（`codex-rs/keyring-store/src/lib.rs:42-46`） | — |
 | ~~`TokenData` / `AgentIdentityStorage` / `BedrockApiKeyAuth` 的内部字段~~ | **已升 E3**：`BedrockApiKeyAuth`（`codex-rs/login/src/auth/bedrock_api_key.rs:13-17`）、`AgentIdentityStorage`（`codex-rs/login/src/auth/storage.rs:63-68`，`#[serde(untagged)]` 的 `Jwt` / `Record` 两变体）、`TokenData` 与 `IdClaims`（`codex-rs/login/src/token_data.rs:72-80`） | — |
-| ~~`ChatgptAuthTokens` 与 `Headers` 两种模式的实际注入路径~~ | **已升 E3，在 §1 与 §1.4 解决**：`LoginAccountParams::ChatgptAuthTokens`（`codex-rs/app-server-protocol/src/protocol/v2/account.rs:84-89`）、`Headers` 经 `ExternalAuth` 注入且存储层拒绝（`codex-rs/login/src/auth/manager.rs:316-320`） | — |
-| ~~`Feature::SecretAuthStorage` 开启后凭证的实际落点~~ | **已升 E3，在 §2.3 解决**：`$CODEX_HOME/secrets/` 下，文件名常量 `codex-rs/secrets/src/local.rs:37-39`（CLI 认证用 `CODEX_AUTH_SECRETS_FILENAME`）；密钥仍在系统钥匙串 | — <!-- ref-exempt: 检查器误报——同行的 `SecretAuthStorage` 属 Feature 枚举（codex-rs/features/src/lib.rs:92），不是 local.rs / config/types.rs 里的符号；文档 §2.3 已正确归类，未混淆。types.rs 上与之相邻的符号是 AuthKeyringBackendKind（codex-rs/config/src/types.rs:139） --> |
+| ~~`ChatgptAuthTokens` 与 `Headers` 两种模式的实际注入路径~~ | **已升 E3，在 §1 与 §1.4 解决**：`LoginAccountParams::ChatgptAuthTokens`（`codex-rs/app-server-protocol/src/protocol/v2/account.rs:84-89`）、`Headers` 经 `ExternalAuth` 注入且存储层拒绝（`codex-rs/login/src/auth/manager.rs:388-392`） | — |
+| ~~`Feature::SecretAuthStorage` 开启后凭证的实际落点~~ | **已升 E3，在 §2.3 解决**：`$CODEX_HOME/secrets/` 下，文件名常量 `codex-rs/secrets/src/local.rs:41-44`（CLI 认证用 `CODEX_AUTH_SECRETS_FILENAME`）；密钥仍在系统钥匙串 | — <!-- ref-exempt: 检查器误报——同行的 `SecretAuthStorage` 属 Feature 枚举（codex-rs/features/src/lib.rs:92），不是 local.rs / config/types.rs 里的符号；文档 §2.3 已正确归类，未混淆。types.rs 上与之相邻的符号是 AuthKeyringBackendKind（codex-rs/config/src/types.rs:139） --> |
 | OAuth 完整时序与错误分支 | E1 | `codex-rs/login/src/lib.rs`、`codex-rs/login/src/auth/manager.rs` |
 | `--experimental_issuer` / `--experimental_client-id` 的校验与约束 | E1 | `codex-rs/cli/src/main.rs:489-496`、`codex-rs/login/src/lib.rs` |
 | Bedrock / AWS SigV4 的签名实现 | E1 | `codex-aws-auth`、`codex-rs/login/src/auth/bedrock_api_key.rs` |
