@@ -5,12 +5,12 @@ keywords: codex | testing | nextest | insta | integration-test | test-codex | sn
 scope: openai/codex 仓库的测试组织、运行与编写规范
 related_files: codex-rs/.config/nextest.toml | codex-rs/Cargo.toml | codex-rs/core/tests/common/test_codex.rs | codex-rs/core/tests/common/lib.rs | codex-rs/core/tests/suite/mod.rs | codex-rs/app-server/tests/suite/mod.rs | codex-rs/app-server/tests/common/test_app_server.rs | justfile | .bazelrc | defs.bzl | AGENTS.md | .codex/skills/remote-tests/SKILL.md | .github/workflows/rust-ci-full.yml | .github/workflows/rust-ci-full-nextest-platform.yml
 dependencies: dev_docs/development_workflow.md | dev_docs/core_agent_loop.md
-verified_at: 2026-08-05
+verified_at: 2026-09-21
 ---
 
 # 测试指南
 
-> **基线 commit**: `bb5054fe47abe73ecbbd454751066a28c89f4bb9`
+> **基线 commit**: `5c5308fc9a9ee789049d646ef11e5400384b9c6f`
 > **证据等级**: nextest 配置、AGENTS.md 条款、CI 工作流内容为 E2/E3（读取配置与源码）；文件计数为 E1；测试夹具 API 为 E3
 
 > [!NOTE]
@@ -324,7 +324,7 @@ slow-timeout = { period = "1m", terminate-after = 4 }
 
 | 领域 | 文件 |
 | ---- | ---- |
-| 上下文压缩 | `codex-rs/core/tests/suite/compact.rs`（5,440 行）、`codex-rs/core/tests/suite/compact_remote.rs`、`codex-rs/core/tests/suite/compact_remote_parity.rs`、`codex-rs/core/tests/suite/compact_resume_fork.rs` |
+| 上下文压缩 | `codex-rs/core/tests/suite/compact.rs`（5,511 行）、`codex-rs/core/tests/suite/compact_remote.rs`、`codex-rs/core/tests/suite/compact_remote_trimming.rs`、`codex-rs/core/tests/suite/compact_resume_fork.rs` |
 | 审批与策略 | `codex-rs/core/tests/suite/approvals.rs`、`codex-rs/core/tests/suite/exec_policy.rs`、`codex-rs/core/tests/suite/catalog_permission_messages.rs`、`codex-rs/core/tests/suite/guardian_review.rs` |
 | 执行 | `codex-rs/core/tests/suite/exec.rs`、`codex-rs/core/tests/suite/apply_patch_cli.rs`、`codex-rs/core/tests/suite/extension_sandbox.rs` |
 | 会话 | `codex-rs/core/tests/suite/fork_thread.rs`、`codex-rs/core/tests/suite/abort_tasks.rs`、`codex-rs/core/tests/suite/codex_delegate.rs` |
@@ -335,7 +335,12 @@ slow-timeout = { period = "1m", terminate-after = 4 }
 
 > 表中一律写全路径，因为裸文件名有真实歧义：测试侧的 `codex-rs/core/tests/suite/compact.rs` 与实现侧的 `codex-rs/core/src/compact.rs` **同名且同 crate**，而本节的核心论点恰恰是二者的 parity；`codex-rs/core/tests/suite/agents_md.rs` 在 `codex-rs/exec/tests/suite/agents_md.rs` 下也有同名文件。
 
-> `codex-rs/core/tests/suite/compact_remote_parity.rs` 的存在说明**本地与远程压缩之间有一致性（parity）测试**——这是理解压缩机制的好入口。
+> [!CAUTION]
+> **第 6 轮：`compact_remote_parity.rs` 已不存在**<!-- ref-exempt: 反例——正文说明该路径已不存在 -->，由它支撑的结论「本地与远程压缩之间有一致性（parity）测试」**失去证据**。
+>
+> 这与远程压缩 v1 整条路径被删除是同一件事：没有了两条远程实现，parity 测试自然也没有了对象。当前 `suite/` 下与压缩相关的是 `codex-rs/core/tests/suite/compact.rs`、`codex-rs/core/tests/suite/compact_remote.rs`、`codex-rs/core/tests/suite/compact_remote_trimming.rs`、`codex-rs/core/tests/suite/compact_resume_fork.rs` 与 `codex-rs/core/tests/suite/step_settings_compaction.rs`。
+>
+> **本轮未替该结论另寻证据**——是否仍存在等价的一致性覆盖需要读 `compact_remote.rs` 才能判定，留空比编一个替代来源诚实。详见 [`core_agent_loop.md`](./core_agent_loop.md) §6.2。
 
 `codex-rs/core/tests/` 下除 `suite/` 与 `common/` 外还有两项本文未展开：`codex-rs/core/tests/responses_headers.rs`（独立文件）与 `codex-rs/core/tests/remote_env_windows/`（目录）。
 
@@ -346,7 +351,7 @@ slow-timeout = { period = "1m", terminate-after = 4 }
 > [!IMPORTANT]
 > **`zsh` 不是测试子目录，是一个 DotSlash 清单文件。** 它是 2,661 字节、带可执行位的普通文件（`file` 报 `a /usr/bin/env dotslash script text executable`），同级的 `v2` 才是目录。它也**不是测试模块**——`codex-rs/app-server/tests/suite/mod.rs` 只声明了 `mod auth; mod conversation_summary; mod fuzzy_file_search; mod logging; mod strict_config; mod v2;`，**没有 `mod zsh;`**。
 >
-> 文件头注释自述用途：*"This is the patched zsh fork corresponding to `codex-rs/shell-escalation/patches/zsh-exec-wrapper.patch`. Fetching the prebuilt version via DotSlash makes it easier to write integration tests that exercise the zsh fork behavior in app-server tests."* —— 即通过 DotSlash 拉取预构建的 zsh fork 二进制，供集成测试验证 zsh fork 行为。消费方是 `codex-rs/app-server/tests/suite/v2/turn_start_zsh_fork.rs:793` 与 `codex-rs/core/tests/common/zsh_fork.rs:133`。
+> 文件头注释自述用途：*"This is the patched zsh fork corresponding to `codex-rs/shell-escalation/patches/zsh-exec-wrapper.patch`. Fetching the prebuilt version via DotSlash makes it easier to write integration tests that exercise the zsh fork behavior in app-server tests."* —— 即通过 DotSlash 拉取预构建的 zsh fork 二进制，供集成测试验证 zsh fork 行为。消费方是 `codex-rs/app-server/tests/suite/v2/turn_start_zsh_fork.rs:793` 与 `codex-rs/core/tests/common/zsh_fork.rs`（131 行）。
 
 #### 挂载链（也是 §2.1 里 `--test all` 的出处）
 

@@ -5,12 +5,12 @@ keywords: codex | observability | otel | telemetry | statsig | analytics | sentr
 scope: codex-rs/otel、analytics、otel_init、rollout-trace、hooks、feedback 的遥测与埋点边界
 related_files: codex-rs/otel/src/config.rs | codex-rs/otel/src/provider.rs | codex-rs/otel/src/events/shared.rs | codex-rs/otel/src/events/session_telemetry.rs | codex-rs/core/src/config/otel.rs | codex-rs/core/src/otel_init.rs | codex-rs/analytics/src/client.rs | codex-rs/config/src/types.rs | codex-rs/core/config.schema.json | codex-rs/state/src/telemetry.rs | codex-rs/features/src/lib.rs | codex-rs/rollout-trace/src | codex-rs/feedback/src/lib.rs | AGENTS.md
 dependencies: dev_docs/config_system.md | dev_docs/architecture_overview.md
-verified_at: 2026-08-05
+verified_at: 2026-09-21
 ---
 
 # 可观测性与遥测边界
 
-> **基线 commit**: `bb5054fe47abe73ecbbd454751066a28c89f4bb9`
+> **基线 commit**: `5c5308fc9a9ee789049d646ef11e5400384b9c6f`
 > **证据等级**: 默认值判定为 **E3**（读取 `unwrap_or`、`resolve_exporter`、`build_provider` 实现）；配置键判定为 E2（`codex-rs/config/src/types.rs` + 生成的 `codex-rs/core/config.schema.json`）；投递链路（`build_provider` → `OtelProvider::from` → `build_logger` / `build_tracer_provider` / `MetricsClient`）亦为 **E3**（逐行读取 `codex-rs/otel/src/provider.rs:84-130`）。仍为 E1 的只剩「具体上报了哪些字段名与标签维度」一类，见 §9
 
 > [!IMPORTANT]
@@ -93,7 +93,8 @@ let metrics_exporter = if config
 | ---- | ---- | ---- |
 | TUI | **`true`** | `codex-rs/tui/src/lib.rs:1157` |
 | `codex exec` | **`true`** | `codex-rs/exec/src/lib.rs:163`（`DEFAULT_ANALYTICS_ENABLED`）→ `:501` |
-| `codex mcp-server` | **`true`** | `codex-rs/mcp-server/src/lib.rs:57` → `:88` |
+| ~~`codex mcp-server`~~ | — | **第 6 轮删除**：该子命令与 `codex-rs/mcp-server` crate 已被上游整体移除（提交 `531f3836a1`）<!-- ref-exempt: 反例——正文说明该 crate 已不存在 --> |
+| `codex migrate-rollouts` | **`true`** | `codex-rs/cli/src/migrate_rollouts.rs:63`（第 6 轮新增） |
 | **app-server** | **`false`** | `codex-rs/app-server/src/main.rs:108`（注释：*"Analytics are disabled by default for app-server. Users have to explicitly opt in"*，见 `codex-rs/cli/src/main.rs:544` 附近的同名参数说明） |
 | **remote-control** | **`false`** | `codex-rs/cli/src/remote_control_cmd.rs:137` |
 | **exec-server 遥测** | **`false`** | `codex-rs/cli/src/exec_server_telemetry.rs:6` → `:31` |
@@ -283,7 +284,7 @@ fn analytics_capture_file_from_env() -> Option<PathBuf> {
 > }
 > ```
 >
-> 生成的 `codex-rs/core/config.schema.json` 顶层只有 `analytics`（93 个顶层键中**没有** `analytics_enabled`），且顶层 `additionalProperties: false`。
+> 生成的 `codex-rs/core/config.schema.json` 顶层只有 `analytics`（100 个顶层键中**没有** `analytics_enabled`），且顶层 `additionalProperties: false`。
 >
 > `[feedback] enabled` 同理（`codex-rs/config/src/types.rs:226-229`）。
 
@@ -411,7 +412,7 @@ FeatureSpec {
 > [!NOTE]
 > **勘误：上一稿写「它走 feature flag 体系而不是普通配置键，因此不在 `codex-rs/core/config.schema.json` 顶层键里」——错。**
 >
-> `features` **本身就是那 93 个顶层键之一**（schema 中的 description 是 `"Centralized feature flags (new). Prefer this over individual toggles."`），其 `properties` 里确有 `"runtime_metrics": {"type": "boolean"}`，且该块同样是 `additionalProperties: false`。**用户完全可以在 config.toml 里写：**
+> `features` **本身就是那 100 个顶层键之一**（schema 中的 description 是 `"Centralized feature flags (new). Prefer this over individual toggles."`），其 `properties` 里确有 `"runtime_metrics": {"type": "boolean"}`，且该块同样是 `additionalProperties: false`。**用户完全可以在 config.toml 里写：**
 >
 > ```toml
 > [features]

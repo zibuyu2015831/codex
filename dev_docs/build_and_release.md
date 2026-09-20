@@ -1,16 +1,16 @@
 ---
 title: Codex 构建与发布
-summary: 描述 Cargo 与 Bazel 的真实分工（Bazel 是 PR 主校验路径，发布二进制由 Cargo 构建）、双锁同步义务、两套系统编译源码不同导致的 7 类分歧陷阱、hermetic LLVM 工具链与补丁机制及其逃逸口、Nix/devcontainer 两条不钉版本且不参与交付的开发环境入口、由 blocking-ci/postmerge-ci 编排的 27 个 CI 工作流与 repo-checks 的三处失效项、rust-release.yml 的 15 个 job 与多平台发布产物矩阵、三类外部拉取产物、DotSlash/winget/npm 安装通路，以及 write-app-server-schema 等上游文档陈旧点。
-keywords: codex | build | release | bazel | cargo | ci | blocking-ci | repo-checks | module-bazel | hermetic-toolchain | compile-data | dotslash | nix | devcontainer | patches | toolchain-pinning
+summary: 描述 Cargo 与 Bazel 的真实分工（Bazel 是 PR 主校验路径，发布二进制由 Cargo 构建）、双锁同步义务、两套系统编译源码不同导致的 7 类分歧陷阱、hermetic LLVM 工具链与补丁机制及其逃逸口、Nix 这条不钉版本且不参与交付的开发环境入口（devcontainer 第 6 轮已被上游删除）、由 blocking-ci/postmerge-ci 编排的 30 个 CI 工作流与 repo-checks 的三处失效项、rust-release.yml 的 20 个 job 与多平台发布产物矩阵、三类外部拉取产物、DotSlash/winget/npm 安装通路，以及 write-app-server-schema 等上游文档陈旧点。
+keywords: codex | build | release | bazel | cargo | ci | blocking-ci | repo-checks | module-bazel | hermetic-toolchain | compile-data | dotslash | nix | patches | toolchain-pinning | round6
 scope: openai/codex 的构建系统、CI 工作流与发布流程
-related_files: MODULE.bazel | justfile | defs.bzl | .bazelrc | package.json | scripts/format.py | .github/workflows | docs/install.md | README.md | AGENTS.md | flake.nix | .devcontainer
+related_files: MODULE.bazel | justfile | defs.bzl | .bazelrc | package.json | scripts/format.py | .github/workflows | docs/install.md | README.md | AGENTS.md | flake.nix | .github/dependabot.yaml
 dependencies: dev_docs/development_workflow.md | dev_docs/architecture_overview.md
-verified_at: 2026-08-05
+verified_at: 2026-09-21
 ---
 
 # 构建与发布
 
-> **基线 commit**: `bb5054fe47abe73ecbbd454751066a28c89f4bb9`
+> **基线 commit**: `5c5308fc9a9ee789049d646ef11e5400384b9c6f`
 > **证据等级**: 工作流内容、锁文件规模、MODULE.bazel 内容、发布 job 拓扑为 E2/E3（读取 yml 与配置）；文中所有「N 个文件 / N 个工作流 / N 处引用」类计数均为实跑 `ls` / `grep -c` / `git ls-files` 得来，按本体系约定统一归 **E1**（§4.1 上一稿把同类测量标成 E4，本次已统一）。`just write-app-server-schema` 相关内容的证据等级见 §7 的降级说明。
 
 > [!NOTE]
@@ -117,9 +117,9 @@ CI 直接跑 scripts/check-module-bazel-lock.sh 校验漂移
 >
 > **含义：只往 `codex-rs/Cargo.toml` 加 crate 而不写 `BUILD.bazel`，Bazel 侧既没有对应目标、也不会报错**——它只是悄悄不存在。这是"新建 crate"流程里最容易漏、且最难通过报错发现的一步。
 
-### 1.4 其他开发环境入口（不参与交付）
+### 1.4 其他开发环境入口（不参与交付，第 6 轮由两套减为一套）
 
-除 Cargo / Bazel 外，仓库还提供 Nix flake 与 devcontainer 两套开发环境入口。**两者都只是开发便利设施：不产出任何发布产物，也不被任何 CI 工作流引用**——`grep -rn "flake.nix\|nix develop\|devcontainer" .github/ docs/ README.md AGENTS.md` 的唯一命中是 `.github/dependabot.yaml:19` 的 `package-ecosystem: devcontainers`，即只有 Dependabot 会自动更新 devcontainer feature 的版本。
+除 Cargo / Bazel 外，仓库**曾**提供 Nix flake 与 devcontainer 两套开发环境入口；**第 6 轮起只剩 Nix 一套**（devcontainer 已被上游删除，见下）。Nix 仍只是开发便利设施：**不产出任何发布产物，也不被任何 CI 工作流引用**——`grep -rn "flake.nix\|nix develop\|devcontainer" .github/ docs/ README.md AGENTS.md` 的唯一命中是 `.github/dependabot.yaml:19` 的 `package-ecosystem: devcontainers`，即只有 Dependabot 会自动更新 devcontainer feature 的版本。
 
 #### Nix（`flake.nix` + `flake.lock` + `codex-rs/default.nix`）
 
@@ -137,26 +137,21 @@ CI 直接跑 scripts/check-module-bazel-lock.sh 校验漂移
 >
 > **这与 §5.1 `tag-check` job 读的是同一个字段**——改动 `codex-rs/Cargo.toml` 的 workspace 版本会同时影响发布打标校验与 Nix 构建产出的版本号。
 
-#### devcontainer（`.devcontainer/`）
+> [!CAUTION]
+> **第 6 轮：`.devcontainer/` 目录已被上游整体删除，本小节原有的两条容器路径全部不存在了。**
+>
+> 上游提交 `f419c3214a`「Remove the repository devcontainer configurations (#43915)」，提交信息原文：
+>
+> > Remove the contributor and secure devcontainer profiles, Dockerfiles, setup and firewall scripts, installation lockfiles, and documentation under `.devcontainer/`.
+> > Remove the Dependabot devcontainers entry and redundant container-specific target directory rules from `codex-rs/.gitignore`.
+>
+> 即：**两个 profile、两个 Dockerfile、防火墙脚本、安装锁文件与该目录下的文档一并删除**，Dependabot 的 `package-ecosystem: devcontainers` 条目也同步移除（`grep -n 'devcontainer' .github/dependabot.yaml` 现已零命中）。
+>
+> **连带失效的一条论证**：本节开头原本用「`grep -rn "flake.nix\|nix develop\|devcontainer" .github/ docs/ README.md AGENTS.md` 的唯一命中是 `.github/dependabot.yaml:19`」来论证「两套环境都不被 CI 引用」。该命中已消失，结论方向不变但证据要重取。
+>
+> 原小节记录的那套安全 profile 细节（setuid bwrap、关闭外层 seccomp/AppArmor、防火墙脚本的白名单出网、屏蔽 IPv6、`NET_ADMIN`+`NET_RAW`）**在当前仓库已无对应物**。若你是从旧文档得知这套配置并打算复现，请注意它已随上游一并移除，不再有维护。
 
-`.devcontainer/README.md` 明确提供**两条容器路径**：
-
-| profile | 配置文件 | 定位 |
-| ---- | ---- | ---- |
-| Codex 贡献者 | `.devcontainer/devcontainer.json` + `.devcontainer/Dockerfile` | 开发 Codex 本身用的轻量 arm64 容器 |
-| 安全客户 | `.devcontainer/devcontainer.secure.json` + `.devcontainer/Dockerfile.secure` | 面向"在项目容器里跑 Codex"的严格出网管控 profile |
-
-**贡献者 profile**：强制 `"platform": "linux/arm64"` 且 `runArgs: ["--platform=linux/arm64"]`（README 说明是为了在 x86 宿主上也统一跑 arm64）；`features` 只装 `ghcr.io/facebook/devcontainers/features/dotslash:latest`（呼应 §6.1 的 dotslash 依赖）；`containerEnv` 设 `RUST_BACKTRACE=1` 与 `CARGO_TARGET_DIR=${containerWorkspaceFolder}/codex-rs/target-arm64`（与宿主 target 目录隔离）；`remoteUser: ubuntu`。
-
-**安全 profile**：装 Codex CLI 与常用构建工具；**以 setuid 模式装 bubblewrap** 供 Codex 的 Linux 沙箱使用；**关闭 Docker 外层的 seccomp 与 AppArmor**，以便 bwrap 能构建 Codex 的内层沙箱；启用 `.devcontainer/init-firewall.sh` 的白名单出网策略；**默认屏蔽 IPv6**，防止经 AAAA 路由绕过白名单；需要 `NET_ADMIN` + `NET_RAW` 能力。启动命令：
-
-```bash
-devcontainer up --workspace-folder . --config .devcontainer/devcontainer.secure.json
-```
-
-其余文件：`.devcontainer/post-start.sh`、`.devcontainer/post_install.py`、`.devcontainer/codex-install/`。
-
-#### 工具链固定：Cargo 与 Bazel 一致，Nix 与 devcontainer 不一致
+#### 工具链固定：Cargo 与 Bazel 一致，Nix 不一致
 
 比"不参与交付"更值得记的一点是：**四条链路里只有前两条把 Rust 版本钉死了。**
 
@@ -286,9 +281,9 @@ bazel_dep(name = "llvm", version = "0.8.11")
 
 ---
 
-## 4. CI 工作流（27 个 yml）
+## 4. CI 工作流（30 个 yml）
 
-`.github/workflows/` 下共 **27 个 `.yml`**（E1），另有三个非 yml 条目：`README.md`、`.github/workflows/Dockerfile.bazel`，以及 **`zstd`——它是一个文件，不是目录**（`#!/usr/bin/env dotslash` 脚本，用途写在它自己的注释里：为 Windows runner 包装 zstd，windows-aarch64 通过 x64 模拟复用 win64 产物）。第一版把它列成"未知用途的目录"，属于误判。
+`.github/workflows/` 下共 **30 个 `.yml`**（E1，第 6 轮实测），另有三个非 yml 条目：`README.md`、`.github/workflows/Dockerfile.bazel`，以及 **`zstd`——它是一个文件，不是目录**（`#!/usr/bin/env dotslash` 脚本，用途写在它自己的注释里：为 Windows runner 包装 zstd，windows-aarch64 通过 x64 模拟复用 win64 产物）。第一版把它列成"未知用途的目录"，属于误判。
 
 > **`.github/workflows/Dockerfile.bazel` 是一个死文件**：它自带注释 `# TODO(mbolin): Published to docker.io/mbolin491/codex-bazel:latest for initial debugging, but we should publish to a more proper location.`，且**没有任何工作流或脚本引用它**（全仓在 `*.yml` / `*.sh` 中 grep 该文件名零命中）。它是一次性调试遗留，读工作流时可以忽略。
 
@@ -389,7 +384,7 @@ postmerge-ci.yml       （on: push main）—— 不阻断合并
 > **但它的覆盖面远没有本文上一稿说的那么广，需要限定：**
 >
 > ```bash
-> grep -lr "check-clean-worktree" .github/workflows/*.yml | wc -l   # 8（共 27 个工作流）
+> grep -lr "check-clean-worktree" .github/workflows/*.yml | wc -l   # 8（共 30 个工作流）
 > ```
 >
 > **只有 8 个工作流引用它**：`.github/workflows/bazel.yml`、`.github/workflows/blob-size-policy.yml`、`.github/workflows/cargo-deny.yml`、`.github/workflows/codespell.yml`、`.github/workflows/repo-checks.yml`、`.github/workflows/rust-ci.yml`、`.github/workflows/sdk.yml`、`.github/workflows/v8-canary.yml`。其余 19 个工作流（含 `.github/workflows/rust-ci-full.yml` 与全部 `rust-release*`）从不引用它。
@@ -497,25 +492,32 @@ git push origin rust-v0.1.0
 >
 > **真正的版本/打标逻辑在 `.github/workflows/rust-release.yml` 的 `tag-check` job。**
 
-### 5.2 `.github/workflows/rust-release.yml` 的 15 个 job
+### 5.2 `.github/workflows/rust-release.yml` 的 20 个 job
+
+> **第 6 轮：job 从 15 个增至 20 个**，新增 `push`、`build-macos-voice`（对应新的语音子系统）、`provisioned-macos-candidate`、`stage-npm-packages`、`publish-r2-assets` 五个。复算：`grep -cE '^  [a-z0-9-]+:$' .github/workflows/rust-release.yml`
 
 | 顺序 | job | 作用 |
 | ---- | ---- | ---- |
+| 0 | `push` | **第 6 轮新增**：触发链的起点 |
 | 1 | `tag-check` | 校验 tag 与 `codex-rs/Cargo.toml` 版本一致（`.github/workflows/rust-release.yml:48-49` 的 `cargo_ver="$(grep -m1 '^version' codex-rs/Cargo.toml …)"`，校验的是 workspace 根清单） |
 | 2 | `build` | **矩阵：4 个 target × 2 种 bundle（`primary` / `app-server`）**，跑 `cargo build --release`；timeout 90 分钟 |
-| 3 | `sign-macos-binaries` | 走受保护的 `codesigning` environment + Azure Key Vault（PKCS11）签名 |
-| 4 | `package-macos` | 打包 |
-| 5 | `sign-macos-dmg` | DMG 签名 |
-| 6 | `finalize-macos` | 公证（notarization）与最终校验 |
-| 7 | `build-windows` | 调用 `.github/workflows/rust-release-windows.yml` |
-| 8 | `argument-comment-lint-release-assets` | 调用 `.github/workflows/rust-release-argument-comment-lint.yml` |
-| 9 | `release` | 汇总产物、生成 checksum manifest、创建 GitHub Release |
-| 10 | `publish-r2` | 调用 `.github/workflows/r2-release.yml`（`releases.openai.com`） |
-| 11 | **`publish-dotslash`** | 发布 DotSlash 清单 |
-| 12 | **`publish-npm`** | 发布 `@openai/codex` |
-| 13 | `deploy-dev-website` | |
-| 14 | **`winget`** | Windows 包管理器 |
-| 15 | `update-branch` | |
+| 3 | `build-macos-voice` | **第 6 轮新增**：macOS 语音子系统构建，对应 `codex-rs/voice-host` 与 `third_party/voice/` |
+| 4 | `sign-macos-binaries` | 走受保护的 `codesigning` environment + Azure Key Vault（PKCS11）签名 |
+| 5 | `package-macos` | 打包 |
+| 6 | `sign-macos-dmg` | DMG 签名 |
+| 7 | `finalize-macos` | 公证（notarization）与最终校验 |
+| 8 | `provisioned-macos-candidate` | **第 6 轮新增** |
+| 9 | `build-windows` | 调用 `.github/workflows/rust-release-windows.yml` |
+| 10 | `argument-comment-lint-release-assets` | 调用 `.github/workflows/rust-release-argument-comment-lint.yml` |
+| 11 | `stage-npm-packages` | **第 6 轮新增**：npm 包暂存 |
+| 12 | `release` | 汇总产物、生成 checksum manifest、创建 GitHub Release |
+| 13 | `publish-r2-assets` | **第 6 轮新增**：R2 资产发布 |
+| 14 | `publish-r2` | 调用 `.github/workflows/r2-release.yml`（`releases.openai.com`） |
+| 15 | **`publish-dotslash`** | 发布 DotSlash 清单 |
+| 16 | **`publish-npm`** | 发布 `@openai/codex` |
+| 17 | `deploy-dev-website` | |
+| 18 | **`winget`** | Windows 包管理器 |
+| 19 | `update-branch` | |
 
 `build` 矩阵的 bundle 划分值得注意：
 
@@ -650,27 +652,35 @@ git push origin rust-v0.1.0
 | hooks schema fixtures | `just write-hooks-schema` | 改了 hooks 类型 |
 | `MODULE.bazel.lock` | `just bazel-lock-update` | 改了 Cargo 依赖 |
 
-> [!WARNING]
-> **`just write-app-server-schema` 在基线 commit 上必然失败（E2 只能支撑「justfile 里写着这条」，不能支撑「跑这条能生成 fixtures」）。**
+> [!NOTE]
+> **第 6 轮：这里原有的一条「必然失败」警告已经过期——上游把它修好了。**
 >
-> `justfile:175-176` 的 recipe 体是 `cargo run -p codex-app-server-protocol --bin write_schema_fixtures -- {args}`，而 `codex-rs/app-server-protocol/Cargo.toml` **没有任何 `[[bin]]` 段**（只有 `[package]` `[lib]` `[lints]` `[dependencies]` `[dev-dependencies]`），`codex-rs/app-server-protocol/src/bin/` 目录也不存在。因此该命令找不到 bin target。
+> 旧版（基线 `bb5054fe47`）记载：`just write-app-server-schema` 的 recipe 体是 `cargo run -p codex-app-server-protocol --bin write_schema_fixtures -- {args}`，而该 crate 没有任何 `[[bin]]` 段，因此这条命令**跑不通**；当时给出的可用替代是 `codex-rs/app-server-protocol/scripts/write_schema_fixtures.py`。
 >
-> **可用的生成入口是 `codex-rs/app-server-protocol/scripts/write_schema_fixtures.py`**：它设置 `CODEX_APP_SERVER_SCHEMA_ROOT` 后运行 `codex-rs/app-server-protocol/src/schema_fixtures_tests.rs` 里 `#[ignore]` 标记的 `write_schema_fixtures_from_env` 测试。详见 [`app_server_protocol.md`](./app_server_protocol.md) §0。
+> **现在 recipe 直接调用的就是那个 Python 脚本**（`justfile:177-178`）：
+>
+> ```
+> write-app-server-schema *args:
+>     {{ python }} app-server-protocol/scripts/write_schema_fixtures.py {args}
+> ```
+>
+> 即：**这条命令现在可以正常执行**，旧版的警告与替代方案说明都已不再适用。
+>
+> 连带地，下面那条「上游自身存在一处循环陈旧」（测试失败文案推荐一条跑不通的命令）**也随之解除**——文案推荐的命令现在是通的。该条已从 §7.1 的陈旧点清单移除。
 
 四者都有**机器校验**：schema fixtures 有配套测试，Bazel 锁有 CI 检查。忘了跑就会失败。
 
-> [!CAUTION]
-> **上游自身存在一处循环陈旧**：app-server fixtures 那条校验测试**的失败文案本身就在推荐这条跑不通的命令**——`codex-rs/app-server-protocol/src/schema_fixtures_tests.rs:180-183` 与 `:201-205` 的 `panic!` 信息（文案本身落在 `:182` 与 `:203`）都含 *"Run `just write-app-server-schema` to overwrite with your changes."*。测试挂了以后照它说的做只会再挂一次，请直接改用上面的 Python 脚本。
-
 ### 7.1 上游文档的已知陈旧点
 
-上一条不是孤例。读 `AGENTS.md` 与工具报错文案时，以下三处已确认与当前代码不符：
+读 `AGENTS.md` 与工具报错文案时，以下几处已确认与当前代码不符。
+
+> **第 6 轮变动**：原第一条（`just write-app-server-schema` 跑不通）**已被上游修复**，从本表移除，见本节上方的 NOTE。同时**新增一条**（AGENTS.md 指向的 v2 协议单文件路径已失效）。
 
 | 陈旧点 | 陈旧内容 | 实际情况 |
 | ---- | ---- | ---- |
-| `justfile:175-176` + `AGENTS.md` + 测试报错文案 | 推荐 `just write-app-server-schema` | 该 recipe 无 bin target，必然失败；见本节上方 |
+| **`AGENTS.md:265`、`:275`** | 两处都指向 v2 协议的单文件路径 `app-server-protocol/src/protocol/v2.rs`<!-- ref-exempt: 反例——正文说明 AGENTS.md 给的这个路径不可解析 --> | **该文件不存在**。v2 协议已改为**目录形态** `codex-rs/app-server-protocol/src/protocol/v2/`（含 `mod.rs`、`shared.rs`、`account.rs` 等）。按字面路径去找会扑空 |
 | **`AGENTS.md:68`** | *"Avoid `--all-features` for routine local runs… use it only when you specifically need full feature coverage"*，把 `--all-features` 说成"偶尔要用" | **workspace crate features 已被制度性禁止**（`.github/scripts/verify_cargo_workspace_manifests.py`，见 §4.3），`justfile:78-79` 的注释也写着 *"Workspace crate features are banned, so there should be no need to add `--all-features`."* 这条建议已无适用场景 |
-| `AGENTS.md` 里的 `codex-rs/codex-mcp/src/mcp_connection_manager.rs` <!-- ref-exempt: 本行正在说明 AGENTS.md 给的这个路径不存在，引用不可解析恰是要表达的事实 --> | 该路径不存在 | 实际是 `codex-rs/codex-mcp/src/connection_manager.rs`；详见 [`AI_Coding_Context.md`](./AI_Coding_Context.md) |
+| **`AGENTS.md:35`** 里的 `codex-rs/codex-mcp/src/mcp_connection_manager.rs` <!-- ref-exempt: 本行正在说明 AGENTS.md 给的这个路径不存在，引用不可解析恰是要表达的事实 --> | 该路径不存在 | 实际是 `codex-rs/codex-mcp/src/connection_manager.rs`；详见 [`AI_Coding_Context.md`](./AI_Coding_Context.md) |
 
 > 兜底机制是 `.github/actions/check-clean-worktree`——它挂在 **8 个 pre-merge 校验工作流**的实质性 job 末尾（`.github/workflows/blocking-ci.yml` 调用的那 7 个，加上带自身 `pull_request` 触发器的 `.github/workflows/v8-canary.yml`；不是"每个 CI job"，口径与实测见 §4.3）。只要 CI 里跑一遍生成命令后工作区变脏，这一步就红。所以**生成物必须提交进同一个 change**（见 §4.3）。
 
