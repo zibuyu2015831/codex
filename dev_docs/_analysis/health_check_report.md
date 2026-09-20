@@ -120,7 +120,7 @@ grep -o "Op::[A-Za-z0-9_]*" codex-rs/core/src/session/handlers.rs | sort -u | wc
 
 | 文档 | 主控/上游轨的裁定 | 修订代理的处置 | 实测反证 |
 | ---- | ---- | ---- | ---- |
-| `dev_docs/core_agent_loop.md` | 重推导轨称 `symphonia` 与 `tokio-tungstenite`「专为 realtime 子系统而在」 | **拒改** | 该文件的 `use` 列表中两者**都没有**；真实使用者分别是 `codex-rs/core/src/audio_preparation.rs`（`symphonia`）与 `codex-rs/core/src/client.rs`（`tokio-tungstenite`）。已改写为反例说明 |
+| `dev_docs/core_agent_loop.md` | 重推导轨称 `symphonia` 与 `tokio-tungstenite`「专为 realtime 子系统而在」 | **拒改** | 该文件的 `use` 列表中两者**都没有**；真实使用者分别是 `codex-rs/core/src/audio_preparation.rs`<!-- ref-exempt: 历史记录——第 5 轮当时的路径，该文件第 6 轮已迁至 codex-rs/utils/audio/ -->（`symphonia`）与 `codex-rs/core/src/client.rs`（`tokio-tungstenite`）。已改写为反例说明 |
 | `dev_docs/app_server_protocol.md` | 主控称四个宏「同时生成 enum + `method_name()` + `TryFrom` + `export_*`」 | **拒改** | 四者**不对称**，不是每个宏都生成全部四项。已改为逐宏列明的表格 |
 | `dev_docs/config_system.md` | 主控给出的 7 处行号与 1 处字段计数 | **纠正 8 处** | 7 处行号偏移；`ConfigRequirementsToml` 是 **31** 个字段而非 32（`codex-rs/config/src/config_requirements.rs`） |
 | `dev_docs/auth_and_providers.md` | 主控的 3 条裁定 | **纠正 3 处** | 最重要一条：主控把 `ConfigLayerSource::Mdm`（优先级 **0**）与 `LegacyManagedConfigTomlFromMdm`（**50**）混为一谈——两者是不同的层，优先级恰好一低一高；另确认 `CODEX_REMOTE_AUTH_TOKEN` 实为**测试专用**，真实机制是 `--remote-auth-token-env` |

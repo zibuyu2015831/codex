@@ -3,7 +3,7 @@ title: Codex 仓库 AI 规则索引
 summary: 作为 AI 代理在本仓库工作的规则入口，明确以仓库自带 AGENTS.md 为唯一强制事实源、本文件只做索引与定位；规则索引全部改用章节标题加逐条实测过的可 grep 关键词而非易漂移的行号，登记 AGENTS.md 自身已知的三处陈旧记载（mcp_connection_manager.rs 路径不存在、--all-features 建议与 features 禁令矛盾、write-app-server-schema 循环失效），并给出 dev_docs 文档体系特有的落盘路径、推送目标、证据等级硬规则、取证方式禁忌与脱敏约定。
 keywords: codex | ai-rules | agents-md | index | dev-docs | constraints | evidence-level | stale-upstream-docs
 scope: AI 代理在 openai/codex 仓库及本文档体系中的行为约束索引
-related_files: AGENTS.md | docs/contributing.md | codex-rs/tui/styles.md | codex-rs/clippy.toml | codex-rs/app-server-protocol/Cargo.toml | codex-rs/app-server-protocol/scripts/write_schema_fixtures.py | .codex/skills/pushing-ci-changes/SKILL.md | justfile | .github/scripts/verify_cargo_workspace_manifests.py | .github/scripts/verify_tui_core_boundary.py | .github/scripts/verify_bazel_clippy_lints.py | codex-rs/codex-mcp/src/connection_manager.rs
+related_files: AGENTS.md | docs/contributing.md | codex-rs/tui/styles.md | codex-rs/clippy.toml | codex-rs/app-server-protocol/Cargo.toml | codex-rs/app-server-protocol/scripts/write_schema_fixtures.py | AGENTS.md | justfile | .github/scripts/verify_cargo_workspace_manifests.py | .github/scripts/verify_tui_core_boundary.py | .github/scripts/verify_bazel_clippy_lints.py | codex-rs/codex-mcp/src/connection_manager.rs
 dependencies: dev_docs/AI_Coding_Context.md | dev_docs/development_workflow.md
 verified_at: 2026-08-05
 ---
@@ -300,6 +300,8 @@ python3 dev_docs/_analysis/cross_doc_consistency_checker.py --verify-repo
 
 1. **`just write-app-server-schema` 当前是坏的。** 该 recipe 执行 `cargo run -p codex-app-server-protocol --bin write_schema_fixtures`，但 `codex-app-server-protocol` **没有任何 bin target**（无 `[[bin]]`、无 `src/bin/`），命令必然失败。可用的入口是 `codex-rs/app-server-protocol/scripts/write_schema_fixtures.py`。**注意这是循环陈旧**：校验测试自己的失败文案也在推荐这条坏命令（见 §3.5 S3）。该脚本内部用 `cargo test` 驱动一个 `#[ignore]` 的生成函数，是把测试当「代码生成宿主」用，**与「禁止直接跑 `cargo test`」不冲突**；但该 workaround 本身未实测，产物请自行核对。
 2. **UI 改动必须配快照。** AGENTS.md 的 `### Snapshot tests` 一节写的是 Requirement：任何影响用户可见 UI 的改动（含新增 UI）都必须附带对应的 `insta` 快照覆盖。这条最常被漏。命令链见 `tui_guide.md` §4 与 `testing_guide.md` §7。
-3. **动 CI 配置的推送会被拒。** 本仓库禁止在未获临时角色的情况下推送 `.github/**/*.yml` 及相关文件；被拒后需由用户走审批流程拿到临时批准，代理自身无法申请豁免。详见 `.codex/skills/pushing-ci-changes/SKILL.md`。
+3. **动 CI 配置的推送可能被拒。** ⚠️ **第 6 轮：本条的原始依据已消失。** 上一版引用的 `.codex/skills/pushing-ci-changes/SKILL.md` 已不存在<!-- ref-exempt: 反例——正文说明该路径已不存在 -->；`.codex/skills/` 现有 11 个技能，其中没有等价物，`AGENTS.md` 中亦未检索到「推送 CI 配置需临时角色」的条款。
+
+   **该限制是否仍然生效，本轮未能取证**——可能是规约移出了仓库，也可能是已取消。在拿到新依据之前，**按仍然生效对待**（这是更保守的一侧），但不要再把上述路径当作出处引用。
 4. **`.github/workflows/repo-checks.yml` 有四条阻塞性机检脚本**，任何一条失败都挡合并：`.github/scripts/verify_cargo_workspace_manifests.py`（各 crate 清单必须继承 workspace 设置、**禁止任何 `[features]`**、禁止 `optional = true`）、`.github/scripts/verify_tui_core_boundary.py`、`.github/scripts/verify_bazel_clippy_lints.py`、`scripts/asciicheck.py` + `scripts/readme_toc.py`。同 job 还跑 `just fmt-check` 与 `pnpm run format`，末尾挂 `check-clean-worktree`。
 5. **`codex-tui` 的 core 边界是字面量级检查。** `.github/scripts/verify_tui_core_boundary.py` 只做四件事：manifest 里不出现键名 `codex-core`，加上三条**逐行正则** `\bcodex_core::` / `\buse\s+codex_core\b` / `\bextern\s+crate\s+codex_core\b`；扫描范围是 `codex-rs/tui/**/*.rs` 全目录（含 `tests/` 与 `src/bin/`），**不做语法解析——注释与字符串字面量里出现同样会挂**。反过来，**传递依赖与 `codex_app_server_client::legacy_core` 再导出是被明确允许的**（脚本报错文案自己点名了后者）。详见 `tui_guide.md` §0.1–§0.2。

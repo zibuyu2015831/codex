@@ -267,7 +267,7 @@ graph TD
 
 | 运行时 | 说明 |
 | ---- | ---- |
-| shell | `codex-rs/core/src/tools/runtimes/shell.rs` + 子目录 |
+| **zsh_fork**（shell 执行） | `codex-rs/core/src/tools/runtimes/zsh_fork.rs` + `codex-rs/core/src/tools/runtimes/zsh_fork/unix_escalation.rs`。**第 6 轮重组**：原来的 shell 运行时文件与同名子目录都已不存在 |
 | apply_patch | `codex-rs/core/src/tools/runtimes/apply_patch.rs` |
 | unified_exec | `codex-rs/core/src/tools/runtimes/unified_exec.rs` |
 

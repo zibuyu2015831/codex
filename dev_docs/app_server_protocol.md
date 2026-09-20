@@ -1,17 +1,17 @@
 ---
 title: Codex app-server JSON-RPC 协议
-summary: 描述 codex-app-server-protocol 的 v1/v2 分版结构、方法注册表所在的四个宏与按命名空间的真实方法分布（注册表 217 个 wire 名，加上宏派生的 initialized 通知共 218 个协议名）、Rust 类型作为唯一事实源与「ts-rs 仅是 dev-dependency、生产构建改用空实现宏」的生成链路（Rust 类型 → 预计算 .zst → CLI generate-ts / vendored TypeScript）、schema fixtures 的真实再生成入口（justfile 里的 recipe 已失效）、experimental_api 的 inventory 链接期注册机制、AGENTS.md 中的 API 设计硬性规则及其例外，以及协议变更的高风险提示。
+summary: 描述 codex-app-server-protocol 的 v1/v2 分版结构、方法注册表所在的四个宏与按命名空间的真实方法分布（注册表 260 个 wire 名，加上宏派生的 initialized 通知共 263 个协议名）、Rust 类型作为唯一事实源与「ts-rs 仅是 dev-dependency、生产构建改用空实现宏」的生成链路（Rust 类型 → 预计算 .zst → CLI generate-ts / vendored TypeScript）、schema fixtures 的真实再生成入口（justfile 里的 recipe 已失效）、experimental_api 的 inventory 链接期注册机制、AGENTS.md 中的 API 设计硬性规则及其例外，以及协议变更的高风险提示。
 keywords: codex | app-server | json-rpc | protocol | ts-rs | schema | api-versioning | method-registry | experimental-api
 scope: codex-rs/app-server-protocol 与 codex-rs/app-server 的对外协议
 related_files: codex-rs/app-server-protocol/src/lib.rs | codex-rs/app-server-protocol/src/rpc.rs | codex-rs/app-server-protocol/src/protocol/mod.rs | codex-rs/app-server-protocol/src/protocol/common.rs | codex-rs/app-server-protocol/src/protocol/v2/mod.rs | codex-rs/app-server-protocol/src/protocol/v2/permissions.rs | codex-rs/app-server-protocol/src/protocol/v2/config.rs | codex-rs/app-server-protocol/src/experimental_api.rs | codex-rs/app-server-protocol/src/precomputed_exports.rs | codex-rs/app-server-protocol/Cargo.toml | codex-rs/app-server-protocol/scripts/write_schema_fixtures.py | codex-rs/app-server/Cargo.toml | justfile | AGENTS.md
 dependencies: dev_docs/architecture_overview.md | dev_docs/crate_map.md
-verified_at: 2026-08-05
+verified_at: 2026-09-21
 ---
 
 # app-server JSON-RPC 协议
 
-> **基线 commit**: `bb5054fe47abe73ecbbd454751066a28c89f4bb9`
-> **覆盖范围**: `codex-app-server-protocol`（30,946 行）+ `codex-app-server`（128,364 行）的协议面
+> **基线 commit**: `5c5308fc9a9ee789049d646ef11e5400384b9c6f`
+> **覆盖范围**: `codex-app-server-protocol`（35,190 行）+ `codex-app-server`（180,438 行）的协议面
 > **证据等级**: 方法清单为 E3（从注册表宏抽取）；纯文件计数为 E1；依赖统计为 E2（对 `codex-rs/*/Cargo.toml` 的文本统计，未触发构建）；生成链路、模块版图、实验性标注机制为 E3（读源码）
 >
 > 本文对证据等级**倾向于低标而非虚标**——多处标 E1 的其实已读到源码。若某条结论看起来比标注的等级更强，通常是标注保守了，而不是结论超出了证据。
@@ -23,7 +23,7 @@ verified_at: 2026-08-05
 > [!CAUTION]
 > **Rust 类型是协议的唯一事实源。TypeScript 类型是构建产物。**
 >
-> `codex-rs/app-server-protocol/schema/typescript/v2/` 下的 **550 个 `.ts` 文件全部由 ts-rs 自动生成**，禁止手改。文档、代码审查、AI 改动中都不得把它们当作可编辑的源文件。
+> `codex-rs/app-server-protocol/schema/typescript/v2/` 下的 **631 个 `.ts` 文件全部由 ts-rs 自动生成**，禁止手改。文档、代码审查、AI 改动中都不得把它们当作可编辑的源文件。
 
 复核方式（每个文件首行都是生成标记，`grep -L` 列出**不含**该标记的文件，应为空）：
 
@@ -63,7 +63,7 @@ grep -rL 'GENERATED CODE! DO NOT MODIFY BY HAND' \
 ```
 
 > [!WARNING]
-> **勘误**：本文第一版把第 3 步写成「`just write-app-server-schema`」并当作必须执行的步骤，**没有实际验证它能跑**。它跑不通——见 §6。
+> **修订史**：本文第一版把第 3 步写成「`just write-app-server-schema`」却没验证它能跑；第 5 轮查明它当时确实跑不通；**第 6 轮上游已修复，该命令现在就是正确入口**——见 §6。
 
 ---
 
@@ -202,7 +202,31 @@ awk -F/ '{print (NF>1 ? $1 : "(无命名空间)")}' /tmp/methods.txt | sort | un
 > [!NOTE]
 > **为什么要匹配 `strum(serialize = ...)` 而不只是 `=> "..."`**：绝大多数条目写成 `Variant => "ns/method" { ... }`，但 `AccountLoginCompleted`（`codex-rs/app-server-protocol/src/protocol/common.rs:1782-1785`）改用 `#[serde(rename)]` + `#[ts(rename)]` + `#[strum(serialize)]` 三件套声明 wire 名。只抓 `=> "` 会把它漏掉，`account` 就会少算成 12。
 >
-> 而 `ClientNotification::Initialized` 连 `strum(serialize)` 都没有——它靠 `#[strum(serialize_all = "camelCase")]` 从变体名派生，**任何基于字面量的抽取口径都抓不到它**，只能人工 +1。这就是 217 与 218 两个数的来源。
+> 而 `ClientNotification::Initialized` 连 `strum(serialize)` 都没有——它靠 `#[strum(serialize_all = "camelCase")]` 从变体名派生，**任何基于字面量的抽取口径都抓不到它**。
+>
+> > [!CAUTION]
+> > **本文上一版在这里犯了一个它自己反复告诫读者不要犯的错：从「我的正则抓不到这一个」推出「只有这一个抓不到」。**
+> >
+> > 实测**有 3 个**无字面量的协议名，不是 1 个。除 `initialized` 外，`server_request_definitions!` 里还有两个：
+> >
+> > ```rust
+> > // codex-rs/app-server-protocol/src/protocol/common.rs:1815-1824 —— 注意没有 `=> "..."`
+> > ApplyPatchApproval  { params: v1::ApplyPatchApprovalParams,  response: ... },
+> > ExecCommandApproval { params: v1::ExecCommandApprovalParams, response: ... },
+> > ```
+> >
+> > 宏定义在 `codex-rs/app-server-protocol/src/protocol/common.rs:1504` 给 `ServerRequest` 加的是 `#[serde(tag = "method", rename_all = "camelCase")]`，所以它们的 wire 名由变体名派生为 `applyPatchApproval` 与 `execCommandApproval`，并已固化进 schema：
+> >
+> > ```bash
+> > grep -o '"applyPatchApproval"\|"execCommandApproval"' \
+> >   codex-rs/app-server-protocol/schema/json/ServerRequest.json | sort -u   # 两个都在
+> > ```
+> >
+> > **这不是第 6 轮的漂移——旧基线同样如此**（`git show bb5054fe47:…/common.rs | grep -n 'ApplyPatchApproval {'` → `:1590`，同样无字面量）。也就是说上一版写下「218」的那一刻，正确答案就应该是 219。
+> >
+> > **所以人工补的是 +3 而不是 +1**：`initialized`（`ClientNotification` 的 `strum(serialize_all)` 派生）、`applyPatchApproval`、`execCommandApproval`（`ServerRequest` 的 `serde(rename_all)` 派生）。260 与 263 两个数即由此而来。
+> >
+> > **纪律**：对每个宏，先数变体总数，再数带字面量的条目，**差值必须逐个人工归因**——不能停在「我数出来是多少」。
 
 ### `ClientRequest` 是一个横跨 v1+v2 的枚举
 
@@ -426,14 +450,14 @@ Rust 类型
 schema/precomputed/app-server-exports-{stable,experimental}.json.zst   （2 个文件）
   │  ② include_bytes! 编译进二进制 + 运行时 zstd 解压回放
   ▼
-CLI `codex app-server generate-ts`  /  vendored schema/typescript/（550 个 .ts）
+CLI `codex app-server generate-ts`  /  vendored schema/typescript/（631 个 .ts）
 ```
 
 **第 ① 段**由 `#[ignore]` 测试驱动（见下方 CAUTION），**第 ② 段完全不跑 ts-rs**：
 
 - `codex-rs/app-server-protocol/src/precomputed_exports.rs:15-18` 用 `include_bytes!` 把两个 `.zst` **编译进发布二进制**
 - `:123` 的 `zstd::stream::decode_all(...)` 在运行时解压后回放导出结果
-- `:14` 的 `pub(crate) const GENERATED_TS_HEADER: &str = "// GENERATED CODE! DO NOT MODIFY BY HAND!\n\n";` 正是那 550 个 `.ts` 文件首行 header 的来源
+- `:14` 的 `pub(crate) const GENERATED_TS_HEADER: &str = "// GENERATED CODE! DO NOT MODIFY BY HAND!\n\n";` 正是那 631 个 `.ts` 文件首行 header 的来源
 
 这解释了 §1 表里那条不起眼的「`schema/precomputed/` 文件 = 2」：**它不是一个计数条目，而是整条链路的枢纽**——发布出去的 `codex` 二进制之所以能在用户机器上 `generate-ts`，靠的就是这两个预烤好的 `.zst`，而不是把 ts-rs 打包进去。
 
@@ -446,32 +470,28 @@ CLI `codex app-server generate-ts`  /  vendored schema/typescript/（550 个 .ts
 | 验证命令 | `just test -p codex-app-server-protocol` |
 
 > [!CAUTION]
-> **`just write-app-server-schema` 目前跑不通——这是上游的陈旧，不是本文写错。**
+> **第 6 轮：上游把这条 recipe 修好了，本文上一版围绕「它跑不通」展开的整块论述必须推翻。**
 >
-> 仓库根 `justfile:175-176` 的 recipe 是：
+> 现在的 `justfile:176-178`：
 >
 > ```
+> # Regenerate app-server protocol schemas and the Python SDK derived from them.
 > write-app-server-schema *args:
->     cargo run -p codex-app-server-protocol --bin write_schema_fixtures -- {args}
+>     {{ python }} app-server-protocol/scripts/write_schema_fixtures.py {args}
 > ```
 >
-> 但 `codex-rs/app-server-protocol/Cargo.toml` **没有任何 `[[bin]]` 段**，`src/bin/` 目录也不存在，所以这条 `cargo run --bin write_schema_fixtures` 必然失败。
+> 即 recipe 直接调用 Python 脚本（`justfile:1` 有 `set working-directory := "codex-rs"`，相对路径可解析），旧的 `cargo run --bin write_schema_fixtures` 已不存在。**`just write-app-server-schema` 现在就是正确入口**，`AGENTS.md` 里的写法也因此不再陈旧。
 >
-> `AGENTS.md` 的 `### Development Workflow` 小节仍然写着 `just write-app-server-schema`（以及 `--experimental` 变体），同样已经陈旧。
+> **而且它做的比你以为的多**：该 recipe 在重生成夹具之后，会**连带重新生成 Python SDK 的三个产物**——这由 `sdk/python/tests/test_contract_generation.py` 的参数化测试锁定（`repository` 模式断言调用序列恰为 `["cargo","uv"]`）。详见 [`sdk_guide.md`](./sdk_guide.md) §5。
 >
-> **实际能用的入口是 Python 脚本** `codex-rs/app-server-protocol/scripts/write_schema_fixtures.py`：它设置 `CODEX_APP_SERVER_SCHEMA_ROOT`（以及 `CODEX_APP_SERVER_SCHEMA_EXPERIMENTAL`、可选的 `CODEX_APP_SERVER_SCHEMA_PRETTIER`）后运行
->
-> ```
-> cargo test -p codex-app-server-protocol --lib \
->   schema_fixtures_tests::write_schema_fixtures_from_env -- --exact --ignored
-> ```
->
-> 即：**生成器本身是一个被 `#[ignore]` 标记、靠环境变量驱动的测试**，不是二进制。脚本还接受 `--schema-root`、`-p/--prettier`、`--experimental` 三个参数。
->
-> **根因**（上一稿只描述了现象）：ts-rs 与 schemars 是 `[dev-dependencies]`，非 test 构建下 `#[derive(TS, JsonSchema)]` 被换成空实现宏（见 §0）。所以**生成逻辑在物理上只能存在于 `cfg(test)` 里**——即便有人把 justfile 修好，也不可能改成 `[[bin]]`，除非把 ts-rs 提升为生产依赖。这条 recipe 大概率是在依赖关系调整前留下的。
+> 仍然成立的机制（保留）：`codex-rs/app-server-protocol/Cargo.toml` 确实没有 `[[bin]]` 段；生成器本体是被 `#[ignore]` 标记、靠环境变量驱动的测试 `schema_fixtures_tests::write_schema_fixtures_from_env`；脚本接受 `--schema-root` / `-p|--prettier` / `--experimental` 三个参数；**根因**是 ts-rs 与 schemars 为 `[dev-dependencies]`，非 test 构建下 `#[derive(TS, JsonSchema)]` 被换成空实现宏（见 §0），所以生成逻辑在物理上只能存在于 `cfg(test)` 里。
 
-> [!WARNING]
-> **勘误**：第一版把 `just write-app-server-schema` 写进 §0 的强制流程当作必做步骤，却没有验证它是否可执行。改协议前请先确认当前 justfile 是否已修好；没修好就直接跑上面的 Python 脚本。
+> [!IMPORTANT]
+> **这处失效值得单独记一笔方法论。**
+>
+> 「上游有个 bug」这类结论，**比「代码是这样写的」衰减快得多**——一次提交就能全盘推翻。本文上一版在 §0、§6、§9 三处围绕同一个「跑不通」展开论述，**三处互相引用、层层加固**，形成了一个自洽但整体错误的叙事块。等上游修好时，三处一起失效。
+>
+> 教训：**不要让多个章节为同一条「上游缺陷」互相背书**。这类结论应当单点记载、标注更短的复验周期。
 
 **`codex-rs/app-server-protocol/src/schema_fixtures_tests.rs` 与 `codex-rs/app-server-protocol/src/precomputed_exports_tests.rs` 的作用**：如果你改了 Rust 类型却没重新生成夹具与 `.zst`，这个漂移**会被这两个测试捕获**。关键在于 `codex-rs/app-server-protocol/src/schema_fixtures_tests.rs:1-5` 同时导入了两侧：`crate::export::generate_ts_with_options`（**真跑 ts-rs**）与 `crate::precomputed_exports::decode_precomputed_exports`（**回放 `.zst`**），然后把两者逐文件比对（`stable_precomputed_exports_match_schema_fixtures` `:47`、`experimental_precomputed_exports_match_generated` `:70`）。这是防漂移的机器保障，不要试图绕过。
 
@@ -483,7 +503,7 @@ CLI `codex app-server generate-ts`  /  vendored schema/typescript/（550 个 .ts
 | 目录 | 文件数 | 内容 |
 | ---- | ---: | ---- |
 | `schema/typescript/` | 642（其中 `v2/` 550） | ts-rs 导出的 `.ts` 类型 |
-| `schema/json/` | 285（递归） | JSON Schema。含两个巨型汇总文件：`codex-rs/app-server-protocol/schema/json/codex_app_server_protocol.schemas.json`（22,635 行，全仓最大文件）与 `codex-rs/app-server-protocol/schema/json/codex_app_server_protocol.v2.schemas.json`（20,393 行），以及 `codex-rs/app-server-protocol/schema/json/ClientRequest.json`、`codex-rs/app-server-protocol/schema/json/ServerNotification.json` 等按类型拆分的文件 |
+| `schema/json/` | 285（递归） | JSON Schema。含两个巨型汇总文件：`codex-rs/app-server-protocol/schema/json/codex_app_server_protocol.schemas.json`（26,114 行，全仓最大文件）与 `codex-rs/app-server-protocol/schema/json/codex_app_server_protocol.v2.schemas.json`（23,827 行），以及 `codex-rs/app-server-protocol/schema/json/ClientRequest.json`、`codex-rs/app-server-protocol/schema/json/ServerNotification.json` 等按类型拆分的文件 |
 
 > **口径说明**：285 是**递归计数**，包含 `v1/` 与 `v2/` 两个子目录里的文件。只看顶层是 39 项：
 >
@@ -533,9 +553,9 @@ CLI `codex app-server generate-ts`  /  vendored schema/typescript/（550 个 .ts
 
 | crate | 行数 | 角色 |
 | ---- | ---: | ---- |
-| `codex-app-server` | 128,364 | 服务端实现（依赖规模见下） |
-| `codex-app-server-transport` | 16,180 | 传输层 |
-| `codex-app-server-daemon` | 3,552 | 守护进程生命周期 |
+| `codex-app-server` | 180,438 | 服务端实现（依赖规模见下） |
+| `codex-app-server-transport` | 18,433 | 传输层 |
+| `codex-app-server-daemon` | 9,408 | 守护进程生命周期 |
 | `codex-app-server-client` | 3,435 | 客户端 |
 | `codex-app-server-test-client` | 4,077 | 测试客户端 |
 | `codex-app-server-protocol-noop-macros` | 20 | 空实现宏：非 test 构建下顶替 `ts_rs::TS` 与 `schemars::JsonSchema`，把这两个 dev-dependency 挡在生产构建外（见 §0） |
@@ -600,7 +620,7 @@ just app-server-test-client    # 构建 CLI 并连上测试客户端
 | 新 API 一律做在 v2，不得扩大 v1 表面积 | `## App-server API Development Best Practices` → `### Core Rules`，关键词 `Do not add new API surface area to v1` |
 | v2 类型必须标注 `#[ts(export_to = "v2/")]` | 同上，关键词 `Always set #[ts(export_to = "v2/")]` |
 | API 形状变更后必须重新生成夹具并验证 | `### Development Workflow`，关键词 `Regenerate schema fixtures` / `just test -p codex-app-server-protocol`；**但生成命令本身已陈旧，见 §6** |
-| 至少要同步更新 `codex-rs/app-server/README.md` | `### Development Workflow`，关键词 `Update app-server docs/examples` |
+| ~~至少要同步更新 `codex-rs/app-server/README.md`~~ | **第 6 轮：该 AGENTS.md 规则已被上游删除**（`grep -c 'Update app-server docs' AGENTS.md` → 0，基线时为 1）。配套背景：该 README 已从 2,469 行缩到 **316 行**，形态从完整 API 参考变为逐特性增量说明。`AGENTS.md:260` 的 `## App-server API Development Best Practices` 现在指向源码。**不要再把该 README 当协议参考** |
 | **例外**：app-server API 文档**可以**放进 `docs/` | `AGENTS.md` 顶部规则列表，关键词 `Do not add general product or user-facing documentation to the docs/ folder` 那一条的后半句 |
 | 别为「某个字段是否带实验标记」写样板测试 | `### Development Workflow`，关键词 `Avoid boilerplate tests that only assert experimental field markers` |
 
@@ -616,7 +636,7 @@ just app-server-test-client    # 构建 CLI 并连上测试客户端
 
 | 未覆盖项 | 当前证据 | 建议入口 |
 | ---- | ---- | ---- |
-| 217 个方法的逐个签名与语义 | E3（仅方法名） | `codex-rs/app-server-protocol/src/protocol/common.rs` 的四个宏 + `protocol/v2/` 各模块 |
+| 260 个方法的逐个签名与语义 | E3（仅方法名） | `codex-rs/app-server-protocol/src/protocol/common.rs` 的四个宏 + `protocol/v2/` 各模块 |
 | **v1 请求在服务端如何被处理**（已确认不存在集中式 v1↔v2 映射层，见 §2） | E3（只确认了 `codex-rs/app-server-protocol/src/protocol/mappers.rs` 是死代码、`codex-rs/app-server-protocol/src/protocol/event_mapping.rs` 与版本无关） | `codex-rs/app-server/src/request_processors/` 里那 4 个 `params: v1::` 请求的处理器 |
 | JSON-RPC 载体的完整帧格式与错误码 | E1（只确认了「非标准 2.0」） | `codex-rs/app-server-protocol/src/rpc.rs` |
 | 服务端请求处理器结构 | E1 | `codex-rs/app-server/src/request_processors/` |

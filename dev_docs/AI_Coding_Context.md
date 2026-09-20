@@ -119,7 +119,7 @@ verified_at: 2026-08-05
 | `codex-rs/utils/` | **23 个**通用工具 crate | — |
 | `codex-rs/sandboxing/` | 三平台沙箱统一入口 + 3 个 `.sbpl` 策略 | — |
 | `codex-rs/vendor/` | **vendored bubblewrap C 源码**（上游 v0.11.2 完整 drop），Linux 默认沙箱的实际载体 | 51（其中 `bubblewrap/` 占 50，`git ls-files` 口径） |
-| `codex-rs/docs/` | 仓库自带开发者文档：`codex-rs/docs/protocol_v1.md` / `codex-rs/docs/bazel.md` / `codex-rs/docs/codex_mcp_interface.md` | 3 |
+| `codex-rs/docs/` | 仓库自带开发者文档：`codex-rs/docs/protocol_v1.md` / `codex-rs/docs/bazel.md` / ~~`codex-rs/docs/codex_mcp_interface.md`~~（第 6 轮：随 `mcp-server` crate 一并删除）<!-- ref-exempt: 反例——正文说明该路径已不存在 --> | 3 |
 | `codex-cli/` | **npm 分发包 `@openai/codex`**（注意：与 Cargo 包名 `codex-cli`＝目录 `codex-rs/cli` 同名，容易搜错） | 7 |
 | `sdk/` | TypeScript / Python / Python-runtime 三套 SDK | 115 |
 | `.github/` | CI 工作流（30 个 yml）与脚本 | 89 |

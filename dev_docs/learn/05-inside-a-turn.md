@@ -267,7 +267,7 @@ graph LR
 | ---- | ---- |
 | `codex-rs/core/src/context/environment_context.rs` | 环境信息（工作目录、平台、shell 之类） |
 | `codex-rs/core/src/context/user_instructions.rs` | 用户指令 |
-| `codex-rs/core/src/context/permissions_instructions.rs` | 当前权限状态的说明 |
+| `codex-rs/prompts/src/permissions_instructions.rs`（第 6 轮从 core 迁出） | 当前权限状态的说明 |
 | `codex-rs/core/src/context/turn_aborted.rs` | turn 被中止的说明 |
 | `codex-rs/core/src/context/world_state/` | 世界状态 |
 
@@ -368,7 +368,7 @@ pub(crate) use history::truncate_function_output_payload;
 | **MCP 接入** | `codex-rs/core/src/session/mcp.rs`、`codex-rs/core/src/session/mcp_runtime.rs`、`codex-rs/core/src/session/mcp_prewarm.rs`、`codex-rs/core/src/session/mcp_refresh.rs` |
 | **特殊模式** | `codex-rs/core/src/session/review.rs`、`codex-rs/core/src/session/multi_agents.rs`、`codex-rs/core/src/session/world_state.rs` |
 | **恢复** | `codex-rs/core/src/session/rollout_reconstruction.rs` |
-| **杂项** | `codex-rs/core/src/session/config_lock.rs`、`codex-rs/core/src/session/time_reminder.rs`、`codex-rs/core/src/session/extension_metrics.rs`、`codex-rs/core/src/session/code_mode_warning.rs` |
+| **杂项** | ~~`codex-rs/core/src/session/config_lock.rs`~~（第 6 轮：该文件已删除，全仓无同名文件；机制去向本轮未取证）<!-- ref-exempt: 反例——正文说明该路径已不存在 -->、`codex-rs/core/src/session/time_reminder.rs`、`codex-rs/core/src/session/extension_metrics.rs`、`codex-rs/core/src/session/code_mode_warning.rs` |
 
 > ⚠️ **注意一个命名陷阱**：`token_budget.rs` / `rollout_budget.rs` 在 `session/` 下有，但 `core/src/` 根目录和 `context/` 下**还有同名文件**。它们是不同的东西。搜索时务必带完整路径。  <!-- ref-exempt: 本句正在说明这两个裸文件名有歧义，不可解析恰是要表达的事实 -->
 

@@ -5,12 +5,12 @@ keywords: codex | sdk | typescript | python | exec-json | app-server | thread | 
 scope: sdk/typescript、sdk/python、sdk/python-runtime 三套 SDK
 related_files: sdk/typescript/package.json | sdk/typescript/src/exec.ts | sdk/typescript/src/events.ts | sdk/typescript/src/codex.ts | sdk/typescript/src/codexOptions.ts | sdk/typescript/src/index.ts | sdk/python/pyproject.toml | sdk/python/src/openai_codex/api.py | sdk/python/src/openai_codex/client.py | sdk/python/src/openai_codex/errors.py | sdk/python/src/openai_codex/generated/v2_all.py | sdk/python/src/openai_codex/generated/notification_registry.py | sdk/python/scripts/update_sdk_artifacts.py | sdk/python/tests/test_contract_generation.py | sdk/python-runtime/pyproject.toml | sdk/python-runtime/hatch_build.py | sdk/python/src/openai_codex/_goal.py | sdk/typescript/tests/testCodex.ts | scripts/stage_npm_packages.py | .github/workflows/sdk.yml | .github/workflows/rust-release.yml | codex-rs/exec/src/exec_events.rs | AGENTS.md
 dependencies: dev_docs/app_server_protocol.md | dev_docs/architecture_overview.md
-verified_at: 2026-08-05
+verified_at: 2026-09-21
 ---
 
 # TypeScript 与 Python SDK
 
-> **基线 commit**: `bb5054fe47abe73ecbbd454751066a28c89f4bb9`
+> **基线 commit**: `5c5308fc9a9ee789049d646ef11e5400384b9c6f`
 > **证据等级**: 包元数据为 E2；文件/目录清单为 E1；传输通道与生成链路为 E3（源码与调用链）
 
 > [!CAUTION]
@@ -25,7 +25,7 @@ verified_at: 2026-08-05
 > [!WARNING]
 > **本文的 Python 部分证据等级上限为 E2/E3。** 分析环境 Python 为 3.14.6（满足 `sdk/python` 声明的 `requires-python = ">=3.10"`），但未安装 `pytest` / `pydantic` / `openai-codex-cli-bin`（`sdk/python` 下无 `.venv`），且核验期禁止联网安装依赖，**因此仍无法取得 E4 验证**。相关结论基于配置文件与源码阅读，不能写成「已验证」。
 >
-> 卡住的确切步骤：`cd sdk/python && python3 -m pytest --collect-only` → `No module named pytest`，连收集阶段都进不去。即使跨过这一步，`sdk/python/tests/test_contract_generation.py:43` 还硬断言 `importlib.metadata.version("openai-codex-cli-bin") == "0.144.4"`，而该包是**平台专属 wheel、只发 PyPI**——`sdk/python-runtime/hatch_build.py:17-20` 对 sdist 构建直接 `raise RuntimeError("openai-codex-cli-bin is wheel-only; ...")`，仓库内无法本地构建替代品，这是不可绕过的硬墙。官方 CI 的做法印证了这点：`.github/workflows/sdk.yml:36-39` 第一步就是 `uv sync --group dev --frozen`，必须联网。
+> 卡住的确切步骤：`cd sdk/python && python3 -m pytest --collect-only` → `No module named pytest`，连收集阶段都进不去。即使跨过这一步，`sdk/python/tests/test_contract_generation.py:43` 还硬断言 `importlib.metadata.version("openai-codex-cli-bin") == "0.153.4"`，而该包是**平台专属 wheel、只发 PyPI**——`sdk/python-runtime/hatch_build.py:17-20` 对 sdist 构建直接 `raise RuntimeError("openai-codex-cli-bin is wheel-only; ...")`，仓库内无法本地构建替代品，这是不可绕过的硬墙。官方 CI 的做法印证了这点：`.github/workflows/sdk.yml:36-39` 第一步就是 `uv sync --group dev --frozen`，必须联网。
 
 ---
 
@@ -67,7 +67,7 @@ verified_at: 2026-08-05
 > 2. 解析平台标签：优先取 hatch 配置里的 `platform-tag`，其次取对应环境变量，再退回 `packaging.tags.sys_tags()` 的第一个；
 > 3. 设置 `build_data`：`pure_python = False`、`infer_tag = False`、`tag = f"py3-none-{platform_tag}"`——即**强制产出平台相关 wheel 并自己指定 tag**，这正是"每个平台一个 wheel"的实现方式。
 >
-> **它就是 `sdk/python` 里那条 `openai-codex-cli-bin==0.144.4` 依赖所指的包**——本仓库既是 SDK 的源，也是它捆绑二进制的源。第一版把这两件事分开写，没有连起来。
+> **它就是 `sdk/python` 里那条 `openai-codex-cli-bin==0.153.4` 依赖所指的包**——本仓库既是 SDK 的源，也是它捆绑二进制的源。第一版把这两件事分开写，没有连起来。
 
 两个面向用户的包都是 Apache-2.0。版本号 `0.0.0-dev` 是仓库内的占位值，**发布时由 CI 替换**（见 §7；`sdk/python/release_version.py` 提供 `normalize_codex_version`）。
 
@@ -124,7 +124,7 @@ verified_at: 2026-08-05
 | 有无漂移检测 | 无（注释靠人维护） | 有（`sdk/python/tests/test_contract_generation.py`） |
 
 > [!IMPORTANT]
-> **`codex-rs/app-server-protocol/schema/typescript/v2/` 下那 550 个 ts-rs 生成的 `.ts` 文件不是给 `@openai/codex-sdk` 用的。**（注意仓库根下没有 `schema/` 目录，完整路径在 `codex-rs/app-server-protocol/` 下；每个文件首行都是 `// GENERATED CODE! DO NOT MODIFY BY HAND!`。） 它们是 app-server 协议的对外类型产物，服务于直接对接 app-server 的客户端（例如 VS Code 扩展）。TypeScript SDK 不引用它们。
+> **`codex-rs/app-server-protocol/schema/typescript/v2/` 下那 631 个 ts-rs 生成的 `.ts` 文件不是给 `@openai/codex-sdk` 用的。**（注意仓库根下没有 `schema/` 目录，完整路径在 `codex-rs/app-server-protocol/` 下；每个文件首行都是 `// GENERATED CODE! DO NOT MODIFY BY HAND!`。） 它们是 app-server 协议的对外类型产物，服务于直接对接 app-server 的客户端（例如 VS Code 扩展）。TypeScript SDK 不引用它们。
 
 ---
 
@@ -223,7 +223,7 @@ build-backend = "uv_build"
 [project]
 name = "openai-codex"
 requires-python = ">=3.10"
-dependencies = ["pydantic>=2.12", "openai-codex-cli-bin==0.144.4"]
+dependencies = ["pydantic>=2.12", "openai-codex-cli-bin==0.153.4"]
 classifiers = ["Development Status :: 5 - Production/Stable", ...]
 
 [dependency-groups]
@@ -241,7 +241,7 @@ index-strategy = "first-index"
 > **① 构建后端是 `uv_build`**，不是 setuptools/hatchling。构建这个包需要 uv。（对比：`sdk/python-runtime` 用的是 hatchling。）
 
 > [!IMPORTANT]
-> **② 依赖 `openai-codex-cli-bin==0.144.4`（精确版本锁定）+ 时间戳锁定。**
+> **② 依赖 `openai-codex-cli-bin==0.153.4`（精确版本锁定）+ 时间戳锁定。**
 > 除了 `==` 版本锁，`[tool.uv]` 与 `[tool.uv.pip]` 里还有 `exclude-newer-package = { openai-codex-cli-bin = "2026-07-15T01:00:00Z" }` —— **双保险**：即便版本号被放宽，解析器也不会取到该时刻之后发布的构件。全局还有 `exclude-newer = "7 days"` 与 `index-strategy = "first-index"`（防依赖混淆攻击）。
 >
 > 这也解释了 `sdk/python-runtime` 的存在与 `.github/workflows/python-runtime-build.yml` / `.github/workflows/python-runtime-release.yml` 两个独立工作流——它们负责打包各平台的二进制并发布成 `openai-codex-cli-bin`。
@@ -277,7 +277,7 @@ index-strategy = "first-index"
 | **`sdk/python/src/openai_codex/async_client.py`** | **`AsyncCodexClient`：异步对偶** | 传输 |
 | `sdk/python/src/openai_codex/_message_router.py` | 帧路由 | 传输 |
 | `sdk/python/src/openai_codex/retry.py` | 过载重试 | 传输 |
-| `generated/` | **生成的类型**：`sdk/python/src/openai_codex/generated/v2_all.py`（9,454 行 pydantic 模型）、`sdk/python/src/openai_codex/generated/notification_registry.py`、`sdk/python/src/openai_codex/generated/__init__.py` | 生成 |
+| `generated/` | **生成的类型**：`sdk/python/src/openai_codex/generated/v2_all.py`（12,811 行 pydantic 模型）、`sdk/python/src/openai_codex/generated/notification_registry.py`、`sdk/python/src/openai_codex/generated/__init__.py` | 生成 |
 | `sdk/python/src/openai_codex/_run.py` | turn 结果收集（`TurnResult`） | 内部 |
 | `sdk/python/src/openai_codex/_inputs.py` | 输入构造与 wire 转换 | 内部 |
 | `sdk/python/src/openai_codex/_goal.py` | **goal 生命周期状态机与通知路由**（448 行，包内第三大文件）：`observe()`（`:55`）、`activate_turn_routing()`（`:89`）、`wait_for_start()`（`:94`）、`begin_interrupt()`/`confirm_interrupt()`/`cancel_interrupt()`（`:130`/`:137`/`:143`）、`active_turn()`（`:154`），并与 `sdk/python/src/openai_codex/_message_router.py:197` 的 `notification.method.startswith("thread/goal/")` 路由联动。**协议调用本身不在这里**——`thread/goal/clear` / `thread/goal/set` 发在 `sdk/python/src/openai_codex/client.py:496` / `:515` | 内部 |
@@ -329,32 +329,58 @@ index-strategy = "first-index"
 - 生成器版本被**精确锁定**：`sdk/python/pyproject.toml` 的 `test` 依赖组里 `datamodel-code-generator==0.31.2`（`sdk/python/uv.lock:96-98` 同步锁定）。生成器版本漂移会导致产物漂移，所以必须锁死。
 - `[tool.ruff] extend-exclude` 里排除了 `src/openai_codex/generated/**`——生成物不受 lint 约束。
 
-### 5.2 链路：输入不是仓库里的 schema 文件，而是**被锁定的运行时二进制**
+### 5.2 链路：输入就是仓库里的 schema 文件
 
 > [!CAUTION]
-> **本文上一稿把这条链路的起点写错了。** 它画成「仓库里的 `codex-rs/app-server-protocol/schema/json/codex_app_server_protocol.v2.schemas.json` → 生成脚本」，并说脚本的 `:51` 在定位那个文件。**两点都不成立：**
+> **这一节经历了两次反转，第二次把第一次推翻了回去。请连着读完再采信任何一版。**
 >
-> - `sdk/python/scripts/update_sdk_artifacts.py:49-51` 的 `schema_bundle_path()` 只是拼一个**文件名**，它接受的 `schema_dir` 是参数传进来的临时目录，与仓库内的 `schema/json/` 无关。脚本全文没有引用 `app-server-protocol` 这个 crate 路径，`codex-rs/app-server-protocol/schema/json/codex_app_server_protocol.v2.schemas.json` 在这里只是运行时导出的产物文件名。
-> - 真正的输入是**被 pin 住的运行时二进制自己吐出来的 schema**。
+> | 版本 | 结论 |
+> | ---- | ---- |
+> | 第一版 | 仓库里的 `schema/json/` → 生成脚本 |
+> | 第 5 轮 | **推翻**：真正的输入是被 pin 住的运行时二进制现场导出的 schema，经临时目录中转；「改仓库 schema 不会让漂移测试变红」 |
+> | **第 6 轮（当前）** | **再次推翻，链路改回了第一版的样子**：输入就是仓库内 `codex-rs/app-server-protocol/schema/json/` |
+>
+> **当前事实**（E3）：
+>
+> - `pinned_runtime_codex_path()` 与 `generate_schema_from_pinned_runtime()` **两个函数都已不存在**（`grep -c` → 0），临时目录中转也没了。
+> - 路径改为**外置在配置里**（`sdk/python/pyproject.toml` 第 39-40 行）：
+>
+>   ```toml
+>   [tool.codex.codegen]
+>   schema-dir = "../../codex-rs/app-server-protocol/schema/json"
+>   ```
+>
+>   `sdk/python/scripts/update_sdk_artifacts.py` 的 `generate-types` 在未传 `--schema-dir` 时读该配置键。
+> - `codex-rs/app-server-protocol/scripts/write_schema_fixtures.py` 在重生成夹具后**紧接着**调用 `update_sdk_artifacts.py generate-types --schema-dir <仓库内 schema 目录>`。
+>
+> > [!IMPORTANT]
+> > **第 5 轮那次「纠正」错在方法上，值得单独记住。**
+> >
+> > 它的核心证据是 `grep -c 'app-server-protocol' sdk/python/scripts/update_sdk_artifacts.py` → **0**，由此断定「脚本与仓库内 schema 没有任何引用关系」。
+> >
+> > **这条命令今天仍然返回 0，但结论完全相反**——因为路径被外置到了 `sdk/python/pyproject.toml` 的 `[tool.codex.codegen]` 段。
+> >
+> > **纪律：否定性 grep 不能证否一个机制。** 证否必须追到**调用点或配置键**，不能停在字面量搜索。本轮 [`app_server_protocol.md`](./app_server_protocol.md) §3 的「只有 `Initialized` 抓不到」是同一种失败模式，两篇各犯了一次。
+> >
+> > 另一层教训：当文档发现自己「纠正」了一个看似朴素的说法时要额外警惕——**朴素说法往往是上游的稳态，精致机制反而可能是短暂的中间形态**。
 
-真实链路（E3）：
+真实链路（E3，第 6 轮）：
 
 ```
-sdk/python 的依赖 openai-codex-cli-bin==0.144.4（已安装的 wheel 里捆绑的 codex 二进制）
-        ↓  update_sdk_artifacts.py:108 pinned_runtime_codex_path() 定位它，并校验版本号一致
-        ↓  :530-546 generate_schema_from_pinned_runtime()
-        ↓     run([codex_path, "app-server", "generate-json-schema", "--out", schema_dir])
-临时目录（:1360 tempfile.TemporaryDirectory(prefix="codex-python-schema-")）
-        ↓  :1350-1355 generate_types_from_schema_dir()：v2_all → notification_registry → api.py 扁平方法
-        ↓  datamodel-code-generator==0.31.2
-sdk/python/src/openai_codex/generated/v2_all.py            （9,454 行 pydantic 模型）
-sdk/python/src/openai_codex/generated/notification_registry.py
-sdk/python/src/openai_codex/api.py                          （扁平公开方法部分）
+改 Rust 协议类型
+        ↓  just write-app-server-schema        （justfile:177-178 → write_schema_fixtures.py）
+        ↓  ① cargo test … write_schema_fixtures_from_env --ignored   （真跑 ts-rs / schemars）
+codex-rs/app-server-protocol/schema/json/      （仓库内 vendored 产物，被 git 跟踪）
+        ↓  ② 同一个脚本接着 uv run update_sdk_artifacts.py generate-types --schema-dir <上面那个目录>
+        ↓     datamodel-code-generator==0.31.2
+sdk/python/src/openai_codex/generated/v2_all.py                （12,811 行 pydantic 模型）
+sdk/python/src/openai_codex/generated/notification_registry.py （302 行）
+sdk/python/src/openai_codex/api.py                             （扁平公开方法部分）
         ↓  漂移检测
-sdk/python/tests/test_contract_generation.py
+sdk/python/tests/test_contract_generation.py + sdk.yml 末尾的 check-clean-worktree
 ```
 
-关键含义：**Python SDK 的生成产物跟踪的是"那个被 pin 的已发布版本"，不是你工作区里的 Rust 源码。**
+关键含义（**与上一版相反**）：**Python SDK 的生成产物跟踪的正是你工作区里的 Rust 源码**（经由 vendored schema）。改了 app-server 协议类型而不重新生成，漂移测试**就会红**。
 
 `sdk/python/tests/test_contract_generation.py:10-14` 声明的受检产物是三项——注意 **`sdk/python/src/openai_codex/api.py` 也在列**：
 
@@ -369,19 +395,28 @@ GENERATED_TARGETS = [
 测试的做法是先快照这三项、重跑生成脚本、再比对字节。
 
 > [!CAUTION]
-> **上一稿说"改了 schema 却没重新生成就会红"——这是错的。** 该测试在重跑生成前先断言运行时版本，见下方代码。
+> **第 6 轮：这里原有的「改了 schema 也不会红」已被推翻，而且它引用的代码整块不存在了。**
 >
-> 所以：**在仓库里改 codex-rs 的 app-server schema，并不会让这个测试变红**——它比对的两端都来自同一个被 pin 的 wheel。只有当**运行时 pin 被升到新版本**时，产物才需要（也才会）跟着变。
-
-`sdk/python/tests/test_contract_generation.py:43-45`：
-
-```python
-assert importlib.metadata.version("openai-codex-cli-bin") == "0.144.4"
-env = os.environ.copy()
-env.pop("CODEX_EXEC_PATH", None)  # 注释明说：不用 checkout 或 CI 环境里的 app-server 二进制
-```
+> 上一版断言该测试会先校验 `importlib.metadata.version("openai-codex-cli-bin") == "0.153.4"` 并 `env.pop("CODEX_EXEC_PATH")`，据此推出「改仓库 schema 不会让测试变红」。
+>
+> 实测（`grep -n 'importlib\|openai-codex-cli-bin\|CODEX_EXEC_PATH' sdk/python/tests/test_contract_generation.py` → **零命中**）：版本断言与 `env.pop` 都已删除。该测试现在的文档字符串是：
+>
+> > *"Regenerating from **repository schemas** should leave reviewed artifacts unchanged."*
+>
+> **所以：改了仓库里的 app-server schema 而不重新生成，这个测试就会红**——这正是它现在唯一的作用。
+>
+> **一个连带的好消息**：那堵「必须装平台专属 wheel 才能跑测试」的硬墙已经拆了。该测试现在只需要 `datamodel-code-generator` 与仓库内 schema 即可运行。
 
 ### 5.3 谁在跑这个脚本，以及跑的是哪个子命令
+
+> [!CAUTION]
+> **第 6 轮：`stage-sdk` 已不再生成类型，因此「有哪个发布流程会重新生成 SDK 类型」这个问题的答案现在是——没有。**
+>
+> 该子命令的 help 文本逐字写着 *"Stage a releasable SDK package **from the checked-in generated code**"*，`run_command` 里它只调 `stage_python_sdk_package`。
+>
+> 生成现在**只发生在开发者本地**跑 `just write-app-server-schema`（或直接跑 `update_sdk_artifacts.py generate-types`）时，由 `sdk/python/tests/test_contract_generation.py` 与 `.github/workflows/sdk.yml` 末尾的 `check-clean-worktree` 双重兜底。
+>
+> 上一版在这里总结的方法论——「看到脚本名出现在某个工作流里，不等于该工作流触发了脚本的全部能力」——**不仅仍然成立，而且更成立了**。
 
 `sdk/python/scripts/update_sdk_artifacts.py` 确实在四个工作流里被调用（E2——计的是 YAML 文件**内容**匹配，不是目录/文件名清点），但**子命令不同，后果完全不同**（E3，`:1435-1450` 的 `run_command`）：
 
@@ -395,7 +430,7 @@ env.pop("CODEX_EXEC_PATH", None)  # 注释明说：不用 checkout 或 CI 环境
 
 | 工作流 | 子命令 | 是否重生成 SDK 类型 |
 | ---- | ---- | ---- |
-| `.github/workflows/python-sdk-release.yml:196` | `stage-sdk` | ✅ |
+| `.github/workflows/python-sdk-release.yml` | `stage-sdk` | ⚠️ **第 6 轮：该工作流已缩至 172 行，原 `:196` 行号越界，且文件中已无 `stage-sdk` job**。本轮未重新推导 Python SDK 的发布 job 清单 |
 | `.github/workflows/python-runtime-build.yml:77` | `stage-runtime` | ❌ |
 | `.github/workflows/rust-release.yml:414`、`:838` | `stage-runtime` | ❌ |
 | `.github/workflows/rust-release-windows.yml:326` | `stage-runtime` | ❌ |
@@ -426,7 +461,7 @@ env.pop("CODEX_EXEC_PATH", None)  # 注释明说：不用 checkout 或 CI 环境
 | 模块格式 | 纯 ESM | 标准包（带 `py.typed`） |
 | 构建 | **tsup** → `dist/` | `uv_build` |
 | 测试 | jest（起假 Responses 代理跑真二进制） | pytest（18 个文件） |
-| 与 codex 二进制的关系 | **不在包配置里声明**，运行时 `require.resolve("@openai/codex")` + 平台包，或 `codexPathOverride` | **精确锁 `openai-codex-cli-bin==0.144.4` + `exclude-newer-package` 时间戳锁** |
+| 与 codex 二进制的关系 | **不在包配置里声明**，运行时 `require.resolve("@openai/codex")` + 平台包，或 `codexPathOverride` | **精确锁 `openai-codex-cli-bin==0.153.4` + `exclude-newer-package` 时间戳锁** |
 | 同步/异步 | JS 天然异步 | **两层各一对**：`Codex`/`AsyncCodex`（公开）、`CodexClient`/`AsyncCodexClient`（传输） |
 | 类型来源 | **手写**（`sdk/typescript/src/events.ts` 顶部注释标注人工对照 Rust） | **生成**（datamodel-codegen 0.31.2 ← v2 JSON Schema） |
 | 漂移检测 | 无 | `sdk/python/tests/test_contract_generation.py` |
@@ -443,7 +478,9 @@ env.pop("CODEX_EXEC_PATH", None)  # 注释明说：不用 checkout 或 CI 环境
 | 工作流 | 用途 |
 | ---- | ---- |
 | `.github/workflows/sdk.yml` | SDK 通用 CI，两套 SDK 各一条流水线（详见下方） |
-| `.github/workflows/python-sdk-release.yml` | Python SDK 发布；`update_sdk_artifacts.py stage-sdk` —— **唯一会重新生成 SDK 类型的工作流** |
+| `.github/workflows/python-sdk-release.yml` | Python SDK 发布。**第 6 轮：它已不再调用 `update_sdk_artifacts.py`**——该文件缩至 172 行，现在是编排器（`:74` 调 `python-runtime-build.yml`、`:83` 调 `python-sdk-build.yml`），自己只做 PyPI 发布与校验 |
+| `.github/workflows/python-sdk-build.yml` | **第 6 轮新增**：`stage-sdk` 的唯一调用点（`:49-52`） |
+| `.github/workflows/python-sdk-cli-release.yml` | **第 6 轮新增**，本文未展开 |
 | `.github/workflows/python-runtime-build.yml` | `openai-codex-cli-bin` 构建；`update_sdk_artifacts.py stage-runtime`（不生成类型） |
 | `.github/workflows/python-runtime-release.yml` | `openai-codex-cli-bin` 发布 |
 | `.github/workflows/rust-release.yml` / `.github/workflows/rust-release-windows.yml` | Rust 发布；对 `sdk/python/scripts/update_sdk_artifacts.py` 同样只调 `stage-runtime`，**不重跑类型生成**（见 §5.3 的 CAUTION）。**但 `.github/workflows/rust-release.yml` 另外还发布 TS SDK 的 npm 包**——见 §7.2 |

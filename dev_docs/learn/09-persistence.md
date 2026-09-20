@@ -3,7 +3,7 @@ title: 09 持久化与恢复
 summary: 讲解 codex 的三层存储结构与会话落盘方式，先厘清 rollout 这个 codex 自造词与 jsonl 这一行式格式的含义及其适合流水账的三点理由，再说明 rollout 的 jsonl 事实源与日期分层目录、SQLite 作为可重建派生索引的自愈设计、thread-store 不拥有独立数据载体而借用下层的分工、写入用本地时区而解析用 UTC 造成的三处耦合缺陷、两个 append-only 文件并发策略不一致的实测问题、默认关闭的 zstd 压缩开关，以及会话恢复作为高风险改动面的注意事项与自建项目的最小持久化方案。
 keywords: codex | persistence | rollout | jsonl | sqlite | thread-store | session-resume | timezone-bug | append-only | writer-lock
 scope: codex 的会话落盘、索引与恢复机制
-related_files: codex-rs/rollout/src/recorder.rs | codex-rs/rollout/src/session_index.rs | codex-rs/thread-store/src/local/writer_lock.rs | codex-rs/state/src/sqlite.rs | codex-rs/core/src/session/rollout_reconstruction.rs
+related_files: codex-rs/rollout/src/recorder.rs | codex-rs/rollout/src/session_index.rs | codex-rs/rollout/src/writer_lock.rs | codex-rs/state/src/sqlite.rs | codex-rs/core/src/session/rollout_reconstruction.rs
 dependencies: 无（本目录文档自包含，不依赖 dev_docs 其余文档）
 verified_at: 2026-08-05
 ---

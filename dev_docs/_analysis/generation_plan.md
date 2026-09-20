@@ -417,7 +417,7 @@ codex/（仓库根）
 
 4. **三平台原生沙箱**
 
-   - **识别依据**: `codex-rs/sandboxing/src/` 同时包含 `codex-rs/sandboxing/src/seatbelt.rs`、`codex-rs/sandboxing/src/landlock.rs`、`codex-rs/sandboxing/src/bwrap.rs`、`codex-rs/sandboxing/src/windows.rs`，以及 3 个策略文件 `codex-rs/sandboxing/src/seatbelt_base_policy.sbpl`、`codex-rs/sandboxing/src/seatbelt_network_policy.sbpl`、`codex-rs/sandboxing/src/restricted_read_only_platform_defaults.sbpl`；另有独立 crate `linux-sandbox`、`windows-sandbox-rs`、`bwrap`
+   - **识别依据**: `codex-rs/sandboxing/src/` 同时包含 `codex-rs/sandboxing/src/seatbelt.rs`、`codex-rs/sandboxing/src/landlock.rs`、`codex-rs/sandboxing/src/bwrap.rs`、`codex-rs/sandboxing/src/windows.rs`，以及 3 个策略文件 `codex-rs/sandboxing/src/seatbelt_base_policy.sbpl`、`codex-rs/sandboxing/src/seatbelt_network_policy.sbpl`、`codex-rs/sandboxing/src/seatbelt_read_only_platform_defaults.sbpl`；另有独立 crate `linux-sandbox`、`windows-sandbox-rs`、`bwrap`
    - **影响范围**: 所有命令执行路径
    - **实现方式**: 按平台选择沙箱后端，配合 `execpolicy` 与审批预设（`utils/approval-presets`）
 

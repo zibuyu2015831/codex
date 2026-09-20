@@ -60,7 +60,7 @@ graph TD
 
 ## 2. 第 1 层：提交循环
 
-函数签名在 `codex-rs/core/src/session/handlers.rs:714`：
+函数签名在 `codex-rs/core/src/session/handlers.rs:411`：
 
 ```rust
 pub(super) async fn submission_loop(

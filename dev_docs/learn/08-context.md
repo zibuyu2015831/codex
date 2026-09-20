@@ -158,10 +158,10 @@ if should_roll_over {
 | `codex-rs/core/src/compact.rs` | 本地压缩主体，另提供路径判据与总结提示词 |
 | `codex-rs/core/src/compact_token_budget.rs` | token 预算路径 |
 | `codex-rs/core/src/compact_model_fallback.rs` | 模型回退 |
-| `codex-rs/core/src/compact_remote.rs` | 远程压缩 v1 |
+| `codex-rs/core/src/compact_remote_v2.rs`（第 6 轮：远程压缩 v1 整条删除，原 `compact_remote.rs` 已不存在） | 远程压缩 v1 |
 | `codex-rs/core/src/compact_remote_v2.rs` | 远程压缩 v2 |
 | `codex-rs/core/src/compact_remote_v2_attempt.rs` | v2 的内部辅助 |
-| `codex-rs/core/src/compact_remote_request.rs` | v2 的请求构造辅助 |
+| `codex-rs/core/src/compact_remote_history.rs` | **第 6 轮新增**：远程压缩的历史处理。原来的请求构造辅助文件已不存在 |
 | `codex-rs/core/src/compact_tests.rs` | 测试 |
 
 > **下面开始频繁出现 `provider` 这个词**：它指**模型服务的提供方**——OpenAI、Azure、你本机跑的 Ollama，各算一个 provider。本教程不译它（译成"供应商"反而更容易和商务语境混淆）。**关键认知是：不同 provider 的能力不一样**，某些功能只有特定 provider 才有——这一节讲的"远程压缩"就是第一个例子。

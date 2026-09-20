@@ -3,7 +3,7 @@ title: 13 补丁与执行策略：模型怎么安全地改代码
 summary: 展开 codex 让模型修改文件与执行命令的两套机制，纠正 lark 文法是本地解析器所用这一误读并说明它实为发给模型的语法约束解码定义、指出该文法在仓库中被写了两遍且两份副本已经漂移、解释自定义补丁格式相对 unified diff 的取舍与三级递减严格度的上下文定位策略、补丁的流式解析为何必要，以及 execpolicy 用 Starlark 作为策略 DSL 的三态决策模型与把示例当加载期单元测试的设计，并给出自建项目的最小方案。
 keywords: codex | apply-patch | lark | grammar | freeform-tool | streaming-parser | seek-sequence | execpolicy | starlark | prefix-rule | decision
 scope: codex 的补丁应用格式与命令执行策略引擎
-related_files: codex-rs/core/src/tools/handlers/apply_patch.lark | codex-rs/core/src/tools/handlers/apply_patch_spec.rs | codex-rs/apply-patch/src/parser.rs | codex-rs/apply-patch/src/seek_sequence.rs | codex-rs/apply-patch/src/streaming_parser.rs | codex-rs/execpolicy/src/decision.rs | codex-rs/execpolicy/src/rule.rs | codex-rs/execpolicy/src/parser.rs | codex-rs/execpolicy/README.md
+related_files: codex-rs/core/assets/tools/apply_patch.lark | codex-rs/core/src/tools/handlers/apply_patch_spec.rs | codex-rs/apply-patch/src/parser.rs | codex-rs/apply-patch/src/seek_sequence.rs | codex-rs/apply-patch/src/streaming_parser.rs | codex-rs/execpolicy/src/decision.rs | codex-rs/execpolicy/src/rule.rs | codex-rs/execpolicy/src/parser.rs | codex-rs/execpolicy/README.md
 dependencies: 无（本目录文档自包含，不依赖 dev_docs 其余文档）
 verified_at: 2026-08-05
 ---

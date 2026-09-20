@@ -741,7 +741,7 @@ grep -oE 'stage: Stage::[A-Za-z]+' codex-rs/features/src/lib.rs | sort | uniq -c
 
 | 表面 | 真正的门控 | 判据 |
 | ---- | ---- | ---- |
-| **code-mode** | ✅ **`Feature` 枚举**（4 个 feature，见下表） | 三件套齐备：有 `FeatureSpec`、有默认值、有生产读取点——**工具集选择**在 `codex-rs/core/src/tools/mod.rs:70`（`else if turn_context.config.features.enabled(Feature::CodeMode)`），另见 `codex-rs/core/src/session/config_lock.rs:335`、`codex-rs/core/src/session/code_mode_warning.rs:10` |
+| **code-mode** | ✅ **`Feature` 枚举**（4 个 feature，见下表） | 三件套齐备：有 `FeatureSpec`、有默认值、有生产读取点——**工具集选择**在 `codex-rs/core/src/tools/mod.rs:70`（`else if turn_context.config.features.enabled(Feature::CodeMode)`），另见 `codex-rs/core/src/session/code_mode_warning.rs:10`（**第 6 轮：原先并列的 `session/config_lock.rs` 已被上游删除**<!-- ref-exempt: 反例——正文说明该路径已不存在 -->） |
 | **realtime** | ✅ **`Feature::RealtimeConversation`** | 同上，生产读取点在 `codex-rs/app-server/src/request_processors/turn_processor.rs:1053`（§7.3） |
 | **remote-control** | ⚠️ **daemon 持久化设置**，**不是 `Feature`** | 见下方警告 |
 | **Cloud 任务** | ❌ **无运行时门控** | `Feature` 枚举中无任何对应变体；仅靠子命令始终可见 + `[EXPERIMENTAL]` 文档注释 |
