@@ -230,7 +230,7 @@ ERROR 集中度（合并后首测，共 97 ERROR / 207 WARN）：
 | ---- | ---- | ---- |
 | 0 | 事实基座重建与工装修复（本文件 + 账本） | ✅ 完成 |
 | 1 | `crate_map.md` / `architecture_overview.md`（其余各篇的事实基础，须先定稿） | ✅ 完成（两篇引用类 ERROR 归零） |
-| 2 | `core_agent_loop.md` / `tools_and_sandbox.md` / `session_and_persistence.md` | ⬜ |
+| 2 | `core_agent_loop.md` / `tools_and_sandbox.md` / `session_and_persistence.md` | ✅ 完成（三篇引用类 ERROR 归零；后两篇恢复双轨交叉，核验轨分别判定 79 / 174 条 WRONG） |
 | 3 | `config_system.md` / `auth_and_providers.md` | ⬜ |
 | 4 | `app_server_protocol.md` / `mcp_and_extensions.md`（重写） / `sdk_guide.md` | ⬜ |
 | 5 | `build_and_release.md` / `development_workflow.md` / `testing_guide.md` / `observability.md` | ⬜ |
@@ -256,11 +256,11 @@ ERROR 集中度（合并后首测，共 97 ERROR / 207 WARN）：
 
 批次 0 结束时的门禁实测（供后续批次对照收敛）：
 
-| 检查 | 合并后首测 | 批次 0 结束 | 批次 1 结束 |
-| ---- | ---- | ---- | ---- |
-| 脱敏 | 7 类全通过 | 7 类全通过 | 7 类全通过 |
-| 引用可解析性 | 97 ERROR / 207 WARN | 未变（正文尚未修订） | **89 ERROR / 202 WARN** |
-| 跨文档对账与账本 | 35 个问题 | 33 条账本全部复验通过 | 10 个问题（**全部在尚未修订的文档里**，已定稿两篇无一命中） |
+| 检查 | 合并后首测 | 批次 0 结束 | 批次 1 结束 | 批次 2 结束 |
+| ---- | ---- | ---- | ---- | ---- |
+| 脱敏 | 7 类全通过 | 7 类全通过 | 7 类全通过 | 7 类全通过 |
+| 引用可解析性 | 97 ERROR / 207 WARN | 未变（正文尚未修订） | 89 ERROR / 202 WARN | **50 ERROR / 179 WARN** |
+| 跨文档对账与账本 | 35 个问题 | 33 条账本全部复验通过 | 10 个问题 | 无不一致（已定稿 5 篇无一命中） |
 
 引用类 ERROR 将随批次 2–9 逐步归零；**门禁全绿仍是必要非充分条件**，§2 的方法论折价在本轮尤其需要记住。
 
@@ -276,3 +276,16 @@ ERROR 集中度（合并后首测，共 97 ERROR / 207 WARN）：
 | `AGENTS.md:264-265` 指向的 `app-server-protocol/src/protocol/v2.rs` **不存在**（v2 已改为目录形态） <!-- ref-exempt: 反例——正文说明 AGENTS.md 给出的该路径不可解析 --> | 第四条「AGENTS.md 自身陈旧记载」 | `dev_docs/architecture_overview.md` §11，待批次 9 登记进 `AI_RULES.md` |
 
 另有三处口径级修正：扩展 trait 数 13→**16**（此前漏掉 4 个不以 `Contributor` 结尾的）；`codex-rs/cli/src/main.rs` 的默认 TUI 分支已从 `None =>` 变为 `None | Some(Subcommand::Agents(_)) =>`（「默认 TUI 只由 `None` 触发」不再成立）；`[workspace.dependencies]` 的 path 条目数用 `grep -c 'path\s*='` 会因 `..._path =` 子串命中而虚高 2。
+
+### 批次 2 的额外发现
+
+本批恢复双轨交叉后，核验轨对两篇给出的失效率分别是 **79/197** 与 **174/295（59%）**，共六 + 三处叙事骨架失效。除各文已就地记载外，有四条跨篇的方法论教训值得单列：
+
+| 教训 | 出处 | 说明 |
+| ---- | ---- | ---- |
+| **只核验被引用的函数、不追调用方，会漏掉整类错误** | `tools_and_sandbox.md` §3 | 「seccomp 被网络策略门控」在函数级至今为真，门控函数与反证测试都还能通过；但调用点加了一条 `.or_else()` 兜底，实际语义翻转为「除全盘写档外恒装」。**这是最容易「看着还对、实则已错」的形态。** |
+| **「我找到了唯一的调用点」这个结论本身会过期** | `session_and_persistence.md` §2.2 | 压缩工作器从 1 个生产调用点增至 3 个，且新增的 RPC 入口**门禁与老入口完全不同**（不看那个特性开关）。绝对化措辞必须配穷举命令，并每轮重跑。 |
+| **在已消失的机制上做精细考据，考据越细误导越深** | `tools_and_sandbox.md` §8、`core_agent_loop.md` §5.1 | 旧版整块在教读者「`is_safe_command()` 不存在，真名是 `is_known_safe_command()`，grep 不到定义是因为你名字写错了，**别以为函数被删了**」——而真相恰恰是函数真的被删了，连它引用的两处「旧名残留注释」也一处已改写、一处路径都不存在。 |
+| **唯一证据消失时应删结论，而不是找个相近符号圆回来** | `core_agent_loop.md` §4.2 | `tool_waits_for_runtime_cancellation` 全仓零命中，由它推出的「不同工具取消等待行为不同」已整条删除并注明未取证。**留空比编一个替代证据诚实。** |
+
+另有两处「数字没变但集合变了」，与批次 1 的 `AgentSpawner` 那条同类：`codex-rs/linux-sandbox/src/landlock.rs` 的 `deny_syscall` 仍是 19 处但新增了 `process_vm_writev` 与 3 条 `io_uring_*`；`extension-api` 能力 trait 仍是 4 个但换了一个成员。**只对数字的检查对这一类完全无感。**
