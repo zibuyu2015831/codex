@@ -27,8 +27,12 @@ verified_at: 2026-09-21
 > 复核命令（应输出 `0`）：
 >
 > ```bash
-> git diff --name-only "$(git merge-base HEAD origin/main)" HEAD -- . ':(exclude)dev_docs' | wc -l
+> # 基线取「最近一次合并提交的第二父节点」，即本分支实际并入的主分支 tip。
+> git diff --name-only "$(git rev-parse "$(git rev-list --merges -1 HEAD)^2")" HEAD \
+>   -- . ':(exclude)dev_docs' | wc -l
 > ```
+>
+> 不要用 `git merge-base HEAD origin/main` 取基线：`origin` 是个人 fork，其 `main` 镜像可能远落后于实际并入的主分支（本轮就落后 2,230 个提交），基线会退回到合并之前，命令输出数千个文件的**假警报**。第二父节点写法不依赖任何 remote 的新鲜度。
 >
 > **需要改源码时，不要在本分支动手**——切回主分支并基于主分支新建分支再实现：
 >
@@ -41,11 +45,11 @@ verified_at: 2026-09-21
 > [!IMPORTANT]
 > **每次 merge 主分支之后，必须同步修订 `dev_docs/`。**
 >
-> 本分支需要不定时 merge 主分支（`origin/main`）以跟上上游。**merge 不是终点，同步文档才是**——本体系大量引用 `path:line`、crate 数、字段数、枚举变体数这类易漂移的事实，上游代码一动，这些断言就会**静默失效**（不报错、不冲突，只是变成假的）。
+> 本分支需要不定时 merge 主分支（真值是 `upstream/main`，**不是** fork 镜像 `origin/main`）以跟上上游。**merge 不是终点，同步文档才是**——本体系大量引用 `path:line`、crate 数、字段数、枚举变体数这类易漂移的事实，上游代码一动，这些断言就会**静默失效**（不报错、不冲突，只是变成假的）。
 >
 > merge 后的标准动作：
 >
-> 1. 取出上游改动范围：`git diff --stat <merge 前的 origin/main> origin/main`
+> 1. 取出上游改动范围：`git fetch upstream && git diff --stat <merge 前的基线 commit> upstream/main`
 > 2. 映射到受影响的文档：16 篇专题 + 本文 + [`dev_docs/rules/combined/AI_RULES.md`](./rules/combined/AI_RULES.md)（映射关系见下方「🚀 文档索引」与「🏢 业务模块映射」）
 > 3. 逐篇回源核验并修订，同步更新各文的 `verified_at` 与本文的**基线 commit**
 > 4. 过门禁：`bash dev_docs/_analysis/gate.sh`（脱敏 / 引用可解析性 / 跨文档对账与断言账本）
@@ -431,7 +435,7 @@ pub struct SomeRequest { ... }
 | # | 禁忌 | 具体案例与判据 |
 | ---: | ---- | ---- |
 | **T1** | **读注释、README、帮助文本就下结论** | `codex-rs/config/src/loader/mod.rs` 的函数文档注释把配置层优先级**排反了**：`:96-111` 那段按升序把 `admin: managed preferences` 列在第一位（最低），而**同一文件紧邻的** `:82-94` 又把它列在最后（最高）。真实实现是 macOS MDM 走 `LegacyManagedConfigTomlFromMdm`，precedence **50，全场最高**。同段注释还把 cwd 层路径写成 `${PWD}/config.toml`，实际是 `${PWD}/.codex/config.toml`。**在这里「读注释确认」必然得到错误答案**——唯一可靠的判据是追踪 `layers.push(...)` 的实际调用序列与 `precedence()` 的返回值。见 [`config_system.md`](./config_system.md) §2 — 配置文件的发现顺序与信任门控 |
-| **T2** | **信任自己临时写的计数脚本，不先自证** | 两次实例：① `Op` 枚举数错成 **16**（真值 26）——括号深度脚本在**更新深度之后**才判定变体，带结构体字段的变体（如 `UserInput { .. }`）被整体跳过；② `thread/*` 方法数错成 **57**（真值 60）——正则字符类写成 `[A-Za-z/]` 漏了下划线，恰好漏掉 `thread/inject_items`、`thread/increment_elicitation`、`thread/decrement_elicitation` 三条。**计数脚本必须先在已知答案的小样本上自证，或换一条独立口径交叉验证**（`Op` 的交叉口径是 `grep -oE 'Op::[A-Za-z]+' codex-rs/core/src/session/handlers.rs \| sort -u \| wc -l`，同为 26） |
+| **T2** | **信任自己临时写的计数脚本，不先自证** | 两次实例（数字为**当时基线**下的值，见下方注）：① `Op` 枚举数错成 **16**，当时真值 26——括号深度脚本在**更新深度之后**才判定变体，带结构体字段的变体（如 `UserInput { .. }`）被整体跳过；② `thread/*` 方法数错成 **57**，当时真值 60——正则字符类写成 `[A-Za-z/]` 漏了下划线，恰好漏掉 `thread/inject_items`、`thread/increment_elicitation`、`thread/decrement_elicitation` 三条（这三个方法今天仍在，见 [`app_server_protocol.md`](./app_server_protocol.md) §5）。**计数脚本必须先在已知答案的小样本上自证，或换一条独立口径交叉验证**（`Op` 的交叉口径是 `grep -oE 'Op::[A-Za-z]+' codex-rs/core/src/session/handlers.rs \| sort -u \| wc -l`，与主口径逐字符一致） |
 | **T3** | **把 `Stage::Removed` 读成「不可用」** | `Stage` 在 `codex-rs/features/src/lib.rs` 中**唯一的行为性使用**是 `emit_metrics`（`:447-451`）里的过滤——**只影响指标上报**。真正把用户配置落到开关上的 `apply_map`（`:466`）经 `feature_for_key`（`:637`）分支，**全程不检查 `stage`**。所以 `Stage::Removed` 的 feature **照样能被用户在 `[features]` 里开启**，也照样出现在 `codex features list` 里。判断「死开关」的**唯一可靠判据**是穷举 `grep -rn --include='*.rs' 'Feature::Xxx' codex-rs/`，看它是否只出现在「枚举定义 + `FeatureSpec` + 测试」里（`Feature::RemoteControl` 就是这样一个：2 处命中，生产读取点为 0）。见 [`experimental_surfaces.md`](./experimental_surfaces.md) §7.4 — codex-features |
 | **T4** | **把上游文档 / `justfile` / `AGENTS.md` 的记载当成当前可执行** | 已确认的三处陈旧：① `just write-app-server-schema` 跑不通（`codex-app-server-protocol` 无 bin target），而 `AGENTS.md`（grep `write-app-server-schema`）、`justfile` 的同名 recipe **以及那条校验测试自己的 `panic!` 文案**（`codex-rs/app-server-protocol/src/schema_fixtures_tests.rs`）都在推荐它——**循环陈旧，照它说的做只会再挂一次**；② `AGENTS.md`（grep `--all-features`）的建议与「workspace crate features 被制度禁止」矛盾（见禁忌 18）；③ `AGENTS.md` 指的 `codex-rs/codex-mcp/src/mcp_connection_manager.rs` <!-- ref-exempt: 本行正在说明该路径不存在，引用不可解析即为要表达的事实 --> 不存在，实为 `codex-rs/codex-mcp/src/connection_manager.rs`。**引用任何命令前先跑一遍；引用任何路径前先 `ls` 一下** |
 | **T5** | **符号 `pub` + 名字贴切 + 位置显眼 ⇒ 它生效了** | 三条独立的反例：`ConfigLayerSource::Mdm`（precedence 0，全仓生产构造点为 0，只有 `match` 分支与测试）；`ConfigToml::profiles` 与整个 `ConfigProfile`（40+ 字段，排除测试后全仓只有 3 处命中，无任何生产代码读它）；`install_filesystem_landlock_rules_on_current_thread`（注释自述 "currently unused"）。**判据永远是「谁在构造它 / 谁在调用它」，不是「它长什么样」** |
@@ -441,7 +445,7 @@ pub struct SomeRequest { ... }
 
 | # | 约束 |
 | ---: | ---- |
-| 23 | 推送只能推个人 fork，**禁止推上游 `origin`** |
+| 23 | 推送只能推个人 fork（本仓库即 `origin`），**禁止推上游 `upstream`**——其 push URL 已置为无效值使误推立即失败。引用前先跑 `git remote -v`，详见 [`AI_RULES.md`](./rules/combined/AI_RULES.md) §5.1 |
 | 24 | fork 是公开仓库，提交前必须跑脱敏扫描；**禁止写入任何凭证的实际值** |
 | 25 | 文档中的 `related_files` 只列**实际读过**的文件 |
 | 26 | 未验证的结论必须标注证据等级，**禁止把 E1 目录名推断写成 E3 事实** |
