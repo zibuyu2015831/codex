@@ -204,7 +204,12 @@ bundle: app-server  binaries: "codex-app-server codex-code-mode-host"           
 
 > **不要反过来推断"其余 bin 目标都不重要"。** workspace 共 **34 个** bin 目标（第 6 轮实测，基线为 31），出现在发布清单里的只有 **8 个**（`codex` + 7 个辅助）。**剩下 26 个里既有开发/测试类**（`codex-write-config-schema`、`rmcp_test_server` 等），**也有本身就是产品能力、只是不单独打包的**（`codex-exec`、`codex-tui`、`codex-execpolicy`、`codex-file-search`、`codex-stdio-to-uds`、`exec-server`、`apply_patch`——它们都编进主 codex 二进制或经上表的其他方式交付）。
 >
-> 唯一可靠的判据是"是否出现在某个发布工作流的 `binaries` / `WINDOWS_BINARIES` 列表里"：`grep -hoE 'binaries: "[^"]*"' .github/workflows/rust-release*.yml`。
+> 判据是"是否出现在某个发布工作流的 `binaries` / `WINDOWS_BINARIES` 列表里"：`grep -hoE 'binaries: "[^"]*"' .github/workflows/rust-release*.yml`。
+>
+> [!WARNING]
+> **这条判据有一个已知盲区，第 10 轮独立复核查出：`codex-voice-host` 走的是另一条交付通道。** 它在 `rust-release.yml` 里出现 19 次，却**不出现在任何 `binaries:` 列表中**——它由 Bazel 构建，再经 `third_party/voice/assemble_package.py:102` 放进包内的 `codex-resources/voice/bin/`。也就是说「不在 `binaries` 列表 ⇒ 不随发布交付」这个反向推断**不成立**。
+>
+> 上表的 `shipped_aux_binaries = 7` 是**发布工作流 `binaries` 列表口径**下的数字，本文继续沿用它（口径单一、可复算）；若改用「最终是否出现在用户拿到的包里」口径，还要算上 `codex-voice-host`，以及两个非 `codex-rs` 产物的第三方可执行文件 `codex-path/rg`（ripgrep）与 `codex-resources/<zsh>`。**语音包是否是正式发布的默认产物尚未取证**（`build-codex-package-archive.sh` 里 voice 是可选的 `--voice-release-dir`），所以本轮不把它并入主口径。
 
 
 ---

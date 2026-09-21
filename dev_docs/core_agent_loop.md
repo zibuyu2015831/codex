@@ -915,7 +915,7 @@ pub enum ReviewDecision { .. }
 
 | 原条目 | 现在写在哪 | 结论摘要 |
 | ---- | ---- | ---- |
-| `Op` / `EventMsg` 的完整变体清单 | §2.2 | `Op` **26** 个变体（`codex-rs/protocol/src/protocol.rs:531-688`，与 `codex-rs/core/src/session/handlers.rs` 中 `Op::` 去重命中数一致）；`EventMsg` **80** 个（`:1288-1495`） |
+| `Op` / `EventMsg` 的完整变体清单 | §2.2 | `Op` **28** 个变体（`codex-rs/protocol/src/protocol.rs:601-766`，与 `codex-rs/core/src/session/handlers.rs` 中 `Op::` 去重命中数一致）；`EventMsg` **83** 个（`codex-rs/protocol/src/protocol.rs:1358-1575`）。<!-- no-count-check --> **第 10 轮更正**：本行上一稿停在 26 / 80 与旧行号，而同篇 §2.2 早已是 28 / 83——**正文更新了、附录没更新**，两处在体系内矛盾了一轮 |
 | `SessionTask` 四种实现的差异 | §2.3 | 四种实现只对应 **3 个 `TaskKind`**——`UserShellCommandTask` 复用 `TaskKind::Regular` |
 | 压缩的 v1/v2 选择条件 | §6.2 | 三级判定，判据是 `Feature::TokenBudget` 与 `Feature::RemoteCompactionV2` 两个开关加 provider 能力 |
 | `context_manager/` 的结构 | §6.1 | `codex-rs/core/src/context_manager/mod.rs` 仅 8 行，对外只有 `ContextManager` + 3 个自由函数 |

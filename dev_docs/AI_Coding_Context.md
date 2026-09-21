@@ -1,6 +1,6 @@
 ---
 title: Codex CLI 开发文档体系主文档
-summary: openai/codex 仓库 dev_docs 开发文档体系的入口，提供项目概览、关键目录速查、12 条场景快速导航、文档索引、开发流程规范、核心代码模式、命名规范、业务模块映射、AI 编码禁忌清单与常见任务速查；本轮随 16 篇下游文档定稿对齐，修正 TUI 边界为「字面量级语法边界而非语义边界」、ext 进入 ExtensionRegistry 的是 8 个、Windows 默认无沙箱、Linux 沙箱的全盘写权限早退分支、遥测两条通路的缺省语义相反，并补入「读注释不读实现」「正则口径陷阱」「Stage::Removed ≠ 不可用」「上游记载 ≠ 当前可执行」四条新禁忌。
+summary: openai/codex 仓库 dev_docs 开发文档体系的入口，提供项目概览、关键目录速查、12 条场景快速导航、文档索引、开发流程规范、核心代码模式、命名规范、业务模块映射、AI 编码禁忌清单与常见任务速查；本轮随 16 篇下游文档定稿对齐，修正 TUI 边界为「字面量级语法边界而非语义边界」、ext 进入 ExtensionRegistry 的是 10 个、Windows 默认无沙箱、Linux 沙箱的全盘写权限早退分支、遥测两条通路的缺省语义相反，并补入「读注释不读实现」「正则口径陷阱」「Stage::Removed ≠ 不可用」「上游记载 ≠ 当前可执行」四条新禁忌。
 keywords: codex | main-doc | navigation | ai-coding-context | taboos | uncovered-scope | branch-policy | docs-only | merge-sync
 scope: openai/codex 仓库 dev_docs 文档体系总入口
 related_files: AGENTS.md | docs/contributing.md | codex-rs/cli/src/main.rs | codex-rs/Cargo.toml | justfile | README.md | .github/scripts/verify_tui_core_boundary.py | codex-rs/config/src/loader/mod.rs | codex-rs/features/src/lib.rs | codex-rs/protocol/src/protocol.rs
@@ -119,7 +119,7 @@ verified_at: 2026-09-21
 | `codex-rs/tui/` | ratatui 交互式终端界面（238,439 行） | — |
 | `codex-rs/app-server/` | JSON-RPC 应用服务端，供 IDE / 桌面端 / SDK 接入（128,364 行） | — |
 | `codex-rs/cli/` | **主二进制** `codex` 的入口与子命令分发 | — |
-| `codex-rs/ext/` | 15 个 `ext/*` crate。其中 **8 个依赖 `extension-api`，且恰好就是被注册进 `ExtensionRegistry` 的 8 个**；另 3 个（`items` / `agent` / `connectors`）各走各的机制，`ext/items` 反而是 `codex-core` 的**生产依赖** | — |
+| `codex-rs/ext/` | 15 个 `ext/*` crate（含扩展点本身 `extension-api`，故具体扩展 14 个）。其中 **11 个依赖 `extension-api`，但只有 10 个被注册进 `ExtensionRegistry`**——差的那个是 `guardian-reviewer`，它住在 `ext/` 下却没有 `install`，被当普通库用。另 3 个（`items` / `agent` / `connectors`）不依赖 `extension-api`，各走各的机制。**`codex-core` 生产依赖了 4 个 `ext/*`**：`extension-api` / `items` / `guardian-reviewer` / `skills`，其中 `skills` 同时也是被注册的扩展 | — |
 | `codex-rs/utils/` | **23 个**通用工具 crate | — |
 | `codex-rs/sandboxing/` | 三平台沙箱统一入口 + 3 个 `.sbpl` 策略 | — |
 | `codex-rs/vendor/` | **vendored bubblewrap C 源码**（上游 v0.11.2 完整 drop），Linux 默认沙箱的实际载体 | 51（其中 `bubblewrap/` 占 50，`git ls-files` 口径） |
@@ -435,11 +435,12 @@ pub struct SomeRequest { ... }
 | # | 禁忌 | 具体案例与判据 |
 | ---: | ---- | ---- |
 | **T1** | **读注释、README、帮助文本就下结论** | `codex-rs/config/src/loader/mod.rs` 的函数文档注释把配置层优先级**排反了**：`:96-111` 那段按升序把 `admin: managed preferences` 列在第一位（最低），而**同一文件紧邻的** `:82-94` 又把它列在最后（最高）。真实实现是 macOS MDM 走 `LegacyManagedConfigTomlFromMdm`，precedence **50，全场最高**。同段注释还把 cwd 层路径写成 `${PWD}/config.toml`，实际是 `${PWD}/.codex/config.toml`。**在这里「读注释确认」必然得到错误答案**——唯一可靠的判据是追踪 `layers.push(...)` 的实际调用序列与 `precedence()` 的返回值。见 [`config_system.md`](./config_system.md) §2 — 配置文件的发现顺序与信任门控 |
-| **T2** | **信任自己临时写的计数脚本，不先自证** | 两次实例（数字为**当时基线**下的值，见下方注）：① `Op` 枚举数错成 **16**，当时真值 26——括号深度脚本在**更新深度之后**才判定变体，带结构体字段的变体（如 `UserInput { .. }`）被整体跳过；② `thread/*` 方法数错成 **57**，当时真值 60——正则字符类写成 `[A-Za-z/]` 漏了下划线，恰好漏掉 `thread/inject_items`、`thread/increment_elicitation`、`thread/decrement_elicitation` 三条（这三个方法今天仍在，见 [`app_server_protocol.md`](./app_server_protocol.md) §5）。**计数脚本必须先在已知答案的小样本上自证，或换一条独立口径交叉验证**（`Op` 的交叉口径是 `grep -oE 'Op::[A-Za-z]+' codex-rs/core/src/session/handlers.rs \| sort -u \| wc -l`，与主口径逐字符一致） |
+| **T2** | **信任自己临时写的计数脚本，不先自证** | 两次实例（数字为**当时基线**下的值，见下方注）：① `Op` 枚举数错成 **16**，当时真值 26——括号深度脚本在**更新深度之后**才判定变体，带结构体字段的变体（如 `UserInput { .. }`）被整体跳过；② `thread/*` 方法数错成 **57**，当时真值 60——正则字符类写成 `[A-Za-z/]` 漏了下划线，恰好漏掉 `thread/inject_items`、`thread/increment_elicitation`、`thread/decrement_elicitation` 三条（这三个方法今天仍在，见 [`app_server_protocol.md`](./app_server_protocol.md) §5）。**计数脚本必须先在已知答案的小样本上自证，或换一条独立口径交叉验证**（`Op` 的交叉口径是 `grep -oE 'Op::[A-Za-z]+' codex-rs/core/src/session/handlers.rs \| sort -u \| wc -l`，与主口径逐字符一致）。③ **第 10 轮新增的别名污染陷阱**：把上面那条交叉口径的范围从 `handlers.rs` 放大到全仓，`grep -rhoE '\bOp::[A-Za-z0-9_]+' codex-rs/ --include='*.rs' \| sort -u \| wc -l` 会得到 **37** 而不是 28。多出的 9 个来自 `codex-rs/tui/` 里 **9 处** `use crate::app_command::AppCommand as Op;`——它们是**另一个枚举**。**这也是一条架构事实**：TUI 不直接提交 `codex_protocol::protocol::Op`，它走 `AppCommand` → app-server（仓库里有 `.github/scripts/verify_tui_core_boundary.py` 强制这条边界）。**扩大搜索范围看起来更严谨，实际引入了新的假阳性——范围本身就是口径的一部分** |
 | **T3** | **把 `Stage::Removed` 读成「不可用」** | `Stage` 在 `codex-rs/features/src/lib.rs` 中**唯一的行为性使用**是 `emit_metrics`（`:447-451`）里的过滤——**只影响指标上报**。真正把用户配置落到开关上的 `apply_map`（`:466`）经 `feature_for_key`（`:637`）分支，**全程不检查 `stage`**。所以 `Stage::Removed` 的 feature **照样能被用户在 `[features]` 里开启**，也照样出现在 `codex features list` 里。判断「死开关」的**唯一可靠判据**是穷举 `grep -rn --include='*.rs' 'Feature::Xxx' codex-rs/`，看它是否只出现在「枚举定义 + `FeatureSpec` + 测试」里（`Feature::RemoteControl` 就是这样一个：2 处命中，生产读取点为 0）。见 [`experimental_surfaces.md`](./experimental_surfaces.md) §7.4 — codex-features |
-| **T4** | **把上游文档 / `justfile` / `AGENTS.md` 的记载当成当前可执行** | 已确认的三处陈旧：① `just write-app-server-schema` 跑不通（`codex-app-server-protocol` 无 bin target），而 `AGENTS.md`（grep `write-app-server-schema`）、`justfile` 的同名 recipe **以及那条校验测试自己的 `panic!` 文案**（`codex-rs/app-server-protocol/src/schema_fixtures_tests.rs`）都在推荐它——**循环陈旧，照它说的做只会再挂一次**；② `AGENTS.md`（grep `--all-features`）的建议与「workspace crate features 被制度禁止」矛盾（见禁忌 18）；③ `AGENTS.md` 指的 `codex-rs/codex-mcp/src/mcp_connection_manager.rs` <!-- ref-exempt: 本行正在说明该路径不存在，引用不可解析即为要表达的事实 --> 不存在，实为 `codex-rs/codex-mcp/src/connection_manager.rs`。**引用任何命令前先跑一遍；引用任何路径前先 `ls` 一下** |
+| **T4** | **把上游文档 / `justfile` / `AGENTS.md` 的记载当成当前可执行** | 已确认的两处陈旧：① `AGENTS.md`（grep `--all-features`）的建议与「workspace crate features 被制度禁止」矛盾（见禁忌 18）；② `AGENTS.md:35` 指的 `codex-rs/codex-mcp/src/mcp_connection_manager.rs` <!-- ref-exempt: 本行正在说明该路径不存在，引用不可解析即为要表达的事实 --> 不存在，实为 `codex-rs/codex-mcp/src/connection_manager.rs`（重命名发生在上游 `0bda8161a2`）；另有 `AGENTS.md:265` 与 `:275` 两处指向已不存在的 `app-server-protocol/src/protocol/v2.rs` <!-- ref-exempt: 反例——正文说明 AGENTS.md 给出的该路径不可解析 -->（已被 `d7de4dd3ac` 拆成 `v2/` 目录，`:275` 那处现应指向 `v2/config.rs`）。**引用任何命令前先跑一遍；引用任何路径前先 `ls` 一下** |
 | **T5** | **符号 `pub` + 名字贴切 + 位置显眼 ⇒ 它生效了** | 三条独立的反例：`ConfigLayerSource::Mdm`（precedence 0，全仓生产构造点为 0，只有 `match` 分支与测试）；`ConfigToml::profiles` 与整个 `ConfigProfile`（40+ 字段，排除测试后全仓只有 3 处命中，无任何生产代码读它）；`install_filesystem_landlock_rules_on_current_thread`（注释自述 "currently unused"）。**判据永远是「谁在构造它 / 谁在调用它」，不是「它长什么样」** |
 | **T6** | **引用行号前不看文件总行数** | 实例：`codex-rs/core/src/otel_init.rs` 全文 110 行，上一稿却引了 `:112` 与 `:119`。**`wc -l` 一下是成本最低的一道自检** |
+| **T7** | **「我发现上游坏了」这个结论也会过期——而且比普通事实过期得更隐蔽** | **本表 T4 自己就栽在这里。** 上一稿的第一条实例是：「`just write-app-server-schema` 跑不通（`codex-app-server-protocol` 无 bin target），而 `AGENTS.md`、`justfile` 的 recipe、以及校验测试自己的 `panic!` 文案都在推荐它——**循环陈旧**」。第 10 轮实测：该 recipe 现在是 `justfile:177-178` 的 `{{ python }} app-server-protocol/scripts/write_schema_fixtures.py`，**脚本存在、口径正确，跑得通**；上游已经修好，而本体系那段「勘误」比它所勘的缺陷活得更久。**缺陷会被修复，勘误却不会自动撤销**——写「上游这里是坏的」比写「上游这里是这样的」更需要每轮重跑，因为它的反面（被修好）不会产生任何冲突信号：引用还在、符号还在、门禁照样绿 |
 
 ### 📌 本文档体系自身的约束
 
@@ -512,7 +513,7 @@ pub struct SomeRequest { ... }
 > [!CAUTION]
 > **最常见的错误是把 E1 的目录名/依赖名推断写成 E3 事实。** 本体系有两次实例可供警惕：
 >
-> 1. 「12 个 `ext/*` 全部依赖 `extension-api`」——实测是 **8/12**。⚠️ **连这条勘误本身也曾被写错**：早先说错因是「`grep -rl` 把 `extension-api` 自己数了进去」，但那样只会得到 **9** 而不是 12；`ext/agent` / `ext/connectors` / `ext/items` 三份清单里 `codex-extension-api` 出现次数均为 **0**，grep 口径解释不了差额。**真实错因是把「`ext/` 下共有 12 个 crate」直接归纳成「12 个都依赖它」——一次完全未取证的推断。** 见 [`crate_map.md`](./crate_map.md) §3.8 — 扩展面
+> 1. 「12 个 `ext/*` 全部依赖 `extension-api`」——当时实测是 **8/12**（本轮口径已变为 11/14，见 [`mcp_and_extensions.md`](./mcp_and_extensions.md) §1.1）。⚠️ **连这条勘误本身也曾被写错**：早先说错因是「`grep -rl` 把 `extension-api` 自己数了进去」，但那样只会得到 **9** 而不是 12；`ext/agent` / `ext/connectors` / `ext/items` 三份清单里 `codex-extension-api` 出现次数均为 **0**，grep 口径解释不了差额。**真实错因是把「`ext/` 下共有 12 个 crate」直接归纳成「12 个都依赖它」——一次完全未取证的推断。** 见 [`crate_map.md`](./crate_map.md) §3.8 — 扩展面
 > 2. 「Linux 沙箱用 Landlock」——因为 `Cargo.toml` 里有 `landlock` 依赖、文件名叫 `landlock.rs`。实际该机制已废弃（`Stage::Deprecated`），默认走 bwrap，且默认分支的注释明写 "This path **never falls back** to legacy Landlock on failure." <!-- ref-exempt: 复述致错线索，泛指依赖名与文件名本身 -->
 >
 > 依赖存在 ≠ 依赖生效；类型定义存在 ≠ 该分支被构造；**而「解释错因」本身也需要取证**。
@@ -562,7 +563,7 @@ pub struct SomeRequest { ... }
 
 | 事项 | 当前证据 | 状态 |
 | ---- | ---- | ---- |
-| ~~四条扩展路径的相互关系~~ | **E2/E3** | ⚠️ 已闭合但**首版结论有错**：不是 12/12 依赖 `extension-api`，而是 8/12；**进入 `ExtensionRegistry` 的是 8 个**，另 3 个各走各的机制。见 [`mcp_and_extensions.md`](./mcp_and_extensions.md) §1 |
+| ~~四条扩展路径的相互关系~~ | **E2/E3** | ⚠️ 已闭合但**首版结论有错**：不是 12/12 依赖 `extension-api`，当时实测 8/12；**本轮真值是 11/14 依赖、10 个进入 `ExtensionRegistry`**，另 3 个各走各的机制。见 [`mcp_and_extensions.md`](./mcp_and_extensions.md) §1 |
 | ~~遥测的默认开关~~ | **E3** | ⚠️ 已闭合但**首版结论有错**：debug 构建下 analytics 默认仍发网络，两条通路是耦合的，且**缺省语义相反**（见下方 CAUTION）。见 [`observability.md`](./observability.md) §1 |
 | ~~`find_codex_home` 是否重复实现~~ | **E3** | ✅ 已闭合：是薄委托，见 [`config_system.md`](./config_system.md) §6 — CODEX_HOME 解析 |
 | ~~insta 快照的更新流程~~ | **E2** | ✅ 已闭合：`AGENTS.md` 的 `### Snapshot tests` 一节有完整流程。**首版记为「无任何记载」是漏读**，见 [`testing_guide.md`](./testing_guide.md) §7 |

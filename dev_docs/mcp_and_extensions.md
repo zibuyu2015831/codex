@@ -27,7 +27,7 @@ verified_at: 2026-09-21
 > **标题口径也随之改了**：旧版叫「四条扩展路径」，但 Skills 已不再是独立一条。现在更准确的说法是**三条 crate 作者侧路径（扩展 / 插件 / MCP 客户端）+ 一条用户配置路径（hooks）**。
 
 > [!NOTE]
-> **更早几轮的修订史**（保留备查）：初版曾称「12 个 `ext/*` 全部依赖 extension-api」（实为 8/11）、把 `codex-rs/core/Cargo.toml` 的 dev 依赖当成生产依赖、声称装配点未知。这些在第 5 轮已更正；第 6 轮的数字与结论在此基础上再次全面刷新。
+> **更早几轮的修订史**（保留备查）：初版曾称「12 个 `ext/*` 全部依赖 extension-api」（当时基线下实为 8/11；本轮口径已变为 **11/14**）、把 `codex-rs/core/Cargo.toml` 的 dev 依赖当成生产依赖、声称装配点未知。这些在第 5 轮已更正；第 6 轮的数字与结论在此基础上再次全面刷新。
 
 ## 1. 核心结论：一个主扩展点，但边界比旧版描述的松得多
 
@@ -85,25 +85,37 @@ grep -l "codex-extension-api" codex-rs/ext/*/Cargo.toml | grep -v "ext/extension
 
 ### 1.2 四个"例外" crate 各自是什么（E3）
 
-> **第 6 轮：例外从三个增至四个**（新增 `guardian-reviewer`，见上方 IMPORTANT）。
+「例外」在第 6 轮起有**两种互不相同的含义**，混用会得出矛盾的数字：
+
+| 例外的种类 | 成员 | 判据 |
+| ---- | ---- | ---- |
+| **不实现 `extension-api`**（3 个） | `items` / `agent` / `connectors` | `[dependencies]` 里没有 `codex-extension-api`，见 §1.1 表格 |
+| **实现了却不进注册表**（1 个） | `guardian-reviewer` | 有 `codex-extension-api` 依赖，但无 `install` 函数，任何装配点都不出现它 |
+
+**两类加起来是 4 个，但它们不是同一维度上的 4 个**——前 3 个压根不在扩展体系里，第 4 个在体系里却只当库用。§1.3 的图按这两个维度分别标注。
 
 ### 1.3 由此确定的关系
 
 ```
      ┌─────────────────────────────────────────────────────┐
      │  codex-extension-api  ── 主扩展点                    │
-     │  16 个扩展点 trait（12 个 *Contributor + 1）         │
+     │  16 个扩展点 trait                                   │
      │  + ExtensionRegistry                                 │
      └───────────────────────┬─────────────────────────────┘
-                             │ 11 个具体扩展中的 8 个实现它
-   ┌────────┬────────┬───────┼────────┬──────────┬─────────────┐
-   │        │        │       │        │          │             │
-ext/skills ext/mcp ext/goal ext/  ext/web-  ext/image-  ext/git-
-   │        │              memories  search    generation  attribution
-   │        │                                              + ext/guardian
-   ↓ 包装    ↓ 包装（且依赖 codex-core → 位于 core 之上）
-core-skills  codex-mcp
-+ skills     （MCP 客户端）
+                             │ 14 个具体扩展中的 11 个实现它
+   ┌─────────┬─────────┬─────┴───┬──────────┬─────────────┬──────────────┐
+   │         │         │         │          │             │              │
+ext/skills ext/mcp  ext/goal  ext/       ext/web-    ext/image-     ext/git-
+   │         │       ext/queue memories    search     generation    attribution
+   │         │       ext/history-notes                              ext/guardian-v2
+   │         │
+   │         │                                    ext/guardian-reviewer
+   │         │                                      ↑ 实现了 extension-api
+   │         │                                        但没有 install，不进注册表
+   ↓ 包装     ↓ 包装（且依赖 codex-core → 位于 core 之上）
+codex-skills  codex-mcp
+（core-skills （MCP 客户端）
+  已删除）
 
    —— 不接 extension-api 的三个例外 ——
    ext/items      纯类型 crate，「刻意位于 codex-protocol 之下」
@@ -118,16 +130,18 @@ core-skills  codex-mcp
                     ↑
         codex-core 直接依赖 core-plugins
 
-  装配层（core 之上）：app-server / cli / mcp-server
-        ↑ 进入 ExtensionRegistry 的是 8 个具体扩展，全部在这一层注册；
-          core 的生产依赖里没有任何一个被注册的扩展
-          （但 ext/items 是 core 的生产依赖——它不是扩展，是纯类型 crate）
+  装配层（core 之上）：app-server（主，10 个）/ cli（2 个）/ thread-manager-sample（示例，1 个）
+        ↑ 进入 ExtensionRegistry 的是 10 个具体扩展，全部在这一层注册；
+          core 生产依赖的 ext/* crate 有 4 个，其中 skills 同时也被这一层注册
+          （extension-api 与 items 不是扩展；guardian-reviewer 在 ext/ 下但不进注册表）
 ```
+
+> **第 10 轮更正**：上一稿这张图有三处已消失的对象——`core-skills`（crate 已删除，见 §5）、`mcp-server`（装配层列表里，crate 已整体删除）、`ext/guardian`（已拆分为 `guardian-v2` 与 `guardian-reviewer`）；并把「14 个具体扩展中的 11 个实现它」错写成「11 个中的 8 个」。**这张图与同篇 §1.1 的表格在上一轮是互相矛盾的**——表格已更新到 11，图还停在 8。
 
 **三句话总结（已修订）**：
 
-1. **`ext/extension-api` 是主扩展点**，但**不是所有 `ext/*` 都构建在它之上**——11 个具体扩展里 8 个是，`items`/`agent`/`connectors` 三个不是。
-2. **Skills 与 MCP 不是独立路径，而是被包装成扩展**——`ext/skills` 包装 `core-skills`+`skills`，`ext/mcp` 包装 `codex-mcp`；注意 **`ext/mcp` 依赖 `codex-core`，位于 core 之上**，不是 core 的下游。
+1. **`ext/extension-api` 是主扩展点**，但**不是所有 `ext/*` 都构建在它之上**——14 个具体扩展里 11 个是，`items`/`agent`/`connectors` 三个不是；而 11 个实现者里又有 1 个（`guardian-reviewer`）不进注册表。
+2. **Skills 与 MCP 不是独立路径，而是被包装成扩展**——`ext/skills` 包装 `codex-skills`（旧的 `core-skills` 已删除），`ext/mcp` 包装 `codex-mcp`；注意 **`ext/mcp` 依赖 `codex-core`，位于 core 之上**，不是 core 的下游。
 3. **插件（plugins）大体是并行机制**——`core-plugins` 不依赖 `extension-api`、由 `codex-core` 直接对接；但 **`ext/connectors` 与 `ext/mcp` 说明两条轨道会在扩展内部合流**。
 
 > 所以此前"四条并行路径"的说法**不准确**。准确的说法是：**一个主扩展点（覆盖多数 ext + skills + MCP）+ 一个大体并行、但在个别扩展里合流的插件机制**，另加若干不属于任何一条的支撑 crate。
@@ -246,39 +260,63 @@ pub use registry::empty_extension_registry;
 >
 > **那三行全部位于 `[dev-dependencies]` 段内。** 用 `grep -n "^\[" codex-rs/core/Cargo.toml` 可见：`[dependencies]` 是 `:18`–`:126`，`[dev-dependencies]` 从 **`:137`** 开始。
 >
-> 正确结论：**`codex-core` 的生产依赖里只有 `codex-extension-api`(`:39`) 与 `codex-extension-items`(`:40`) 两个 `ext/*` crate，而这两个都不是具体扩展。**
+> **「那三行在 `[dev-dependencies]` 里」这个判据本身成立，但由它得出的结论已被第 10 轮推翻。** 实测 `codex-core` 的 `[dependencies]`（`:14`–`:129`）里有 **4 个** `ext/*` crate：
 >
-> **不要写成"core 生产依赖里一个 ext crate 都没有"**——上表就写着 `codex-extension-items` 在 `:40`，两处会自相矛盾。准确表述是：**core 的生产依赖里没有任何一个被注册进 `ExtensionRegistry` 的扩展**；被注册的扩展共 **8 个**，全部在更高层装配（见 §3.1）。
+> | 依赖 | 行 | 是否被注册进 `ExtensionRegistry` |
+> | ---- | ---- | ---- |
+> | `codex-extension-api` | `codex-rs/core/Cargo.toml:37` | 否（是接口本身） |
+> | `codex-extension-items` | `codex-rs/core/Cargo.toml:38` | 否（纯数据类型 crate） |
+> | `codex-guardian-reviewer` | `codex-rs/core/Cargo.toml:51` | **否**——住在 `ext/`、依赖 `extension-api`，但无 `install` |
+> | `codex-skills-extension` | `codex-rs/core/Cargo.toml:68` | **是** |
+>
+> 注意 `codex-connectors`(`:31`) **不算**——它是顶层的 `codex-rs/connectors`，与 `ext/connectors` 的 `codex-connectors-extension` 是两个不同的 crate，只差一个后缀，极易混淆。
+>
+> **因此「core 的生产依赖里没有任何一个被注册进 `ExtensionRegistry` 的扩展」这句话是错的**，`codex-skills-extension` 就是反例（与本文 §1 修订说明第 3 条一致）。准确表述是：**core 生产依赖的 `ext/*` crate 有 4 个，其中 1 个（skills）同时也被装配层注册进 `ExtensionRegistry`**——也就是说这个扩展既被动态装配、又被 core 静态直连，「扩展」这层抽象在此处是不彻底的。被注册的扩展共 **10 个**，见 §3.1。
 
 ### 3.1 装配点在哪（E3）
 
 > [!IMPORTANT]
 > **修订说明**：初版把这一条标为 E1 未验证，并建议去 `cli`、`app-server`、`tui` 搜 `ExtensionRegistryBuilder`（其中 `tui` 是错的方向，见 §4.2）。装配点是明确的，如下。
 
-**主装配点：`codex-rs/app-server/src/extensions.rs:51-117` 的 `fn thread_extensions()`**
+**主装配点：`codex-rs/app-server/src/extensions.rs:50-124` 的 `fn thread_extensions()`**
 
-它用 `ExtensionRegistryBuilder::<Config>::with_event_sink(...)` 起手（`codex-rs/app-server/src/extensions.rs:72`），然后依次安装 8 个扩展（`:71-115`）：
+它用 `ExtensionRegistryBuilder::<Config>::with_event_sink(...)` 起手（`codex-rs/app-server/src/extensions.rs:67`），然后依次安装 **10 个**扩展（`:71-117`）：
 
 | 安装调用 | 门控条件（E3，直接读代码） |
 | ---- | ---- |
-| `codex_goal_extension::install_with_backend(...)` | **双重门控**：`state_db.is_some()` 才进入分支，且传入 `\|config\| config.features.enabled(Feature::Goals)`（`codex-rs/app-server/src/extensions.rs:72-80`） |
-| `codex_git_attribution::install(...)` | 无门控 |
-| `codex_guardian::install(&mut builder, guardian_agent_spawner)` | 无门控；传入 `AgentSpawner` |
-| `codex_memories_extension::install(...)` | 无门控 |
-| `codex_mcp_extension::install(...)` + `install_executor_plugins(...)` | 无门控；**第二个调用把插件机制接进 MCP 扩展** |
-| `codex_web_search_extension::install(...)` | 无门控 |
-| `codex_image_generation_extension::install(...)` | 无门控 |
-| `codex_skills_extension::install_with_providers_and_metrics(...)` | **4 个开关**：`include_skill_instructions` / `bundled_skills_enabled()` / `orchestrator_skills_enabled` / `Feature::SkillSearch`（`codex-rs/app-server/src/extensions.rs:103-113`）；`SkillProviders` 装齐 executor / orchestrator / host 三种 |
+| `codex_queue_extension::install(...)`（`:72`） | **门控**：`if let Some(queue_service) = queue_service`（`:71`）——依赖注入型门控，不是特性开关 |
+| `codex_history_notes_extension::install(...)`（`:74`） | 无门控 |
+| `codex_goal_extension::install_with_backend(...)`（`:76`） | **双重门控**：`state_db.is_some()` 才进入分支（`:75`），且传入 `\|config\| config.features.enabled(Feature::Goals)`（`:84`） |
+| `codex_git_attribution::install(...)`（`:89`） | 无门控 |
+| `codex_guardian_v2::install(...)`（`:95`） | 无门控；传入 `auth_manager` 与 `thread_manager`。**一个 `install` 挂载两组 contributor**，见 [`guardian.md`](./guardian.md) |
+| `codex_memories_extension::install(...)`（`:96`） | 无门控 |
+| `codex_mcp_extension::install(...)`（`:97`）+ `install_plugins(...)`（`:98`） | 无门控；**第二个调用把插件机制接进 MCP 扩展** |
+| `codex_web_search_extension::install(...)`（`:99`） | 无门控 |
+| `codex_image_generation_extension::install(...)`（`:100`） | 无门控 |
+| `codex_skills_extension::install_with_providers_and_metrics(...)`（`:109`） | **4 个开关**：`include_skill_instructions` / `max_context_tokens` / `bundled_skills_enabled()` / `orchestrator_skills_enabled`，外加 `Feature::SkillSearch` 驱动的 `shadow_selection_enabled`（`:113-121`）；`SkillProviders` 装齐 executor / orchestrator / host 三种（`:103-108`） |
+
+> [!CAUTION]
+> **本表在第 10 轮独立复核中被查出整节陈旧**，是本轮最大的一处失效。上一稿的三个具体错误都属于「引用已消失的符号」：
+>
+> | 上一稿 | 真实情况 |
+> | ---- | ---- |
+> | `codex_guardian::install(&mut builder, guardian_agent_spawner)`，「传入 `AgentSpawner`」 | crate 已改名 `codex_guardian_v2`；**`AgentSpawner` 全仓零命中**（`grep -rn AgentSpawner codex-rs/ --include='*.rs'` → 0），该能力 trait 已从 `extension-api` 删除 |
+> | `install_executor_plugins(...)` | **全仓零命中**，真名是 `install_plugins` |
+> | 「依次安装 **8** 个扩展」 | 实为 **10** 个——漏掉了 `queue`（`:72`）与 `history_notes`（`:74`） |
+>
+> **为什么门禁没拦住**：这三处引用的都是**符号名与数字**，而 `AgentSpawner`、`install_executor_plugins` 在上一稿里是写在表格单元格的行内代码里、没有带 `path:line` 引用，引用检查器对它们无从下手；「8 个」这种散文里的计数也不在跨文档事实正则的口径内。**批次 1 早已独立发现 `AgentSpawner` 被删**（记在 [`crate_map.md`](./crate_map.md) §3.8 的「数字没变但集合变了」那条），但那条发现**没有被回灌到本节**——两篇文档各自为政，体系内自相矛盾了整整一轮。
 
 **其他装配点**：
 
 | 位置 | 装了什么 |
 | ---- | ---- |
-| `codex-rs/cli/src/main.rs:2057,2063` | **共 2 个**：`codex_git_attribution::install`、`codex_skills_extension::install`；且用 `ExtensionRegistryBuilder::new()` 而非 `with_event_sink`（`codex-rs/cli/src/main.rs:2056`）——`new()` 走 `Default`，事件下沉是 `NoopExtensionEventSink`（`codex-rs/ext/extension-api/src/registry.rs:38-41,60-62`），**cli 装的扩展发不出扩展事件** |<!-- ref-exempt: with_event_sink 在此是被否定的对象，正文说的正是 cli 没有用它 --><!-- ref-exempt: with_event_sink 在此是被否定的对象，正文说的正是 cli 没有用它 -->
-| ~~`codex-rs/mcp-server/src/message_processor.rs`~~ | **第 6 轮删除**：该 crate 已被上游整体移除<!-- ref-exempt: 反例——正文说明该路径已不存在 -->，这条装配点随之消失。剩余装配点见本表其余行。原内容（供对照）：曾装 3 个扩展 —— git-attribution / image-generation / skillsiders_and_metrics`(`:85`)。注意这里 `SkillProviders::new().with_host_provider(...)` **只装 host provider**，比 app-server 少 executor / orchestrator 两种 |
-| `codex-rs/thread-manager-sample/src/main.rs:137` | 最小示例：只装 image-generation，随后传给 `ThreadManager::new` |
+| `codex-rs/cli/src/main.rs:2479,2485` | **共 2 个**：`codex_git_attribution::install`、`codex_skills_extension::install`；且用 `ExtensionRegistryBuilder::new()` 而非 `with_event_sink`（`codex-rs/cli/src/main.rs:2478`）——`new()` 走 `Default`，事件下沉是 `NoopExtensionEventSink`（`codex-rs/ext/extension-api/src/registry.rs:38-41,60-62`），**cli 装的扩展发不出扩展事件**。注意 cli 用的是 `codex_skills_extension::install`，**不是** app-server 那个 `install_with_providers_and_metrics`——同一个扩展在两处按不同形态装配 |<!-- ref-exempt: with_event_sink 在此是被否定的对象，正文说的正是 cli 没有用它 -->
+| ~~`codex-rs/mcp-server/src/message_processor.rs`~~ | **第 6 轮删除**：该 crate 已被上游整体移除<!-- ref-exempt: 反例——正文说明该路径已不存在 -->，这条装配点随之消失。它曾装 3 个扩展（git-attribution / image-generation / skills）。能力**未迁移到任何继承者**，详见 §1 的修订说明 |
+| `codex-rs/thread-manager-sample/src/main.rs:139-140` | 最小示例：`ExtensionRegistryBuilder::<Config>::new()`（`:139`）后只装 image-generation（`:140`），随后传给 `ThreadManager::new`。**注意它走的是 `codex_core_api::install_image_generation_extension`**（`:66` 的 `use`），即经 `codex-core-api` 再导出，而非直接调用扩展 crate |
 
-> **三处装配点的并集恰好是 8 个具体扩展**：goal / git-attribution / guardian / memories / mcp / web-search / image-generation / skills。`ext/` 下另外 3 个 crate（`items` / `agent` / `connectors`）**根本不进 `ExtensionRegistry`**——所以「11 个具体扩展全部在装配层注册」是错的，正确数字是 **8**。
+> **三处装配点的并集是 10 个具体扩展**（等于 app-server 那 10 个——cli 与 sample 装的都是其子集）：queue / history-notes / goal / git-attribution / guardian-v2 / memories / mcp / web-search / image-generation / skills。
+>
+> `ext/` 下 15 个 crate 里**有 5 个不进 `ExtensionRegistry`**：`extension-api`（接口本身）、`items`、`agent`、`connectors`，以及 `guardian-reviewer`。**最后这个是最容易漏的**——它住在 `ext/` 下、也在 `[dependencies]` 里依赖 `codex-extension-api`，却没有任何 `install` 函数（`grep "pub fn install" codex-rs/ext/guardian-reviewer/src/*.rs` 零命中），被 `codex-core` 与 `codex-guardian-v2` 当普通库消费。**所以「依赖 extension-api 的 11 个」与「被注册的 10 个」是两个不同集合，差的就是它**，见 §1.2 与 [`guardian.md`](./guardian.md)。
 
 > `codex-agent-extension` 与 `codex-connectors-extension` **不走 `ExtensionRegistry`**：前者被 `codex-rs/app-server/src/request_processors/turn_processor.rs` 当作普通库调用，后者被 `ext/mcp` 作为插件 provider 依赖。这再次印证 §1.2 的判断。<!-- ref-exempt: ExtensionRegistry 在此是被否定的对象，不应期望出现在 turn_processor.rs 中 -->
 
@@ -579,7 +617,7 @@ pub use registry::empty_extension_registry;
 
 | 未覆盖项 | 当前证据 | 建议入口 |
 | ---- | ---- | ---- |
-| ~~7 个未被 core 直接依赖的 ext 在哪装配~~ | **已在 §3.1 解决**（前提也是错的：不是 7 个，进入 `ExtensionRegistry` 的是 8 个） | — |
+| ~~7 个未被 core 直接依赖的 ext 在哪装配~~ | **已在 §3.1 解决**（前提也是错的：进入 `ExtensionRegistry` 的是 **10** 个；第 10 轮更正，上一稿写 8） | — |
 | ~~8 个装配调用各自的门控条件~~ | **已在 §3.1 解决**（E3）：goal 受 `state_db.is_some()` + `Feature::Goals` 双重门控，skills 受 4 个开关，其余 6 个无门控 | — |
 | ~~`ext/mcp` 里 `install_executor_plugins` 的具体语义~~ | **已在 §4.2 解决**（E3）：注册 `SelectedExecutorPluginMcpContributor`，经 `ExecutorPluginConnectorProvider` 接 `ext/connectors` | — |
 | ~~Skill 的发现与装载~~ | **已在 §5.1 解决**（E3） | — |
